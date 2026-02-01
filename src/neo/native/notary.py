@@ -230,3 +230,14 @@ class Notary(NativeContract):
         if item is None:
             return None
         return Deposit.deserialize(item.value)
+    
+    def _put_deposit(self, account: UInt160, deposit: Deposit) -> None:
+        """Store deposit for account."""
+        key = self._create_storage_key(PREFIX_DEPOSIT, account.data)
+        self._storage[key.key] = StorageItem(deposit.serialize())
+    
+    def _remove_deposit(self, account: UInt160) -> None:
+        """Remove deposit for account."""
+        key = self._create_storage_key(PREFIX_DEPOSIT, account.data)
+        if key.key in self._storage:
+            del self._storage[key.key]
