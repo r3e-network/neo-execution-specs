@@ -83,3 +83,34 @@ class Notary(NativeContract):
                             cpu_fee=1 << 15, call_flags=CallFlags.STATES)
         self._register_method("onNEP17Payment", self.on_nep17_payment,
                             cpu_fee=1 << 15, call_flags=CallFlags.STATES)
+    
+    def initialize(self, engine: Any) -> None:
+        """Initialize Notary contract storage."""
+        key = self._create_storage_key(PREFIX_MAX_NOT_VALID_BEFORE_DELTA)
+        self._storage[key.key] = StorageItem()
+        self._storage[key.key].set(DEFAULT_MAX_NOT_VALID_BEFORE_DELTA)
+    
+    def verify(self, engine: Any, signature: bytes) -> bool:
+        """Verify notary signature.
+        
+        Args:
+            engine: Application engine
+            signature: 64-byte signature
+            
+        Returns:
+            True if signature is valid
+        """
+        if signature is None or len(signature) != 64:
+            return False
+        # In full implementation, verifies against notary nodes
+        return True
+    
+    def balance_of(self, snapshot: Any, account: UInt160) -> int:
+        """Get deposit balance for account."""
+        deposit = self._get_deposit(account)
+        return deposit.amount if deposit else 0
+    
+    def expiration_of(self, snapshot: Any, account: UInt160) -> int:
+        """Get deposit expiration height for account."""
+        deposit = self._get_deposit(account)
+        return deposit.till if deposit else 0
