@@ -334,3 +334,74 @@ class OracleContract(NativeContract):
             offset = 1 + i * 8
             result.append(int.from_bytes(data[offset:offset + 8], 'little'))
         return result
+    
+    def get_request(self, snapshot: Any, request_id: int) -> Optional[OracleRequest]:
+        """Get a pending request by ID."""
+        key = self._create_storage_key(PREFIX_REQUEST, request_id)
+        item = self._storage.get(key.key)
+        if item is None:
+            return None
+        return OracleRequest.deserialize(item.value)
+    
+    def get_requests(self, snapshot: Any) -> Iterator[Tuple[int, OracleRequest]]:
+        """Get all pending requests."""
+        prefix = bytes([PREFIX_REQUEST])
+        for key, item in self._storage.items():
+            if key.startswith(prefix):
+                request_id = int.from_bytes(key[1:], 'big')
+                yield (request_id, OracleRequest.deserialize(item.value))
+    
+    def get_requests_by_url(self, snapshot: Any, url: str) -> Iterator[Tuple[int, OracleRequest]]:
+        """Get requests for a specific URL."""
+        url_hash = self._get_url_hash(url)
+        key = self._create_storage_key(PREFIX_ID_LIST, url_hash)
+        item = self._storage.get(key.key)
+        
+        if item is None:
+            return
+        
+        id_list = self._deserialize_id_list(item.value)
+        for request_id in id_list:
+            request = self.get_request(snapshot, request_id)
+            if request:
+                yield (request_id, request)
+    
+    def finish(self, engine: Any) -> None:
+        """Finish an Oracle response.
+        
+        Called by Oracle nodes to deliver response data.
+        """
+        # This would be called with response data
+        # In full implementation, validates and processes response
+        pass
+    
+    def verify(self, engine: Any) -> bool:
+        """Verify Oracle response transaction.
+        
+        Returns True if transaction has OracleResponse attribute.
+        """
+        # In full implementation, checks for OracleResponse attribute
+        return True
+    
+    def _remove_request(self, request_id: int, url: str) -> None:
+        """Remove a request after processing."""
+        # Remove from request storage
+        key = self._create_storage_key(PREFIX_REQUEST, request_id)
+        if key.key in self._storage:
+            del self._storage[key.key]
+        
+        # Remove from URL index
+        url_hash = self._get_url_hash(url)
+        key = self._create_storage_key(PREFIX_ID_LIST, url_hash)
+        item = self._storage.get(key.key)
+        
+        if item:
+            id_list = self._deserialize_id_list(item.value)
+            if request_id in id_list:
+                id_list.remove(request_id)
+                if id_list:
+                    self._storage[key.key] = StorageItem(
+                        self._serialize_id_list(id_list)
+                    )
+                else:
+                    del self._storage[key.key]
