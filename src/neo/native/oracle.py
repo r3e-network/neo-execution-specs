@@ -1,11 +1,16 @@
-"""Oracle contract for external data requests."""
+"""Oracle contract for external data requests.
+
+Reference: Neo.SmartContract.Native.OracleContract
+"""
 
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Optional
+from dataclasses import dataclass, field
+from enum import IntEnum
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from neo.types import UInt160, UInt256
-from neo.native.native_contract import NativeContract, CallFlags, StorageItem
+from neo.native.native_contract import NativeContract, CallFlags, StorageKey, StorageItem
+from neo.crypto import hash160
 
 
 # Storage prefixes
@@ -14,17 +19,128 @@ PREFIX_REQUEST_ID = 9
 PREFIX_REQUEST = 7
 PREFIX_ID_LIST = 6
 
-# Default oracle price (0.5 GAS)
-DEFAULT_ORACLE_PRICE = 50000000
+# Limits
+MAX_URL_LENGTH = 256
+MAX_FILTER_LENGTH = 128
+MAX_CALLBACK_LENGTH = 32
+MAX_USER_DATA_LENGTH = 512
+
+# Default oracle price (0.5 GAS in datoshi)
+DEFAULT_ORACLE_PRICE = 50_000_000
+
+
+class OracleResponseCode(IntEnum):
+    """Oracle response codes."""
+    Success = 0x00
+    ProtocolNotSupported = 0x10
+    ConsensusUnreachable = 0x12
+    NotFound = 0x14
+    Timeout = 0x16
+    Forbidden = 0x18
+    ResponseTooLarge = 0x1a
+    InsufficientFunds = 0x1c
+    ContentTypeNotSupported = 0x1f
+    Error = 0xff
 
 
 @dataclass
 class OracleRequest:
-    """Oracle request data."""
-    original_txid: Optional[UInt256] = None
+    """Oracle request data structure."""
+    original_txid: UInt256 = field(default_factory=lambda: UInt256(b'\x00' * 32))
     gas_for_response: int = 0
     url: str = ""
     filter: Optional[str] = None
-    callback_contract: Optional[UInt160] = None
+    callback_contract: UInt160 = field(default_factory=lambda: UInt160(b'\x00' * 20))
     callback_method: str = ""
     user_data: bytes = b""
+    
+    def serialize(self) -> bytes:
+        """Serialize request to bytes."""
+        result = bytearray()
+        
+        # Original txid (32 bytes)
+        result.extend(self.original_txid.data)
+        
+        # Gas for response (8 bytes, little-endian)
+        result.extend(self.gas_for_response.to_bytes(8, 'little'))
+        
+        # URL (length-prefixed)
+        url_bytes = self.url.encode('utf-8')
+        result.append(len(url_bytes))
+        result.extend(url_bytes)
+        
+        # Filter (length-prefixed, 0 for None)
+        if self.filter is None:
+            result.append(0)
+        else:
+            filter_bytes = self.filter.encode('utf-8')
+            result.append(len(filter_bytes))
+            result.extend(filter_bytes)
+        
+        # Callback contract (20 bytes)
+        result.extend(self.callback_contract.data)
+        
+        # Callback method (length-prefixed)
+        method_bytes = self.callback_method.encode('utf-8')
+        result.append(len(method_bytes))
+        result.extend(method_bytes)
+        
+        # User data (length-prefixed)
+        result.append(len(self.user_data) & 0xff)
+        result.append((len(self.user_data) >> 8) & 0xff)
+        result.extend(self.user_data)
+        
+        return bytes(result)
+    
+    @classmethod
+    def deserialize(cls, data: bytes) -> OracleRequest:
+        """Deserialize request from bytes."""
+        offset = 0
+        
+        # Original txid
+        original_txid = UInt256(data[offset:offset + 32])
+        offset += 32
+        
+        # Gas for response
+        gas_for_response = int.from_bytes(data[offset:offset + 8], 'little')
+        offset += 8
+        
+        # URL
+        url_len = data[offset]
+        offset += 1
+        url = data[offset:offset + url_len].decode('utf-8')
+        offset += url_len
+        
+        # Filter
+        filter_len = data[offset]
+        offset += 1
+        if filter_len == 0:
+            filter_val = None
+        else:
+            filter_val = data[offset:offset + filter_len].decode('utf-8')
+            offset += filter_len
+        
+        # Callback contract
+        callback_contract = UInt160(data[offset:offset + 20])
+        offset += 20
+        
+        # Callback method
+        method_len = data[offset]
+        offset += 1
+        callback_method = data[offset:offset + method_len].decode('utf-8')
+        offset += method_len
+        
+        # User data
+        user_data_len = data[offset] | (data[offset + 1] << 8)
+        offset += 2
+        user_data = data[offset:offset + user_data_len]
+        
+        return cls(
+            original_txid=original_txid,
+            gas_for_response=gas_for_response,
+            url=url,
+            filter=filter_val,
+            callback_contract=callback_contract,
+            callback_method=callback_method,
+            user_data=user_data
+        )

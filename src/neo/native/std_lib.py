@@ -59,6 +59,16 @@ class StdLib(NativeContract):
                             cpu_fee=1 << 8, call_flags=CallFlags.NONE)
         self._register_method("strLen", self.str_len,
                             cpu_fee=1 << 8, call_flags=CallFlags.NONE)
+        # Hardfork HF_Echidna methods
+        self._register_method("base64UrlEncode", self.base64_url_encode,
+                            cpu_fee=1 << 5, call_flags=CallFlags.NONE)
+        self._register_method("base64UrlDecode", self.base64_url_decode,
+                            cpu_fee=1 << 5, call_flags=CallFlags.NONE)
+        # Hardfork HF_Faun methods
+        self._register_method("hexEncode", self.hex_encode,
+                            cpu_fee=1 << 5, call_flags=CallFlags.NONE)
+        self._register_method("hexDecode", self.hex_decode,
+                            cpu_fee=1 << 5, call_flags=CallFlags.NONE)
     
     def serialize(self, item: Any) -> bytes:
         """Serialize a stack item to bytes using Neo binary format."""
@@ -386,3 +396,70 @@ class StdLib(NativeContract):
             while i < len(s) and unicodedata.category(s[i]).startswith('M'):
                 i += 1
         return count
+    
+    def base64_url_encode(self, data: str) -> str:
+        """Encode string to base64url format.
+        
+        Base64url is URL-safe base64 encoding that replaces:
+        - '+' with '-'
+        - '/' with '_'
+        - Removes padding '='
+        
+        Args:
+            data: String to encode
+            
+        Returns:
+            Base64url encoded string
+        """
+        if len(data) > MAX_INPUT_LENGTH:
+            raise ValueError("Input too long")
+        
+        # Encode to base64 and convert to URL-safe format
+        encoded = base64.urlsafe_b64encode(data.encode('utf-8')).decode('ascii')
+        # Remove padding
+        return encoded.rstrip('=')
+    
+    def base64_url_decode(self, s: str) -> str:
+        """Decode base64url string.
+        
+        Args:
+            s: Base64url encoded string
+            
+        Returns:
+            Decoded string
+        """
+        if len(s) > MAX_INPUT_LENGTH:
+            raise ValueError("Input too long")
+        
+        # Add padding if needed
+        padding = 4 - (len(s) % 4)
+        if padding != 4:
+            s += '=' * padding
+        
+        return base64.urlsafe_b64decode(s).decode('utf-8')
+    
+    def hex_encode(self, data: bytes) -> str:
+        """Encode bytes to hexadecimal string.
+        
+        Args:
+            data: Bytes to encode
+            
+        Returns:
+            Hexadecimal string (lowercase)
+        """
+        if len(data) > MAX_INPUT_LENGTH:
+            raise ValueError("Input too long")
+        return data.hex()
+    
+    def hex_decode(self, s: str) -> bytes:
+        """Decode hexadecimal string to bytes.
+        
+        Args:
+            s: Hexadecimal string
+            
+        Returns:
+            Decoded bytes
+        """
+        if len(s) > MAX_INPUT_LENGTH:
+            raise ValueError("Input too long")
+        return bytes.fromhex(s)
