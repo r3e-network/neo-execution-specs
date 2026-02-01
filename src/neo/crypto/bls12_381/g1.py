@@ -122,6 +122,127 @@ class G1Affine:
         return self * scalar
 
 
+class G1Projective:
+    """G1 point in projective coordinates."""
+    
+    __slots__ = ('x', 'y', 'z')
+    
+    def __init__(self, x: int = 0, y: int = 1, z: int = 0) -> None:
+        self.x = x % P
+        self.y = y % P
+        self.z = z % P
+    
+    @classmethod
+    def identity(cls) -> G1Projective:
+        return cls(0, 1, 0)
+    
+    @classmethod
+    def generator(cls) -> G1Projective:
+        return cls.from_affine(G1Affine.generator())
+    
+    @classmethod
+    def from_affine(cls, p: G1Affine) -> G1Projective:
+        if p._is_infinity:
+            return cls.identity()
+        return cls(p.x, p.y, 1)
+    
+    def to_affine(self) -> G1Affine:
+        if self.z == 0:
+            return G1Affine.identity()
+        z_inv = pow(self.z, -1, P)
+        x = (self.x * z_inv) % P
+        y = (self.y * z_inv) % P
+        return G1Affine(x, y)
+    
+    def to_compressed(self) -> bytes:
+        return self.to_affine().to_compressed()
+    
+    def is_identity(self) -> bool:
+        return self.z == 0
+    
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, G1Projective):
+            if self.z == 0 and other.z == 0:
+                return True
+            if self.z == 0 or other.z == 0:
+                return False
+            return (self.x * other.z - other.x * self.z) % P == 0 and \
+                   (self.y * other.z - other.y * self.z) % P == 0
+        if isinstance(other, G1Affine):
+            return self.to_affine() == other
+        return False
+    
+    def __neg__(self) -> G1Projective:
+        return G1Projective(self.x, P - self.y, self.z)
+    
+    def __add__(self, other: G1Affine | G1Projective) -> G1Projective:
+        if isinstance(other, G1Affine):
+            other = G1Projective.from_affine(other)
+        return self._add_projective(other)
+    
+    def _add_projective(self, other: G1Projective) -> G1Projective:
+        if self.z == 0:
+            return other
+        if other.z == 0:
+            return self
+        
+        # Standard projective addition
+        u1 = (self.x * other.z) % P
+        u2 = (other.x * self.z) % P
+        s1 = (self.y * other.z) % P
+        s2 = (other.y * self.z) % P
+        
+        if u1 == u2:
+            if s1 == s2:
+                return self._double()
+            return G1Projective.identity()
+        
+        h = (u2 - u1) % P
+        r = (s2 - s1) % P
+        h2 = (h * h) % P
+        h3 = (h2 * h) % P
+        
+        x3 = (r * r - h3 - 2 * u1 * h2) % P
+        y3 = (r * (u1 * h2 - x3) - s1 * h3) % P
+        z3 = (h * self.z * other.z) % P
+        
+        return G1Projective(x3, y3, z3)
+    
+    def _double(self) -> G1Projective:
+        if self.z == 0:
+            return self
+        
+        w = (3 * self.x * self.x) % P
+        s = (self.y * self.z) % P
+        b = (self.x * self.y * s) % P
+        h = (w * w - 8 * b) % P
+        
+        x3 = (2 * h * s) % P
+        y3 = (w * (4 * b - h) - 8 * self.y * self.y * s * s) % P
+        z3 = (8 * s * s * s) % P
+        
+        return G1Projective(x3, y3, z3)
+    
+    def __mul__(self, scalar: int | Scalar) -> G1Projective:
+        if isinstance(scalar, Scalar):
+            scalar = scalar.value
+        scalar = scalar % SCALAR_MODULUS
+        
+        result = G1Projective.identity()
+        temp = self
+        
+        while scalar > 0:
+            if scalar & 1:
+                result = result + temp
+            temp = temp._double()
+            scalar >>= 1
+        
+        return result
+    
+    def __rmul__(self, scalar: int | Scalar) -> G1Projective:
+        return self * scalar
+
+
 def _sqrt_mod_p(a: int) -> int | None:
     """Compute square root modulo p using Tonelli-Shanks."""
     if a == 0:
