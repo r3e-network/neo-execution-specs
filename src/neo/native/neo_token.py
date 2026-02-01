@@ -1,11 +1,12 @@
 """NEO Token native contract."""
 
 from __future__ import annotations
-from neo.native.native_contract import NativeContract
+from dataclasses import dataclass, field
 from neo.types import UInt160
 
 
-class NeoToken(NativeContract):
+@dataclass
+class NeoToken:
     """NEO token - governance token."""
     
     id: int = -5
@@ -16,5 +17,4 @@ class NeoToken(NativeContract):
     
     @property
     def hash(self) -> UInt160:
-        # Hardcoded hash for NeoToken
         return UInt160(bytes.fromhex("ef4073a0f2b305a38ec4050e4d3d28bc40ea63f5")[::-1])

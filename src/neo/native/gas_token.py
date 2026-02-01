@@ -1,11 +1,12 @@
 """GAS Token native contract."""
 
 from __future__ import annotations
-from neo.native.native_contract import NativeContract
+from dataclasses import dataclass
 from neo.types import UInt160
 
 
-class GasToken(NativeContract):
+@dataclass
+class GasToken:
     """GAS token - utility token."""
     
     id: int = -6
