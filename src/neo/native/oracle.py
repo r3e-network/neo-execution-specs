@@ -144,3 +144,63 @@ class OracleRequest:
             callback_method=callback_method,
             user_data=user_data
         )
+
+
+class OracleContract(NativeContract):
+    """Oracle native contract for external data requests.
+    
+    Provides functionality for smart contracts to request external data
+    from URLs and receive responses through callbacks.
+    """
+    
+    def __init__(self) -> None:
+        self._storage: Dict[bytes, StorageItem] = {}
+        super().__init__()
+    
+    @property
+    def name(self) -> str:
+        return "OracleContract"
+    
+    def _register_methods(self) -> None:
+        """Register Oracle contract methods."""
+        super()._register_methods()
+        
+        self._register_method("getPrice", self.get_price,
+                            cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
+        self._register_method("setPrice", self.set_price,
+                            cpu_fee=1 << 15, call_flags=CallFlags.STATES)
+        self._register_method("request", self.request,
+                            cpu_fee=0, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
+        self._register_method("finish", self.finish,
+                            cpu_fee=0, call_flags=CallFlags.STATES | CallFlags.ALLOW_CALL | CallFlags.ALLOW_NOTIFY)
+        self._register_method("verify", self.verify,
+                            cpu_fee=1 << 15, call_flags=CallFlags.NONE)
+    
+    def initialize(self, engine: Any) -> None:
+        """Initialize Oracle contract storage."""
+        # Set initial request ID to 0
+        key = self._create_storage_key(PREFIX_REQUEST_ID)
+        self._storage[key.key] = StorageItem(b'\x00')
+        
+        # Set default price
+        key = self._create_storage_key(PREFIX_PRICE)
+        self._storage[key.key] = StorageItem()
+        self._storage[key.key].set(DEFAULT_ORACLE_PRICE)
+    
+    def get_price(self, snapshot: Any = None) -> int:
+        """Get the price for an Oracle request in datoshi."""
+        key = self._create_storage_key(PREFIX_PRICE)
+        item = self._storage.get(key.key)
+        if item is None:
+            return DEFAULT_ORACLE_PRICE
+        return int(item)
+    
+    def set_price(self, engine: Any, price: int) -> None:
+        """Set the price for Oracle requests. Committee only."""
+        if price <= 0:
+            raise ValueError("Price must be positive")
+        
+        key = self._create_storage_key(PREFIX_PRICE)
+        if key.key not in self._storage:
+            self._storage[key.key] = StorageItem()
+        self._storage[key.key].set(price)
