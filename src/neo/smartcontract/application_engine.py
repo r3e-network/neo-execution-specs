@@ -35,3 +35,58 @@ class ApplicationEngine(ExecutionEngine):
         if self.gas_limit > 0 and self.gas_consumed > self.gas_limit:
             from neo.exceptions import OutOfGasException
             raise OutOfGasException()
+    
+    # Constants
+    MAX_STORAGE_KEY_SIZE = 64
+    MAX_STORAGE_VALUE_SIZE = 65535
+    MAX_EVENT_NAME = 32
+    MAX_NOTIFICATION_SIZE = 1024
+    FEE_FACTOR = 10000
+    
+    # Additional fields
+    script_container: Optional[object] = None
+    snapshot: Optional[object] = None
+    invocation_counter: Dict[bytes, int] = field(default_factory=dict)
+    
+    @property
+    def current_script_hash(self) -> Optional[UInt160]:
+        """Get script hash of current context."""
+        from neo.types import UInt160
+        import hashlib
+        ctx = self.current_context
+        if ctx is None:
+            return None
+        h = hashlib.new('ripemd160', hashlib.sha256(ctx.script).digest()).digest()
+        return UInt160(h)
+    
+    @property
+    def calling_script_hash(self) -> Optional[UInt160]:
+        """Get script hash of calling context."""
+        if len(self.invocation_stack) < 2:
+            return None
+        from neo.types import UInt160
+        import hashlib
+        ctx = self.invocation_stack[-2]
+        h = hashlib.new('ripemd160', hashlib.sha256(ctx.script).digest()).digest()
+        return UInt160(h)
+    
+    @property
+    def entry_script_hash(self) -> Optional[UInt160]:
+        """Get script hash of entry context."""
+        if not self.invocation_stack:
+            return None
+        from neo.types import UInt160
+        import hashlib
+        ctx = self.invocation_stack[0]
+        h = hashlib.new('ripemd160', hashlib.sha256(ctx.script).digest()).digest()
+        return UInt160(h)
+    
+    def get_invocation_counter(self) -> int:
+        """Get invocation counter for current script."""
+        script_hash = self.current_script_hash
+        if script_hash is None:
+            return 0
+        key = script_hash.data
+        if key not in self.invocation_counter:
+            self.invocation_counter[key] = 1
+        return self.invocation_counter[key]

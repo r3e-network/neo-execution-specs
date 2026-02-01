@@ -26,6 +26,11 @@ class Boolean(StackItem):
     def get_boolean(self) -> bool:
         return self._value
     
+    def get_integer(self):
+        """Convert to integer (1 for True, 0 for False)."""
+        from neo.types import BigInteger
+        return BigInteger(1 if self._value else 0)
+    
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Boolean):
             return self._value == other._value

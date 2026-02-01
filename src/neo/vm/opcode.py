@@ -1,20 +1,44 @@
-"""NeoVM OpCodes."""
+"""NeoVM OpCodes.
+
+This module defines all opcodes for the Neo Virtual Machine v3.9.1.
+Each opcode is a single byte that represents an instruction to be executed.
+"""
 
 from enum import IntEnum
 
 
 class OpCode(IntEnum):
-    """NeoVM instruction opcodes."""
+    """NeoVM instruction opcodes.
+    
+    Opcodes are organized into the following categories:
+    - Constants (0x00-0x20): Push values onto the stack
+    - Flow Control (0x21-0x41): Control program flow
+    - Stack (0x43-0x55): Manipulate the evaluation stack
+    - Slot (0x56-0x87): Access local/argument/static slots
+    - Splice (0x88-0x8E): String/buffer operations
+    - Bitwise (0x90-0x98): Bitwise operations
+    - Numeric (0x99-0xBB): Arithmetic and comparison operations
+    - Compound (0xBE-0xD4): Array/map/struct operations
+    - Types (0xD8-0xE1): Type checking and conversion
+    """
     
     # region Constants
-    PUSHINT8 = 0x00
-    PUSHINT16 = 0x01
-    PUSHINT32 = 0x02
-    PUSHINT64 = 0x03
-    PUSHINT128 = 0x04
-    PUSHINT256 = 0x05
-    PUSHA = 0x0A
-    PUSHNULL = 0x0B
+    
+    # Push integer values
+    PUSHINT8 = 0x00    # Push 1-byte signed integer
+    PUSHINT16 = 0x01   # Push 2-byte signed integer
+    PUSHINT32 = 0x02   # Push 4-byte signed integer
+    PUSHINT64 = 0x03   # Push 8-byte signed integer
+    PUSHINT128 = 0x04  # Push 16-byte signed integer
+    PUSHINT256 = 0x05  # Push 32-byte signed integer
+    
+    # Push boolean values
+    PUSHT = 0x08       # Push boolean true
+    PUSHF = 0x09       # Push boolean false
+    
+    # Push special values
+    PUSHA = 0x0A       # Push address (pointer)
+    PUSHNULL = 0x0B    # Push null
     PUSHDATA1 = 0x0C
     PUSHDATA2 = 0x0D
     PUSHDATA4 = 0x0E

@@ -1,4 +1,10 @@
-"""Bitwise instructions."""
+"""Bitwise instructions for NeoVM.
+
+This module implements all bitwise opcodes (0x90-0x98):
+- INVERT: Bitwise NOT
+- AND, OR, XOR: Bitwise operations
+- EQUAL, NOTEQUAL: Equality comparison
+"""
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -6,35 +12,45 @@ from typing import TYPE_CHECKING
 from neo.vm.types import Integer, Boolean
 
 if TYPE_CHECKING:
-    from neo.vm.execution_engine import ExecutionContext
+    from neo.vm.execution_engine import ExecutionEngine, Instruction
 
 
-def invert(context: ExecutionContext) -> None:
-    """Bitwise NOT."""
-    stack = context.evaluation_stack
-    a = stack.pop().get_integer()
-    stack.push(Integer(~a))
+def invert(engine: ExecutionEngine, instruction: Instruction) -> None:
+    """Bitwise NOT - flip all bits."""
+    x = engine.pop().get_integer()
+    engine.push(Integer(~x))
 
 
-def and_op(context: ExecutionContext) -> None:
+def and_(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Bitwise AND."""
-    stack = context.evaluation_stack
-    b = stack.pop().get_integer()
-    a = stack.pop().get_integer()
-    stack.push(Integer(a & b))
+    x2 = engine.pop().get_integer()
+    x1 = engine.pop().get_integer()
+    engine.push(Integer(x1 & x2))
 
 
-def or_op(context: ExecutionContext) -> None:
+def or_(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Bitwise OR."""
-    stack = context.evaluation_stack
-    b = stack.pop().get_integer()
-    a = stack.pop().get_integer()
-    stack.push(Integer(a | b))
+    x2 = engine.pop().get_integer()
+    x1 = engine.pop().get_integer()
+    engine.push(Integer(x1 | x2))
 
 
-def xor_op(context: ExecutionContext) -> None:
+def xor(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Bitwise XOR."""
-    stack = context.evaluation_stack
-    b = stack.pop().get_integer()
-    a = stack.pop().get_integer()
-    stack.push(Integer(a ^ b))
+    x2 = engine.pop().get_integer()
+    x1 = engine.pop().get_integer()
+    engine.push(Integer(x1 ^ x2))
+
+
+def equal(engine: ExecutionEngine, instruction: Instruction) -> None:
+    """Check if two items are equal."""
+    x2 = engine.pop()
+    x1 = engine.pop()
+    engine.push(Boolean(x1.equals(x2, engine.limits)))
+
+
+def notequal(engine: ExecutionEngine, instruction: Instruction) -> None:
+    """Check if two items are not equal."""
+    x2 = engine.pop()
+    x1 = engine.pop()
+    engine.push(Boolean(not x1.equals(x2, engine.limits)))

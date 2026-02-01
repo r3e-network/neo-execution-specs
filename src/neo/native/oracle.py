@@ -1,16 +1,30 @@
-"""Oracle contract."""
+"""Oracle contract for external data requests."""
 
 from __future__ import annotations
-from neo.native.native_contract import NativeContract
-from neo.types import UInt160
+from dataclasses import dataclass
+from typing import Any, Optional
+
+from neo.types import UInt160, UInt256
+from neo.native.native_contract import NativeContract, CallFlags, StorageItem
 
 
-class OracleContract(NativeContract):
-    """Oracle service for external data."""
-    
-    id: int = -9
-    name: str = "OracleContract"
-    
-    @property
-    def hash(self) -> UInt160:
-        return UInt160(bytes.fromhex("fe924b7cfe89ddd271abaf7210a80a7e11178758")[::-1])
+# Storage prefixes
+PREFIX_PRICE = 5
+PREFIX_REQUEST_ID = 9
+PREFIX_REQUEST = 7
+PREFIX_ID_LIST = 6
+
+# Default oracle price (0.5 GAS)
+DEFAULT_ORACLE_PRICE = 50000000
+
+
+@dataclass
+class OracleRequest:
+    """Oracle request data."""
+    original_txid: Optional[UInt256] = None
+    gas_for_response: int = 0
+    url: str = ""
+    filter: Optional[str] = None
+    callback_contract: Optional[UInt160] = None
+    callback_method: str = ""
+    user_data: bytes = b""

@@ -29,6 +29,14 @@ class ByteString(StackItem):
     def get_integer(self) -> BigInteger:
         return BigInteger.from_bytes_le(self._value)
     
+    def get_span(self) -> bytes:
+        """Get the raw bytes."""
+        return self._value
+    
+    def get_string(self) -> str:
+        """Get as UTF-8 string."""
+        return self._value.decode('utf-8', errors='replace')
+    
     def __len__(self) -> int:
         return len(self._value)
     
