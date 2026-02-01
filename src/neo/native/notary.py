@@ -174,3 +174,59 @@ class Notary(NativeContract):
         if item is None:
             return DEFAULT_MAX_NOT_VALID_BEFORE_DELTA
         return int(item)
+    
+    def set_max_not_valid_before_delta(self, engine: Any, value: int) -> None:
+        """Set maximum NotValidBefore delta. Committee only."""
+        if value < 1:
+            raise ValueError("Value must be positive")
+        
+        key = self._create_storage_key(PREFIX_MAX_NOT_VALID_BEFORE_DELTA)
+        if key.key not in self._storage:
+            self._storage[key.key] = StorageItem()
+        self._storage[key.key].set(value)
+    
+    def on_nep17_payment(
+        self,
+        engine: Any,
+        from_account: UInt160,
+        amount: int,
+        data: Any
+    ) -> None:
+        """Handle NEP-17 GAS payment for deposit.
+        
+        Args:
+            engine: Application engine
+            from_account: GAS sender
+            amount: Amount of GAS sent
+            data: [to, till] array
+        """
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+        
+        # Parse data
+        to = from_account
+        till = 0
+        
+        if isinstance(data, (list, tuple)) and len(data) >= 2:
+            if data[0] is not None:
+                to = data[0]
+            till = int(data[1])
+        
+        # Get or create deposit
+        deposit = self._get_deposit(to)
+        if deposit is None:
+            deposit = Deposit(amount=0, till=0)
+        
+        deposit.amount += amount
+        if till > deposit.till:
+            deposit.till = till
+        
+        self._put_deposit(to, deposit)
+    
+    def _get_deposit(self, account: UInt160) -> Optional[Deposit]:
+        """Get deposit for account."""
+        key = self._create_storage_key(PREFIX_DEPOSIT, account.data)
+        item = self._storage.get(key.key)
+        if item is None:
+            return None
+        return Deposit.deserialize(item.value)
