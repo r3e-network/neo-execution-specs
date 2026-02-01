@@ -6,7 +6,7 @@ Reference: Neo.Ledger.PoolItem
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -20,8 +20,8 @@ class PoolItem:
     tx: "Transaction"
     """The transaction."""
     
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     """Timestamp when transaction was stored."""
     
-    last_broadcast: datetime = field(default_factory=datetime.utcnow)
+    last_broadcast: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     """Timestamp when last broadcast to other nodes."""

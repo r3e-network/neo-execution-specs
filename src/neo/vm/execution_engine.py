@@ -110,7 +110,7 @@ class ExecutionEngine:
         return Slot.from_items(items, self.reference_counter)
     
     def execute_jump(self, position: int) -> None:
-        if position < 0 or position >= len(self.current_context.script):
+        if position < 0 or position > len(self.current_context.script):
             raise Exception(f"Jump out of range: {position}")
         self.current_context.ip = position
         self.is_jumping = True

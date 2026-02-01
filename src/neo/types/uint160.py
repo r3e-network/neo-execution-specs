@@ -23,6 +23,10 @@ class UInt160:
     def data(self) -> bytes:
         return self._data
     
+    def to_bytes(self) -> bytes:
+        """Return the raw bytes."""
+        return self._data
+    
     def __eq__(self, other: object) -> bool:
         if isinstance(other, UInt160):
             return self._data == other._data

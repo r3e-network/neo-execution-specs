@@ -15,11 +15,11 @@ class Array(StackItem):
     
     def __init__(
         self, 
-        items: List[StackItem] | None = None,
-        reference_counter: ReferenceCounter | None = None
+        reference_counter: ReferenceCounter | None = None,
+        items: List[StackItem] | None = None
     ) -> None:
-        self._items: List[StackItem] = items or []
         self._reference_counter = reference_counter
+        self._items: List[StackItem] = items if items is not None else []
     
     @property
     def type(self) -> StackItemType:

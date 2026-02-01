@@ -11,10 +11,11 @@ if TYPE_CHECKING:
 class Map(StackItem):
     """Key-value map on the stack."""
     
-    __slots__ = ("_items",)
+    __slots__ = ("_items", "_reference_counter")
     
-    def __init__(self) -> None:
+    def __init__(self, reference_counter=None) -> None:
         self._items: Dict[StackItem, StackItem] = {}
+        self._reference_counter = reference_counter
     
     @property
     def type(self) -> StackItemType:
@@ -40,3 +41,14 @@ class Map(StackItem):
     
     def values(self) -> Iterator[StackItem]:
         return iter(self._items.values())
+    
+    def items(self):
+        """Return iterator over key-value pairs."""
+        return self._items.items()
+    
+    def __delitem__(self, key: StackItem) -> None:
+        del self._items[key]
+    
+    def clear(self) -> None:
+        """Clear all items."""
+        self._items.clear()

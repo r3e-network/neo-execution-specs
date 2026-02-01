@@ -105,3 +105,32 @@ class MemoryPool:
                 del self._unverified[tx_hash]
                 return True
             return False
+    
+    def invalidate_verified_transactions(self) -> None:
+        """Move all verified transactions to unverified."""
+        with self._lock:
+            self._unverified.update(self._verified)
+            self._verified.clear()
+    
+    def clear(self) -> None:
+        """Clear all transactions from the pool."""
+        with self._lock:
+            self._verified.clear()
+            self._unverified.clear()
+            self._conflicts.clear()
+    
+    def __iter__(self) -> Iterator["Transaction"]:
+        """Iterate over all transactions."""
+        with self._lock:
+            for item in self._verified.values():
+                yield item.tx
+            for item in self._unverified.values():
+                yield item.tx
+    
+    def __len__(self) -> int:
+        """Get total count."""
+        return self.count
+    
+    def __contains__(self, tx_hash: UInt256) -> bool:
+        """Check if hash in pool."""
+        return self.contains_key(tx_hash)
