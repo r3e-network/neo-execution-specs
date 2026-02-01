@@ -288,3 +288,49 @@ class OracleContract(NativeContract):
         self._storage[key.key] = StorageItem()
         self._storage[key.key].set(current_id + 1)
         return current_id
+    
+    def _store_request(self, request_id: int, request: OracleRequest) -> None:
+        """Store a request in storage."""
+        key = self._create_storage_key(PREFIX_REQUEST, request_id)
+        self._storage[key.key] = StorageItem(request.serialize())
+    
+    def _get_url_hash(self, url: str) -> bytes:
+        """Get hash of URL for indexing."""
+        return hash160(url.encode('utf-8'))
+    
+    def _add_to_id_list(self, url: str, request_id: int) -> None:
+        """Add request ID to URL's ID list."""
+        url_hash = self._get_url_hash(url)
+        key = self._create_storage_key(PREFIX_ID_LIST, url_hash)
+        
+        # Get existing list
+        item = self._storage.get(key.key)
+        if item is None:
+            id_list = []
+        else:
+            id_list = self._deserialize_id_list(item.value)
+        
+        if len(id_list) >= 256:
+            raise ValueError("Too many pending responses for URL")
+        
+        id_list.append(request_id)
+        self._storage[key.key] = StorageItem(self._serialize_id_list(id_list))
+    
+    def _serialize_id_list(self, id_list: List[int]) -> bytes:
+        """Serialize ID list to bytes."""
+        result = bytearray()
+        result.append(len(id_list))
+        for id_val in id_list:
+            result.extend(id_val.to_bytes(8, 'little'))
+        return bytes(result)
+    
+    def _deserialize_id_list(self, data: bytes) -> List[int]:
+        """Deserialize ID list from bytes."""
+        if not data:
+            return []
+        count = data[0]
+        result = []
+        for i in range(count):
+            offset = 1 + i * 8
+            result.append(int.from_bytes(data[offset:offset + 8], 'little'))
+        return result
