@@ -204,3 +204,87 @@ class OracleContract(NativeContract):
         if key.key not in self._storage:
             self._storage[key.key] = StorageItem()
         self._storage[key.key].set(price)
+    
+    def request(
+        self,
+        engine: Any,
+        url: str,
+        filter: Optional[str],
+        callback: str,
+        user_data: Any,
+        gas_for_response: int
+    ) -> None:
+        """Create an Oracle request.
+        
+        Args:
+            engine: Application engine
+            url: URL to fetch data from
+            filter: JSONPath filter for response
+            callback: Callback method name
+            user_data: User data to pass to callback
+            gas_for_response: GAS to reserve for response
+        """
+        # Validate URL
+        url_size = len(url.encode('utf-8'))
+        if url_size > MAX_URL_LENGTH:
+            raise ValueError(f"URL exceeds max length of {MAX_URL_LENGTH}")
+        
+        # Validate filter
+        if filter is not None:
+            filter_size = len(filter.encode('utf-8'))
+            if filter_size > MAX_FILTER_LENGTH:
+                raise ValueError(f"Filter exceeds max length")
+        
+        # Validate callback
+        callback_size = len(callback.encode('utf-8'))
+        if callback_size > MAX_CALLBACK_LENGTH:
+            raise ValueError(f"Callback exceeds max length")
+        if callback.startswith('_'):
+            raise ValueError("Callback cannot start with underscore")
+        
+        # Validate gas
+        if gas_for_response < 10_000_000:  # 0.1 GAS minimum
+            raise ValueError("gasForResponse must be at least 0.1 GAS")
+        
+        # Get and increment request ID
+        request_id = self._get_next_request_id()
+        
+        # Serialize user data
+        if isinstance(user_data, bytes):
+            user_data_bytes = user_data
+        else:
+            user_data_bytes = b''
+        
+        if len(user_data_bytes) > MAX_USER_DATA_LENGTH:
+            raise ValueError("User data too large")
+        
+        # Create request
+        request = OracleRequest(
+            original_txid=UInt256(b'\x00' * 32),
+            gas_for_response=gas_for_response,
+            url=url,
+            filter=filter,
+            callback_contract=UInt160(b'\x00' * 20),
+            callback_method=callback,
+            user_data=user_data_bytes
+        )
+        
+        # Store request
+        self._store_request(request_id, request)
+        
+        # Add to URL index
+        self._add_to_id_list(url, request_id)
+    
+    def _get_next_request_id(self) -> int:
+        """Get and increment the request ID counter."""
+        key = self._create_storage_key(PREFIX_REQUEST_ID)
+        item = self._storage.get(key.key)
+        if item is None:
+            current_id = 0
+        else:
+            current_id = int(item)
+        
+        # Increment
+        self._storage[key.key] = StorageItem()
+        self._storage[key.key].set(current_id + 1)
+        return current_id
