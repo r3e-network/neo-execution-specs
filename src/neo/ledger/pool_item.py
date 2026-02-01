@@ -1,0 +1,27 @@
+"""
+PoolItem - Memory pool item wrapper.
+
+Reference: Neo.Ledger.PoolItem
+"""
+
+from __future__ import annotations
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from neo.network.payloads.transaction import Transaction
+
+
+@dataclass
+class PoolItem:
+    """Represents an item in the Memory Pool."""
+    
+    tx: "Transaction"
+    """The transaction."""
+    
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+    """Timestamp when transaction was stored."""
+    
+    last_broadcast: datetime = field(default_factory=datetime.utcnow)
+    """Timestamp when last broadcast to other nodes."""

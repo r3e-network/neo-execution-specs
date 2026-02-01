@@ -49,62 +49,6 @@ class ExecutionEngine:
             self.reference_counter = ReferenceCounter()
         self._init_handlers()
     
-    def _init_handlers(self):
-        """Initialize opcode handlers."""
-        from neo.vm.instructions import constants, stack, numeric, control_flow
-        
-        # Constants
-        self._handlers[OpCode.PUSH0] = constants.push0
-        self._handlers[OpCode.PUSH1] = constants.push1
-        self._handlers[OpCode.PUSH2] = constants.push2
-        self._handlers[OpCode.PUSH3] = constants.push3
-        self._handlers[OpCode.PUSH4] = constants.push4
-        self._handlers[OpCode.PUSH5] = constants.push5
-        self._handlers[OpCode.PUSH6] = constants.push6
-        self._handlers[OpCode.PUSH7] = constants.push7
-        self._handlers[OpCode.PUSH8] = constants.push8
-        self._handlers[OpCode.PUSH9] = constants.push9
-        self._handlers[OpCode.PUSH10] = constants.push10
-        self._handlers[OpCode.PUSH11] = constants.push11
-        self._handlers[OpCode.PUSH12] = constants.push12
-        self._handlers[OpCode.PUSH13] = constants.push13
-        self._handlers[OpCode.PUSH14] = constants.push14
-        self._handlers[OpCode.PUSH15] = constants.push15
-        self._handlers[OpCode.PUSH16] = constants.push16
-        self._handlers[OpCode.PUSHM1] = constants.pushm1
-        self._handlers[OpCode.PUSHNULL] = constants.pushnull
-        self._handlers[OpCode.PUSHT] = constants.pusht
-        self._handlers[OpCode.PUSHF] = constants.pushf
-        
-        # Stack
-        self._handlers[OpCode.DUP] = stack.dup
-        self._handlers[OpCode.DROP] = stack.drop
-        self._handlers[OpCode.SWAP] = stack.swap
-        
-        # Numeric
-        self._handlers[OpCode.ADD] = numeric.add
-        self._handlers[OpCode.SUB] = numeric.sub
-        
-        # Control flow
-        self._handlers[OpCode.NOP] = control_flow.nop
-        self._handlers[OpCode.JMP] = control_flow.jmp
-        self._handlers[OpCode.JMPIF] = control_flow.jmpif
-        self._handlers[OpCode.JMPIFNOT] = control_flow.jmpifnot
-        self._handlers[OpCode.CALL] = control_flow.call
-        self._handlers[OpCode.RET] = control_flow.ret
-        
-        # Compound types
-        from neo.vm.instructions import compound
-        self._handlers[OpCode.PACK] = compound.pack
-        self._handlers[OpCode.UNPACK] = compound.unpack
-        self._handlers[OpCode.NEWARRAY0] = compound.newarray0
-        self._handlers[OpCode.NEWARRAY] = compound.newarray
-        self._handlers[OpCode.NEWMAP] = compound.newmap
-        self._handlers[OpCode.SIZE] = compound.size
-        self._handlers[OpCode.HASKEY] = compound.haskey
-        self._handlers[OpCode.PICKITEM] = compound.pickitem
-        self._handlers[OpCode.SETITEM] = compound.setitem
-    
     @property
     def current_context(self) -> Optional[ExecutionContext]:
         return self.invocation_stack[-1] if self.invocation_stack else None
@@ -394,3 +338,33 @@ class ExecutionEngine:
         self._handlers[OpCode.MIN] = numeric.min_
         self._handlers[OpCode.MAX] = numeric.max_
         self._handlers[OpCode.WITHIN] = numeric.within
+        
+        # Compound types
+        self._handlers[OpCode.PACKMAP] = compound.packmap
+        self._handlers[OpCode.PACKSTRUCT] = compound.packstruct
+        self._handlers[OpCode.PACK] = compound.pack
+        self._handlers[OpCode.UNPACK] = compound.unpack
+        self._handlers[OpCode.NEWARRAY0] = compound.newarray0
+        self._handlers[OpCode.NEWARRAY] = compound.newarray
+        self._handlers[OpCode.NEWARRAY_T] = compound.newarray_t
+        self._handlers[OpCode.NEWSTRUCT0] = compound.newstruct0
+        self._handlers[OpCode.NEWSTRUCT] = compound.newstruct
+        self._handlers[OpCode.NEWMAP] = compound.newmap
+        self._handlers[OpCode.SIZE] = compound.size
+        self._handlers[OpCode.HASKEY] = compound.haskey
+        self._handlers[OpCode.KEYS] = compound.keys
+        self._handlers[OpCode.VALUES] = compound.values
+        self._handlers[OpCode.PICKITEM] = compound.pickitem
+        self._handlers[OpCode.APPEND] = compound.append
+        self._handlers[OpCode.SETITEM] = compound.setitem
+        self._handlers[OpCode.REVERSEITEMS] = compound.reverseitems
+        self._handlers[OpCode.REMOVE] = compound.remove
+        self._handlers[OpCode.CLEARITEMS] = compound.clearitems
+        self._handlers[OpCode.POPITEM] = compound.popitem
+        
+        # Types
+        self._handlers[OpCode.ISNULL] = types.isnull
+        self._handlers[OpCode.ISTYPE] = types.istype
+        self._handlers[OpCode.CONVERT] = types.convert
+        self._handlers[OpCode.ABORTMSG] = types.abortmsg
+        self._handlers[OpCode.ASSERTMSG] = types.assertmsg

@@ -43,5 +43,17 @@ class Array(StackItem):
     def append(self, item: StackItem) -> None:
         self._items.append(item)
     
+    def add(self, item: StackItem) -> None:
+        """Alias for append."""
+        self._items.append(item)
+    
+    def remove_at(self, index: int) -> None:
+        """Remove item at index."""
+        del self._items[index]
+    
+    def reverse(self) -> None:
+        """Reverse items in place."""
+        self._items.reverse()
+    
     def clear(self) -> None:
         self._items.clear()
