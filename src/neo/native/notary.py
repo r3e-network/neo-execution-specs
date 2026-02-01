@@ -114,3 +114,63 @@ class Notary(NativeContract):
         """Get deposit expiration height for account."""
         deposit = self._get_deposit(account)
         return deposit.till if deposit else 0
+    
+    def lock_deposit_until(
+        self, 
+        engine: Any, 
+        account: UInt160, 
+        till: int
+    ) -> bool:
+        """Lock deposit until specified height.
+        
+        Args:
+            engine: Application engine
+            account: Account to lock deposit for
+            till: Block height until which to lock
+            
+        Returns:
+            True if successful
+        """
+        deposit = self._get_deposit(account)
+        if deposit is None:
+            return False
+        if till < deposit.till:
+            return False
+        
+        deposit.till = till
+        self._put_deposit(account, deposit)
+        return True
+    
+    def withdraw(
+        self,
+        engine: Any,
+        from_account: UInt160,
+        to_account: Optional[UInt160]
+    ) -> bool:
+        """Withdraw deposited GAS.
+        
+        Args:
+            engine: Application engine
+            from_account: Account to withdraw from
+            to_account: Account to send to (or from_account if None)
+            
+        Returns:
+            True if successful
+        """
+        receive = to_account if to_account else from_account
+        deposit = self._get_deposit(from_account)
+        
+        if deposit is None:
+            return False
+        
+        # Remove deposit
+        self._remove_deposit(from_account)
+        return True
+    
+    def get_max_not_valid_before_delta(self, snapshot: Any) -> int:
+        """Get maximum NotValidBefore delta."""
+        key = self._create_storage_key(PREFIX_MAX_NOT_VALID_BEFORE_DELTA)
+        item = self._storage.get(key.key)
+        if item is None:
+            return DEFAULT_MAX_NOT_VALID_BEFORE_DELTA
+        return int(item)
