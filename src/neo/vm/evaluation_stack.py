@@ -33,3 +33,8 @@ class EvaluationStack:
     def clear(self) -> None:
         """Clear the stack."""
         self._items.clear()
+    
+    def copy_to(self, target: 'EvaluationStack') -> None:
+        """Copy all items to target stack."""
+        for item in self._items:
+            target.push(item)

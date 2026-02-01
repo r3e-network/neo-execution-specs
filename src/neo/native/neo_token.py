@@ -25,6 +25,9 @@ VOTER_REWARD_RATIO = 80
 # Effective voter turnout threshold
 EFFECTIVE_VOTER_TURNOUT = 0.2
 
+# Vote factor for precision
+VOTE_FACTOR = 100_000_000
+
 
 @dataclass
 class NeoAccountState(AccountState):
@@ -59,7 +62,8 @@ class NeoAccountState(AccountState):
                 state.vote_to = data[37:37+vote_len]
             offset = 37 + vote_len
             if len(data) > offset:
-                state.last_gas_per_vote = int.from_bytes(data[offset:offset+32], 'little', signed=True)
+                state.last_gas_per_vote = int.from_bytes(
+                    data[offset:offset+32], 'little', signed=True)
         return state
 
 
@@ -90,8 +94,6 @@ class NeoToken(FungibleToken):
     TOTAL_AMOUNT = 100_000_000
     
     def __init__(self) -> None:
-        # Set _total_amount before super().__init__() because
-        # _register_methods may access total_supply property
         self._total_amount = self.TOTAL_AMOUNT
         super().__init__()
     
@@ -109,12 +111,10 @@ class NeoToken(FungibleToken):
     
     @property
     def total_amount(self) -> int:
-        """Total amount of NEO (fixed supply)."""
         return self._total_amount
     
     @property
     def total_supply(self) -> int:
-        """Total supply of NEO (fixed)."""
         return self._total_amount
     
     def _register_methods(self) -> None:
@@ -146,7 +146,7 @@ class NeoToken(FungibleToken):
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
     
     def get_total_supply(self, snapshot: Any) -> int:
-        """NEO has fixed supply (for syscall)."""
+        """NEO has fixed supply."""
         return self._total_amount
     
     def _get_account_state(self, item: StorageItem) -> NeoAccountState:
@@ -192,15 +192,6 @@ class NeoToken(FungibleToken):
         item = engine.snapshot.get_and_change(key, lambda: StorageItem())
         item.set(price)
     
-    def unclaimed_gas(self, snapshot: Any, account: UInt160, end: int) -> int:
-        """Calculate unclaimed GAS for an account."""
-        key = self._create_storage_key(PREFIX_ACCOUNT, account.to_bytes())
-        item = snapshot.get(key)
-        if item is None:
-            return 0
-        state = self._get_account_state(item)
-        return self._calculate_bonus(snapshot, state, end)
-    
     def unclaimed_gas(self, engine: Any, account: UInt160, end: int) -> int:
         """Get unclaimed GAS for an account."""
         key = self._create_storage_key(PREFIX_ACCOUNT, account.data)
@@ -217,16 +208,26 @@ class NeoToken(FungibleToken):
         if state.balance_height >= end:
             return 0
         
-        # Simplified calculation - in real impl would iterate gas records
+        # Calculate NEO holder reward
         gas_per_block = self.get_gas_per_block(snapshot)
         blocks = end - state.balance_height
-        neo_holder_reward = state.balance * gas_per_block * blocks * NEO_HOLDER_REWARD_RATIO // 100 // self._total_amount
+        neo_holder_reward = (state.balance * gas_per_block * blocks * 
+                           NEO_HOLDER_REWARD_RATIO // 100 // self._total_amount)
         
-        return neo_holder_reward
+        # Calculate vote reward if voting
+        vote_reward = 0
+        if state.vote_to is not None:
+            key = self._create_storage_key(PREFIX_VOTER_REWARD_PER_COMMITTEE, state.vote_to)
+            item = snapshot.get(key)
+            if item:
+                latest_gas_per_vote = int(item)
+                vote_reward = (state.balance * (latest_gas_per_vote - state.last_gas_per_vote) 
+                              // VOTE_FACTOR)
+        
+        return neo_holder_reward + vote_reward
     
     def register_candidate(self, engine: Any, pubkey: bytes) -> bool:
         """Register as a candidate."""
-        # Check witness for the public key
         if not engine.check_witness_pubkey(pubkey):
             return False
         
@@ -234,7 +235,8 @@ class NeoToken(FungibleToken):
         engine.add_fee(self.get_register_price(engine.snapshot))
         
         key = self._create_storage_key(PREFIX_CANDIDATE, pubkey)
-        item = engine.snapshot.get_and_change(key, lambda: StorageItem(CandidateState().to_bytes()))
+        item = engine.snapshot.get_and_change(
+            key, lambda: StorageItem(CandidateState().to_bytes()))
         state = CandidateState.from_bytes(item.value)
         
         if state.registered:
@@ -243,7 +245,9 @@ class NeoToken(FungibleToken):
         state.registered = True
         item.value = state.to_bytes()
         
-        engine.send_notification(self.hash, "CandidateStateChanged", [pubkey, True, state.votes])
+        engine.send_notification(
+            self.hash, "CandidateStateChanged", 
+            [pubkey, True, state.votes])
         return True
     
     def unregister_candidate(self, engine: Any, pubkey: bytes) -> bool:
@@ -262,34 +266,26 @@ class NeoToken(FungibleToken):
             return True
         
         state.registered = False
+        item.value = state.to_bytes()
         self._check_candidate(engine.snapshot, pubkey, state)
         
-        engine.send_notification(self.hash, "CandidateStateChanged", [pubkey, False, state.votes])
+        engine.send_notification(
+            self.hash, "CandidateStateChanged", 
+            [pubkey, False, state.votes])
         return True
     
-    def _check_candidate(self, snapshot: Any, pubkey: bytes, candidate: CandidateState) -> None:
+    def _check_candidate(self, snapshot: Any, pubkey: bytes, 
+                         candidate: CandidateState) -> None:
         """Remove candidate if unregistered and has no votes."""
         if not candidate.registered and candidate.votes == 0:
             key = self._create_storage_key(PREFIX_CANDIDATE, pubkey)
             snapshot.delete(key)
-            reward_key = self._create_storage_key(PREFIX_VOTER_REWARD_PER_COMMITTEE, pubkey)
+            reward_key = self._create_storage_key(
+                PREFIX_VOTER_REWARD_PER_COMMITTEE, pubkey)
             snapshot.delete(reward_key)
     
-    def vote(self, engine: Any, account: UInt160, vote_to: Optional[bytes]) -> bool:
-        """Vote for a candidate."""
-        if not engine.check_witness(account):
-            return False
-        
-        key = self._create_storage_key(PREFIX_ACCOUNT, account.to_bytes())
-        item = engine.snapshot.get(key)
-        if item is None:
-            return False
-        
-        state = self._get_account_state(item)
-        # Simplified voting logic
-        return True
-    
-    def vote(self, engine: Any, account: UInt160, vote_to: Optional[bytes]) -> bool:
+    def vote(self, engine: Any, account: UInt160, 
+             vote_to: Optional[bytes]) -> bool:
         """Vote for a candidate."""
         if not engine.check_witness(account):
             return False
@@ -316,7 +312,8 @@ class NeoToken(FungibleToken):
         # Update voters count
         voters_key = self._create_storage_key(PREFIX_VOTERS_COUNT)
         if (state.vote_to is None) != (vote_to is None):
-            voters_item = engine.snapshot.get_and_change(voters_key, lambda: StorageItem())
+            voters_item = engine.snapshot.get_and_change(
+                voters_key, lambda: StorageItem())
             if state.vote_to is None:
                 voters_item.add(state.balance)
             else:
@@ -343,7 +340,9 @@ class NeoToken(FungibleToken):
             new_item.value = new_cand.to_bytes()
         
         item.value = state.to_bytes()
-        engine.send_notification(self.hash, "Vote", [account, old_vote, vote_to, state.balance])
+        engine.send_notification(
+            self.hash, "Vote", 
+            [account, old_vote, vote_to, state.balance])
         return True
     
     def get_candidates(self, snapshot: Any) -> List[Tuple[bytes, int]]:
@@ -363,14 +362,12 @@ class NeoToken(FungibleToken):
         item = snapshot.get(key)
         if item is None:
             return []
-        # Parse committee from storage
         return self._parse_committee(item.value)
     
     def _parse_committee(self, data: bytes) -> List[bytes]:
         """Parse committee from serialized data."""
         if not data:
             return []
-        # Simplified parsing - real impl would deserialize properly
         committee = []
         offset = 0
         while offset < len(data):
@@ -387,7 +384,8 @@ class NeoToken(FungibleToken):
         validators_count = engine.protocol_settings.validators_count
         return sorted(committee[:validators_count])
     
-    def get_account_state(self, snapshot: Any, account: UInt160) -> Optional[NeoAccountState]:
+    def get_account_state(self, snapshot: Any, 
+                          account: UInt160) -> Optional[NeoAccountState]:
         """Get account state for an account."""
         key = self._create_storage_key(PREFIX_ACCOUNT, account.data)
         item = snapshot.get(key)
@@ -416,6 +414,10 @@ class NeoToken(FungibleToken):
         price_item = StorageItem()
         price_item.set(1000 * 10**8)
         engine.snapshot.add(price_key, price_item)
-        
-        # Mint total supply to initial address
-        # In real impl, would mint to BFT address
+    
+    def on_persist(self, engine: Any) -> None:
+        """Called when a block is being persisted."""
+        # Refresh committee if needed
+        m = engine.protocol_settings.committee_members_count
+        if engine.persisting_block.index % m == 0:
+            self._refresh_committee(engine)

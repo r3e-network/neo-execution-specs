@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 from neo.types import UInt160
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
+from neo.crypto import hash160
 
 
 # Storage prefixes
@@ -131,7 +132,8 @@ class ContractManagement(NativeContract):
         # In real impl, would parse manifest and check ABI
         return True
     
-    def deploy(self, engine: Any, nef_file: bytes, manifest: bytes, data: Any = None) -> ContractState:
+    def deploy(self, engine: Any, nef_file: bytes, manifest: bytes, 
+               data: Any = None) -> ContractState:
         """Deploy a new contract."""
         if not nef_file:
             raise ValueError("NEF file cannot be empty")
@@ -146,7 +148,7 @@ class ContractManagement(NativeContract):
         
         # Calculate contract hash
         tx = engine.script_container
-        contract_hash = engine.calculate_contract_hash(tx.sender, nef_file, manifest)
+        contract_hash = self._calculate_contract_hash(tx.sender, nef_file, manifest)
         
         # Check if contract already exists
         key = self._create_storage_key(PREFIX_CONTRACT, contract_hash.data)
@@ -172,7 +174,27 @@ class ContractManagement(NativeContract):
         
         return contract
     
-    def update(self, engine: Any, nef_file: Optional[bytes], manifest: Optional[bytes], data: Any = None) -> None:
+    def _calculate_contract_hash(self, sender: UInt160, nef: bytes, 
+                                  manifest: bytes) -> UInt160:
+        """Calculate contract hash from sender, NEF checksum, and name."""
+        import json
+        # Parse manifest to get name
+        manifest_obj = json.loads(manifest.decode('utf-8'))
+        name = manifest_obj.get('name', '')
+        
+        # Calculate NEF checksum (simplified)
+        from neo.crypto import sha256
+        nef_checksum = int.from_bytes(sha256(sha256(nef))[:4], 'little')
+        
+        # Build hash input
+        data = sender.data
+        data += nef_checksum.to_bytes(4, 'little')
+        data += bytes([len(name)]) + name.encode('utf-8')
+        
+        return UInt160(hash160(data))
+    
+    def update(self, engine: Any, nef_file: Optional[bytes], 
+               manifest: Optional[bytes], data: Any = None) -> None:
         """Update an existing contract."""
         if nef_file is None and manifest is None:
             raise ValueError("NEF and manifest cannot both be null")

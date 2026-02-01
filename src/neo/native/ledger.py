@@ -35,8 +35,33 @@ class HashIndexState:
         return state
 
 
+@dataclass
+class TransactionState:
+    """State of a transaction in storage."""
+    block_index: int = 0
+    transaction: Optional[Any] = None
+    state: int = 0  # VMState: 0=NONE, 1=HALT, 2=FAULT
+    
+    def to_bytes(self) -> bytes:
+        data = self.block_index.to_bytes(4, 'little')
+        data += bytes([self.state])
+        return data
+    
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'TransactionState':
+        state = cls()
+        if data and len(data) >= 4:
+            state.block_index = int.from_bytes(data[:4], 'little')
+            if len(data) > 4:
+                state.state = data[4]
+        return state
+
+
 class LedgerContract(NativeContract):
-    """Provides access to blockchain data."""
+    """Provides access to blockchain data.
+    
+    Stores blocks and transactions, provides query methods.
+    """
     
     def __init__(self) -> None:
         super().__init__()
@@ -62,15 +87,17 @@ class LedgerContract(NativeContract):
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
         self._register_method("getTransactionVMState", self.get_transaction_vm_state,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
+        self._register_method("getTransactionFromBlock", self.get_transaction_from_block,
+                            cpu_fee=1 << 16, call_flags=CallFlags.READ_STATES)
     
     def current_hash(self, snapshot: Any) -> UInt256:
         """Get the hash of the current block."""
         key = self._create_storage_key(PREFIX_CURRENT_BLOCK)
         item = snapshot.get(key)
         if item is None:
-            return UInt256.ZERO
+            return UInt256.zero()
         state = HashIndexState.from_bytes(item.value)
-        return state.hash or UInt256.ZERO
+        return state.hash or UInt256.zero()
     
     def current_index(self, snapshot: Any) -> int:
         """Get the index of the current block."""
@@ -89,6 +116,24 @@ class LedgerContract(NativeContract):
             return None
         return UInt256(item.value)
     
+    def contains_block(self, snapshot: Any, hash: UInt256) -> bool:
+        """Check if a block exists."""
+        key = self._create_storage_key(PREFIX_BLOCK, hash.data)
+        return snapshot.contains(key)
+    
+    def contains_transaction(self, snapshot: Any, hash: UInt256) -> bool:
+        """Check if a transaction exists."""
+        state = self.get_transaction_state(snapshot, hash)
+        return state is not None and state.transaction is not None
+    
+    def get_transaction_state(self, snapshot: Any, hash: UInt256) -> Optional[TransactionState]:
+        """Get transaction state by hash."""
+        key = self._create_storage_key(PREFIX_TRANSACTION, hash.data)
+        item = snapshot.get(key)
+        if item is None:
+            return None
+        return TransactionState.from_bytes(item.value)
+    
     def get_block(self, engine: Any, index_or_hash: bytes) -> Optional[Any]:
         """Get a block by index or hash."""
         if len(index_or_hash) < 32:
@@ -106,33 +151,79 @@ class LedgerContract(NativeContract):
     
     def get_transaction(self, engine: Any, hash: UInt256) -> Optional[Any]:
         """Get a transaction by hash."""
-        key = self._create_storage_key(PREFIX_TRANSACTION, hash.data)
-        item = engine.snapshot.get(key)
-        return item.value if item else None
+        state = self.get_transaction_state(engine.snapshot, hash)
+        if state is None:
+            return None
+        return state.transaction
     
     def get_transaction_height(self, engine: Any, hash: UInt256) -> int:
         """Get the block height of a transaction."""
-        key = self._create_storage_key(PREFIX_TRANSACTION, hash.data)
-        item = engine.snapshot.get(key)
-        if item is None:
+        state = self.get_transaction_state(engine.snapshot, hash)
+        if state is None:
             return -1
-        # Parse block index from transaction state
-        return int.from_bytes(item.value[:4], 'little') if item.value else -1
+        return state.block_index
     
     def get_transaction_signers(self, engine: Any, hash: UInt256) -> Optional[List[Any]]:
         """Get transaction signers."""
-        key = self._create_storage_key(PREFIX_TRANSACTION, hash.data)
-        item = engine.snapshot.get(key)
-        if item is None:
+        state = self.get_transaction_state(engine.snapshot, hash)
+        if state is None or state.transaction is None:
             return None
-        # In real impl, would parse signers from transaction
-        return []
+        return getattr(state.transaction, 'signers', [])
     
     def get_transaction_vm_state(self, engine: Any, hash: UInt256) -> int:
-        """Get transaction VM state."""
-        key = self._create_storage_key(PREFIX_TRANSACTION, hash.data)
-        item = engine.snapshot.get(key)
-        if item is None:
+        """Get transaction VM state (0=NONE, 1=HALT, 2=FAULT)."""
+        state = self.get_transaction_state(engine.snapshot, hash)
+        if state is None:
             return 0  # NONE
-        # In real impl, would parse VM state from transaction state
-        return 1  # HALT
+        return state.state
+    
+    def get_transaction_from_block(self, engine: Any, block_index_or_hash: bytes, 
+                                   tx_index: int) -> Optional[Any]:
+        """Get a transaction from a block by index."""
+        if len(block_index_or_hash) < 32:
+            index = int.from_bytes(block_index_or_hash, 'little')
+            hash = self.get_block_hash(engine.snapshot, index)
+        else:
+            hash = UInt256(block_index_or_hash)
+        
+        if hash is None:
+            return None
+        
+        # Get block and extract transaction
+        block = self.get_block(engine, hash.data)
+        if block is None:
+            return None
+        
+        # In real impl, would parse block and get tx at index
+        return None
+    
+    def on_persist(self, engine: Any) -> None:
+        """Store block and transactions when persisting."""
+        block = engine.persisting_block
+        
+        # Store block hash by index
+        hash_key = self._create_storage_key(PREFIX_BLOCK_HASH, block.index)
+        engine.snapshot.add(hash_key, StorageItem(block.hash.data))
+        
+        # Store block
+        block_key = self._create_storage_key(PREFIX_BLOCK, block.hash.data)
+        engine.snapshot.add(block_key, StorageItem(block.to_bytes()))
+        
+        # Store transactions
+        for tx in block.transactions:
+            tx_state = TransactionState(
+                block_index=block.index,
+                transaction=tx,
+                state=0  # NONE initially
+            )
+            tx_key = self._create_storage_key(PREFIX_TRANSACTION, tx.hash.data)
+            engine.snapshot.add(tx_key, StorageItem(tx_state.to_bytes()))
+    
+    def post_persist(self, engine: Any) -> None:
+        """Update current block after persisting."""
+        block = engine.persisting_block
+        
+        key = self._create_storage_key(PREFIX_CURRENT_BLOCK)
+        state = HashIndexState(hash=block.hash, index=block.index)
+        item = engine.snapshot.get_and_change(key, lambda: StorageItem())
+        item.value = state.to_bytes()

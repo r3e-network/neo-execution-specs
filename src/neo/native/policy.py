@@ -1,7 +1,7 @@
 """Policy contract for network settings."""
 
 from __future__ import annotations
-from typing import Any, List
+from typing import Any, List, Optional
 
 from neo.types import UInt160
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
@@ -27,7 +27,11 @@ MAX_ATTRIBUTE_FEE = 10_0000_0000
 
 
 class PolicyContract(NativeContract):
-    """Manages network policy settings."""
+    """Manages network policy settings.
+    
+    Controls fees, blocked accounts, and other network parameters.
+    Only committee members can modify these settings.
+    """
     
     def __init__(self) -> None:
         super().__init__()
@@ -63,15 +67,24 @@ class PolicyContract(NativeContract):
                             cpu_fee=1 << 15, call_flags=CallFlags.STATES)
     
     def get_fee_per_byte(self, snapshot: Any) -> int:
-        """Get network fee per transaction byte."""
+        """Get network fee per transaction byte.
+        
+        Returns:
+            Fee in datoshi (1 datoshi = 1e-8 GAS)
+        """
         key = self._create_storage_key(PREFIX_FEE_PER_BYTE)
         item = snapshot.get(key)
         return int(item) if item else DEFAULT_FEE_PER_BYTE
     
     def set_fee_per_byte(self, engine: Any, value: int) -> None:
-        """Set fee per byte. Committee only."""
+        """Set fee per byte. Committee only.
+        
+        Args:
+            engine: Application engine
+            value: Fee in datoshi (must be 0-100000000)
+        """
         if value < 0 or value > 1_00000000:
-            raise ValueError("FeePerByte out of range")
+            raise ValueError(f"FeePerByte must be between [0, 100000000], got {value}")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
         
@@ -80,15 +93,26 @@ class PolicyContract(NativeContract):
         item.set(value)
     
     def get_exec_fee_factor(self, snapshot: Any) -> int:
-        """Get execution fee factor."""
+        """Get execution fee factor.
+        
+        This multiplier adjusts system fees for transactions.
+        
+        Returns:
+            Execution fee factor
+        """
         key = self._create_storage_key(PREFIX_EXEC_FEE_FACTOR)
         item = snapshot.get(key)
         return int(item) if item else DEFAULT_EXEC_FEE_FACTOR
     
     def set_exec_fee_factor(self, engine: Any, value: int) -> None:
-        """Set execution fee factor. Committee only."""
+        """Set execution fee factor. Committee only.
+        
+        Args:
+            engine: Application engine
+            value: Fee factor (must be 1-100)
+        """
         if value == 0 or value > MAX_EXEC_FEE_FACTOR:
-            raise ValueError("ExecFeeFactor out of range")
+            raise ValueError(f"ExecFeeFactor must be between [1, {MAX_EXEC_FEE_FACTOR}], got {value}")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
         
@@ -97,15 +121,24 @@ class PolicyContract(NativeContract):
         item.set(value)
     
     def get_storage_price(self, snapshot: Any) -> int:
-        """Get storage price."""
+        """Get storage price per byte.
+        
+        Returns:
+            Storage price in datoshi
+        """
         key = self._create_storage_key(PREFIX_STORAGE_PRICE)
         item = snapshot.get(key)
         return int(item) if item else DEFAULT_STORAGE_PRICE
     
     def set_storage_price(self, engine: Any, value: int) -> None:
-        """Set storage price. Committee only."""
+        """Set storage price. Committee only.
+        
+        Args:
+            engine: Application engine
+            value: Price (must be 1-10000000)
+        """
         if value == 0 or value > MAX_STORAGE_PRICE:
-            raise ValueError("StoragePrice out of range")
+            raise ValueError(f"StoragePrice must be between [1, {MAX_STORAGE_PRICE}], got {value}")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
         
@@ -114,12 +147,30 @@ class PolicyContract(NativeContract):
         item.set(value)
     
     def is_blocked(self, snapshot: Any, account: UInt160) -> bool:
-        """Check if an account is blocked."""
+        """Check if an account is blocked.
+        
+        Args:
+            snapshot: Storage snapshot
+            account: Account to check
+            
+        Returns:
+            True if blocked, False otherwise
+        """
         key = self._create_storage_key(PREFIX_BLOCKED_ACCOUNT, account.data)
         return snapshot.contains(key)
     
     def block_account(self, engine: Any, account: UInt160) -> bool:
-        """Block an account. Committee only."""
+        """Block an account. Committee only.
+        
+        Blocked accounts cannot send transactions.
+        
+        Args:
+            engine: Application engine
+            account: Account to block
+            
+        Returns:
+            True if newly blocked, False if already blocked
+        """
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
         
@@ -135,7 +186,15 @@ class PolicyContract(NativeContract):
         return True
     
     def unblock_account(self, engine: Any, account: UInt160) -> bool:
-        """Unblock an account. Committee only."""
+        """Unblock an account. Committee only.
+        
+        Args:
+            engine: Application engine
+            account: Account to unblock
+            
+        Returns:
+            True if unblocked, False if not blocked
+        """
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
         
@@ -147,15 +206,29 @@ class PolicyContract(NativeContract):
         return True
     
     def get_attribute_fee(self, snapshot: Any, attribute_type: int) -> int:
-        """Get fee for a transaction attribute type."""
+        """Get fee for a transaction attribute type.
+        
+        Args:
+            snapshot: Storage snapshot
+            attribute_type: Attribute type byte
+            
+        Returns:
+            Fee in datoshi
+        """
         key = self._create_storage_key(PREFIX_ATTRIBUTE_FEE, attribute_type)
         item = snapshot.get(key)
         return int(item) if item else DEFAULT_ATTRIBUTE_FEE
     
     def set_attribute_fee(self, engine: Any, attribute_type: int, value: int) -> None:
-        """Set attribute fee. Committee only."""
-        if value > MAX_ATTRIBUTE_FEE:
-            raise ValueError("AttributeFee out of range")
+        """Set attribute fee. Committee only.
+        
+        Args:
+            engine: Application engine
+            attribute_type: Attribute type byte
+            value: Fee (must be <= 10_0000_0000)
+        """
+        if value < 0 or value > MAX_ATTRIBUTE_FEE:
+            raise ValueError(f"AttributeFee must be between [0, {MAX_ATTRIBUTE_FEE}], got {value}")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
         
