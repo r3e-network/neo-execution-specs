@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import Dict, Any
 
 from neo.types import UInt160
+from neo.crypto.ecc.signature import verify_signature
+from neo.crypto.ecc.curve import SECP256R1
 
 
 @dataclass
@@ -15,9 +17,24 @@ class ContractGroup:
     signature: bytes = b""
     
     def is_valid(self, hash: UInt160) -> bool:
-        """Check if the group is valid for the given hash."""
-        # TODO: Implement signature verification
-        return True
+        """Check if the group is valid for the given hash.
+        
+        Verifies that the signature is a valid ECDSA signature of the
+        contract hash using the group's public key.
+        """
+        if not self.pubkey or not self.signature:
+            return False
+        try:
+            # The message is the contract hash bytes
+            message = hash.data
+            return verify_signature(
+                message, 
+                self.signature, 
+                self.pubkey,
+                SECP256R1
+            )
+        except Exception:
+            return False
     
     def to_json(self) -> Dict[str, Any]:
         """Convert to JSON object."""
