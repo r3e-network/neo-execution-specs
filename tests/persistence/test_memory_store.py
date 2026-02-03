@@ -26,3 +26,11 @@ class TestMemoryStore:
         store.put(b"key1", b"value1")
         store.delete(b"key1")
         assert store.get(b"key1") is None
+    
+    def test_seek(self):
+        """Test seek operation."""
+        store = MemoryStore()
+        store.put(b"prefix_a", b"val_a")
+        store.put(b"prefix_b", b"val_b")
+        results = list(store.seek(b"prefix_"))
+        assert len(results) == 2
