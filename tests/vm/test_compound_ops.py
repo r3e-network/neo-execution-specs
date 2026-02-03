@@ -174,3 +174,71 @@ class TestSetItem:
         engine.load_script(script)
         engine.execute()
         assert engine.state == VMState.HALT
+
+
+class TestPackMap:
+    """Tests for PACKMAP opcode."""
+
+    def test_packmap_empty(self):
+        """PACKMAP with 0 pairs creates empty map."""
+        engine = ExecutionEngine()
+        script = bytes([OpCode.PUSH0, OpCode.PACKMAP])
+        engine.load_script(script)
+        engine.execute()
+        assert engine.state == VMState.HALT
+        result = engine.result_stack.peek(0)
+        assert len(result) == 0
+
+    def test_packmap_key_value_order(self):
+        """PACKMAP pops key first, then value (matching C# behavior).
+        
+        Stack order before PACKMAP: [value, key, size]
+        This means we push value first, then key, then size.
+        
+        C# reference:
+            PrimitiveType key = context.EvaluationStack.Pop<PrimitiveType>();
+            StackItem value = context.EvaluationStack.Pop();
+            map[key] = value;
+        """
+        engine = ExecutionEngine()
+        # Push: value=100, key=1, size=1
+        # Stack (top to bottom): [1, 100] after pushing value then key
+        # PACKMAP pops key=1, then value=100, creates map {1: 100}
+        script = bytes([
+            OpCode.PUSHINT8, 100,  # value = 100
+            OpCode.PUSH1,          # key = 1
+            OpCode.PUSH1,          # size = 1
+            OpCode.PACKMAP
+        ])
+        engine.load_script(script)
+        engine.execute()
+        assert engine.state == VMState.HALT
+        
+        # Verify the map has key=1 with value=100
+        result = engine.result_stack.peek(0)
+        assert len(result) == 1
+        # Get the key from the map
+        from neo.vm.types import Integer
+        key = Integer(1)
+        assert key in result
+        assert result[key].get_integer() == 100
+
+    def test_packmap_multiple_pairs(self):
+        """PACKMAP with multiple key-value pairs."""
+        engine = ExecutionEngine()
+        # Create map with 2 pairs: {1: 10, 2: 20}
+        # Push order: value1, key1, value2, key2, size
+        script = bytes([
+            OpCode.PUSHINT8, 10,   # value1 = 10
+            OpCode.PUSH1,          # key1 = 1
+            OpCode.PUSHINT8, 20,   # value2 = 20
+            OpCode.PUSH2,          # key2 = 2
+            OpCode.PUSH2,          # size = 2
+            OpCode.PACKMAP
+        ])
+        engine.load_script(script)
+        engine.execute()
+        assert engine.state == VMState.HALT
+        
+        result = engine.result_stack.peek(0)
+        assert len(result) == 2

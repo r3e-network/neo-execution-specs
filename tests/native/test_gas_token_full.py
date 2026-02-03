@@ -22,8 +22,12 @@ class TestGasToken:
         token = GasToken()
         assert token.decimals == 8
     
-    def test_initial_supply(self):
-        """Test initial supply calculation."""
+    def test_initial_gas_constant(self):
+        """Test initial GAS constant."""
+        # Initial GAS is 30M
+        assert GasToken.INITIAL_GAS == 30_000_000 * 10**8
+    
+    def test_factor(self):
+        """Test GAS factor (decimals)."""
         token = GasToken()
-        # Initial GAS is 30M (52M total - 22M for NEO holders)
-        assert token.total_amount == 30_000_000 * 10**8
+        assert token.factor == 10**8

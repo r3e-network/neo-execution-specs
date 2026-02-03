@@ -258,10 +258,78 @@ class ApplicationEngine(ExecutionEngine):
             self.push(NULL)
     
     def _runtime_check_witness(self, engine: "ApplicationEngine") -> None:
-        """Check witness for account/contract."""
+        """Check witness for account/contract.
+        
+        Verifies that the specified account or public key has provided
+        a valid witness (signature) for the current transaction.
+        """
+        from neo.crypto import hash160
+        from neo.crypto.ecc.curve import SECP256R1
+        from neo.crypto.ecc.point import ECPoint
+        
         hash_or_pubkey = self.pop()
-        # Simplified: always return true for testing
-        self.push(Integer(1))
+        data = hash_or_pubkey.get_bytes_unsafe()
+        
+        # Determine if this is a script hash (20 bytes) or public key (33/65 bytes)
+        if len(data) == 20:
+            # It's a script hash (UInt160)
+            script_hash = data
+        elif len(data) in (33, 65):
+            # It's a public key - convert to script hash
+            # Standard account script: PUSHDATA1 <pubkey> SYSCALL System.Crypto.CheckSig
+            script = bytes([0x0C, len(data)]) + data + bytes([0x41, 0x56, 0xe7, 0xb3, 0x27])
+            script_hash = hash160(script)
+        else:
+            self.push(Integer(0))
+            return
+        
+        # Check if the script hash is in the transaction signers
+        result = self._check_witness_internal(script_hash)
+        self.push(Integer(1 if result else 0))
+    
+    def _check_witness_internal(self, script_hash: bytes) -> bool:
+        """Internal witness check against transaction signers."""
+        # If no script container (transaction), cannot verify
+        if self.script_container is None:
+            return False
+        
+        # Check if script_hash matches any signer
+        tx = self.script_container
+        if not hasattr(tx, 'signers') or not tx.signers:
+            return False
+        
+        for signer in tx.signers:
+            if signer.account == script_hash:
+                # Found matching signer - check witness scope
+                return self._check_witness_scope(signer)
+        
+        return False
+    
+    def _check_witness_scope(self, signer) -> bool:
+        """Check if the signer's scope allows the current call."""
+        from neo.ledger.witness_scope import WitnessScope
+        
+        scope = signer.scopes
+        
+        # Global scope allows everything
+        if scope & WitnessScope.GLOBAL:
+            return True
+        
+        # CalledByEntry - only valid if called from entry script
+        if scope & WitnessScope.CALLED_BY_ENTRY:
+            if self.current_script_hash == self.entry_script_hash:
+                return True
+        
+        # CustomContracts - check if current contract is in allowed list
+        if scope & WitnessScope.CUSTOM_CONTRACTS:
+            current_hash = bytes(self.current_script_hash) if self.current_script_hash else None
+            if current_hash and current_hash in [c for c in signer.allowed_contracts]:
+                return True
+        
+        # CustomGroups - would need to check contract's group
+        # WitnessRules - would need to evaluate rules
+        
+        return False
     
     def _runtime_get_invocation_counter(self, engine: "ApplicationEngine") -> None:
         """Get invocation counter for current script."""
@@ -428,20 +496,106 @@ class ApplicationEngine(ExecutionEngine):
     
     # Crypto syscall implementations
     def _crypto_check_sig(self, engine: "ApplicationEngine") -> None:
-        """Check ECDSA signature."""
+        """Check ECDSA signature.
+        
+        Verifies an ECDSA signature using secp256r1 curve.
+        The message should be the data that was signed (will be hashed with SHA256).
+        """
+        from neo.crypto.ecc.curve import SECP256R1
+        from neo.crypto.ecc.signature import verify_signature
+        
         signature = self.pop()
         pubkey = self.pop()
-        message = self.pop()
-        # Simplified: return true
-        self.push(Integer(1))
+        
+        sig_bytes = signature.get_bytes_unsafe()
+        pubkey_bytes = pubkey.get_bytes_unsafe()
+        
+        # Get the message to verify - this is the transaction hash
+        # In Neo, CheckSig verifies against the script container's hash
+        if self.script_container is not None and hasattr(self.script_container, 'hash'):
+            message_hash = self.script_container.hash
+        else:
+            # No script container - cannot verify
+            self.push(Integer(0))
+            return
+        
+        # Validate input lengths
+        if len(sig_bytes) != 64:
+            self.push(Integer(0))
+            return
+        
+        if len(pubkey_bytes) not in (33, 65):
+            self.push(Integer(0))
+            return
+        
+        # Verify the signature
+        try:
+            result = verify_signature(message_hash, sig_bytes, pubkey_bytes, SECP256R1)
+            self.push(Integer(1 if result else 0))
+        except Exception:
+            self.push(Integer(0))
     
     def _crypto_check_multisig(self, engine: "ApplicationEngine") -> None:
-        """Check multiple ECDSA signatures."""
-        signatures = self.pop()
-        pubkeys = self.pop()
-        message = self.pop()
-        # Simplified: return true
-        self.push(Integer(1))
+        """Check multiple ECDSA signatures.
+        
+        Verifies m-of-n multi-signature using secp256r1 curve.
+        Signatures must be provided in the same order as their corresponding public keys.
+        """
+        from neo.crypto.ecc.curve import SECP256R1
+        from neo.crypto.ecc.signature import verify_signature
+        
+        signatures_item = self.pop()
+        pubkeys_item = self.pop()
+        
+        # Get the message hash from script container
+        if self.script_container is None or not hasattr(self.script_container, 'hash'):
+            self.push(Integer(0))
+            return
+        
+        message_hash = self.script_container.hash
+        
+        # Extract signatures and public keys from stack items
+        try:
+            if hasattr(signatures_item, '__iter__'):
+                signatures = [s.get_bytes_unsafe() for s in signatures_item]
+            else:
+                signatures = [signatures_item.get_bytes_unsafe()]
+            
+            if hasattr(pubkeys_item, '__iter__'):
+                pubkeys = [p.get_bytes_unsafe() for p in pubkeys_item]
+            else:
+                pubkeys = [pubkeys_item.get_bytes_unsafe()]
+        except Exception:
+            self.push(Integer(0))
+            return
+        
+        # Validate: need at least as many pubkeys as signatures
+        if len(pubkeys) < len(signatures) or len(signatures) == 0:
+            self.push(Integer(0))
+            return
+        
+        # Verify signatures in order
+        # Each signature must match a pubkey, and pubkeys must be used in order
+        sig_idx = 0
+        for pubkey in pubkeys:
+            if sig_idx >= len(signatures):
+                break
+            
+            sig = signatures[sig_idx]
+            
+            # Validate lengths
+            if len(sig) != 64 or len(pubkey) not in (33, 65):
+                continue
+            
+            try:
+                if verify_signature(message_hash, sig, pubkey, SECP256R1):
+                    sig_idx += 1
+            except Exception:
+                continue
+        
+        # All signatures must have been verified
+        result = sig_idx == len(signatures)
+        self.push(Integer(1 if result else 0))
     
     # Iterator syscall implementations
     def _iterator_next(self, engine: "ApplicationEngine") -> None:
