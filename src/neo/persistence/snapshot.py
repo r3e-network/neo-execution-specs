@@ -113,6 +113,50 @@ class MemorySnapshot(Snapshot):
         clone._store = dict(self._store)
         clone._changes = dict(self._changes)
         return clone
+    
+    # Storage helper methods for ApplicationEngine
+    def storage_get(self, key: bytes) -> Optional[bytes]:
+        """Get storage value."""
+        return self.get(key)
+    
+    def storage_put(self, key: bytes, value: bytes) -> None:
+        """Put storage value."""
+        self.put(key, value)
+    
+    def storage_delete(self, key: bytes) -> None:
+        """Delete storage value."""
+        self.delete(key)
+    
+    # Contract methods
+    def get_contract(self, script_hash) -> Optional[Any]:
+        """Get contract by script hash."""
+        from neo.types.uint160 import UInt160
+        if isinstance(script_hash, UInt160):
+            key = b"\x08" + bytes(script_hash)  # Contract prefix
+        else:
+            key = b"\x08" + script_hash
+        return self.get(key)
+    
+    def contains_transaction(self, tx_hash) -> bool:
+        """Check if transaction exists."""
+        from neo.types.uint256 import UInt256
+        if isinstance(tx_hash, UInt256):
+            key = b"\x0b" + bytes(tx_hash)  # Transaction prefix
+        else:
+            key = b"\x0b" + tx_hash
+        return self.contains(key)
+    
+    def get_gas_balance(self, account) -> int:
+        """Get GAS balance for account."""
+        from neo.types.uint160 import UInt160
+        if isinstance(account, UInt160):
+            key = b"\x14\x00" + bytes(account)  # GAS balance prefix
+        else:
+            key = b"\x14\x00" + account
+        value = self.get(key)
+        if value is None:
+            return 0
+        return int.from_bytes(value, 'little')
 
 
 class StoreSnapshot(Snapshot):
