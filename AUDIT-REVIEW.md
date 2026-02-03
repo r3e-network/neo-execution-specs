@@ -3,13 +3,28 @@
 **审计日期**: 2025-02-04  
 **项目版本**: Neo N3 v3.9.1 Python 实现  
 **审计范围**: VM 指令、Native Contracts、类型系统、边界条件  
-**测试状态**: 736 tests passing, 1 skipped
+**测试状态**: 828 tests passing, 1 skipped
+
+---
+
+## 修复状态摘要
+
+| 问题 | 严重程度 | 状态 |
+|------|----------|------|
+| SHL/SHR 栈损坏 | Critical | ✅ 已修复 |
+| Keccak256 回退错误 | Critical | ✅ 已修复 |
+| PACKMAP 键值顺序 | Critical | ✅ 已验证正确 |
+| EvaluationStack.reverse() | Medium | ✅ 已实现 |
+| Buffer.reverse() | Medium | ✅ 已实现 |
+| 栈下溢检查 | Medium | ✅ 已添加 |
+| BigInteger 大小限制 | Medium | ⏳ 待处理 |
+| CALLT/SYSCALL | Medium | ⏳ 待处理 (需要更大改动) |
 
 ---
 
 ## 严重问题
 
-### 1. SHL/SHR 指令栈损坏 (Critical)
+### 1. SHL/SHR 指令栈损坏 (Critical) ✅ 已修复
 
 **文件**: `src/neo/vm/instructions/numeric.py`
 
@@ -54,38 +69,19 @@ def shl(engine: ExecutionEngine, instruction: Instruction) -> None:
 
 ---
 
-### 2. PACKMAP 键值顺序错误 (Critical)
+### 2. PACKMAP 键值顺序错误 (Critical) ✅ 已验证正确
 
 **文件**: `src/neo/vm/instructions/compound.py`
 
-**问题**: PACKMAP 中 key 和 value 的弹出顺序与 C# 实现相反。
+**原问题**: 怀疑 PACKMAP 中 key 和 value 的弹出顺序与 C# 实现相反。
 
-```python
-def packmap(engine: ExecutionEngine, instruction: Instruction) -> None:
-    # ...
-    for _ in range(size):
-        key = engine.pop()    # 错误：应该先 pop value
-        value = engine.pop()  # 错误：应该后 pop key
-        result[key] = value
-```
+**验证结果**: 经过测试验证，当前实现是正确的。C# 中先 pop key，后 pop value，Python 实现与此一致。
 
-**C# 参考实现**:
-```csharp
-for (int i = 0; i < size; i++)
-{
-    PrimitiveType key = context.EvaluationStack.Pop<PrimitiveType>();
-    StackItem value = context.EvaluationStack.Pop();
-    map[key] = value;
-}
-```
-
-**注意**: C# 中先 pop key，后 pop value。但栈是 LIFO，所以 push 顺序是 value 先 push，key 后 push。当前 Python 实现的顺序是正确的，需要验证实际行为。
-
-**建议**: 添加测试用例验证与 C# 行为一致。
+**已添加测试**: `tests/vm/test_compound_ops.py::TestPackMap`
 
 ---
 
-### 3. Keccak256 回退实现错误 (Critical)
+### 3. Keccak256 回退实现错误 (Critical) ✅ 已修复
 
 **文件**: `src/neo/native/crypto_lib.py`
 
