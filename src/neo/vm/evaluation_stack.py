@@ -23,7 +23,13 @@ class EvaluationStack:
         self._items.append(item)
     
     def pop(self) -> StackItem:
-        """Pop item from stack."""
+        """Pop item from stack.
+        
+        Raises:
+            Exception: If stack is empty (stack underflow)
+        """
+        if not self._items:
+            raise Exception("Stack underflow")
         return self._items.pop()
     
     def peek(self, index: int = 0) -> StackItem:
