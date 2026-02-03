@@ -34,9 +34,22 @@ following the style of Ethereum's execution-specs project.
 - [x] Memory store implementation
 - [x] Persistence layer interfaces
 
-**Current Stats: 197 files, ~14,700 lines, 415 tests passing**
+**Current Stats: 197 files, ~8,700 lines, 462 tests passing**
 
-### ✅ Recently Completed
+### ✅ Recently Completed (Round 3)
+- [x] Enhanced ApplicationEngine with full syscall support
+- [x] Fixed PUSHDATA1/2/4 to skip length prefix bytes
+- [x] TRY/CATCH/FINALLY exception handling tests
+- [x] Compound type instruction tests (Array, Map, Struct)
+- [x] Splice instruction tests (CAT, SUBSTR, LEFT, RIGHT)
+- [x] Bitwise instruction tests (AND, OR, XOR, EQUAL)
+- [x] Type instruction tests (ISNULL, ISTYPE)
+- [x] ByteString hashability for Map keys
+- [x] Buffer class enhancements (inner_buffer, get_string)
+- [x] StackItem.equals() method for equality checks
+- [x] Blockchain/Ledger tests
+
+### ✅ Previously Completed
 - [x] BLS12-381 cryptography (G1, G2, Gt, Scalar, pairing)
 - [x] Enhanced ScriptBuilder with emit_push, emit_call, emit_syscall
 - [x] Comprehensive StdLib tests (encoding, conversion, memory, string)
