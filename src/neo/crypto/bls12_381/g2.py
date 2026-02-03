@@ -90,6 +90,16 @@ class G2Affine:
         return cls(is_infinity=True)
     
     @classmethod
+    def generator(cls) -> G2Affine:
+        """Return the generator point for G2."""
+        # BLS12-381 G2 generator coordinates
+        x_c0 = 0x024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8
+        x_c1 = 0x13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e
+        y_c0 = 0x0ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801
+        y_c1 = 0x0606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be
+        return cls(Fp2(x_c0, x_c1), Fp2(y_c0, y_c1))
+    
+    @classmethod
     def from_compressed(cls, data: bytes) -> G2Affine:
         """Deserialize from 96-byte compressed format."""
         if len(data) != 96:
