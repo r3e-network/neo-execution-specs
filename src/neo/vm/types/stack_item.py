@@ -57,3 +57,8 @@ class StackItem(ABC):
     def _equals_impl(self, other: "StackItem", limits: object) -> bool:
         """Implementation-specific equality check."""
         return False
+    
+    @property
+    def is_null(self) -> bool:
+        """Check if this is a null value."""
+        return False
