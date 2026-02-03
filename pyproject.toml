@@ -28,6 +28,14 @@ dev = [
     "mypy>=1.0",
     "ruff>=0.1",
 ]
+crypto = [
+    "cryptography>=41.0",
+    "pycryptodome>=3.19",
+    "py_ecc>=7.0",
+]
+all = [
+    "neo-execution-specs[dev,crypto]",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
