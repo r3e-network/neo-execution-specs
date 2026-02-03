@@ -14,3 +14,9 @@ class TestStorageContext:
         ctx = StorageContext(hash_val)
         assert ctx.script_hash == hash_val
         assert ctx.is_read_only is False
+    
+    def test_read_only_context(self):
+        """Test read-only storage context."""
+        hash_val = UInt160(b'\x01' * 20)
+        ctx = StorageContext(hash_val, is_read_only=True)
+        assert ctx.is_read_only is True
