@@ -77,7 +77,11 @@ class ExecutionEngine:
             return
         instr = ctx.current_instruction
         if instr is None:
-            self.invocation_stack.pop()
+            # Copy evaluation stack to target before popping
+            ctx_pop = self.invocation_stack.pop()
+            target = self.invocation_stack[-1].evaluation_stack if self.invocation_stack else self.result_stack
+            if ctx_pop.evaluation_stack is not target:
+                ctx_pop.evaluation_stack.copy_to(target)
             if not self.invocation_stack:
                 self.state = VMState.HALT
             return

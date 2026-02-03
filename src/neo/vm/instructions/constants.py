@@ -141,8 +141,10 @@ def pushdata1(engine: ExecutionEngine, instruction: Instruction) -> None:
     Push: 1 item
     Pop: 0 items
     """
-    engine.limits.assert_max_item_size(len(instruction.operand))
-    engine.push(ByteString(instruction.operand))
+    # Skip the 1-byte length prefix
+    data = instruction.operand[1:]
+    engine.limits.assert_max_item_size(len(data))
+    engine.push(ByteString(data))
 
 
 def pushdata2(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -153,8 +155,10 @@ def pushdata2(engine: ExecutionEngine, instruction: Instruction) -> None:
     Push: 1 item
     Pop: 0 items
     """
-    engine.limits.assert_max_item_size(len(instruction.operand))
-    engine.push(ByteString(instruction.operand))
+    # Skip the 2-byte length prefix
+    data = instruction.operand[2:]
+    engine.limits.assert_max_item_size(len(data))
+    engine.push(ByteString(data))
 
 
 def pushdata4(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -165,8 +169,10 @@ def pushdata4(engine: ExecutionEngine, instruction: Instruction) -> None:
     Push: 1 item
     Pop: 0 items
     """
-    engine.limits.assert_max_item_size(len(instruction.operand))
-    engine.push(ByteString(instruction.operand))
+    # Skip the 4-byte length prefix
+    data = instruction.operand[4:]
+    engine.limits.assert_max_item_size(len(data))
+    engine.push(ByteString(data))
 
 
 def pushm1(engine: ExecutionEngine, instruction: Instruction) -> None:

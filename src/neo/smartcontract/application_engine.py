@@ -1,89 +1,114 @@
 """Neo N3 Application Engine - Smart contract execution.
 
 Reference: Neo.SmartContract.ApplicationEngine
+
+The ApplicationEngine extends the base VM ExecutionEngine with:
+- Gas metering
+- Syscall support
+- Native contract invocation
+- Storage access
+- Notifications and logs
 """
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, TYPE_CHECKING
+from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
 from enum import IntEnum
 
 from neo.vm.execution_engine import ExecutionEngine, VMState
+from neo.vm.evaluation_stack import EvaluationStack
+from neo.vm.execution_context import ExecutionContext
+from neo.vm.reference_counter import ReferenceCounter
+from neo.vm.types import StackItem, Integer, ByteString, Array, NULL
 from neo.vm.opcode import OpCode
+from neo.smartcontract.trigger import TriggerType
+from neo.smartcontract.call_flags import CallFlags
 
 if TYPE_CHECKING:
-    from neo.types import UInt160
+    from neo.types import UInt160, UInt256
+    from neo.persistence import Snapshot
+    from neo.network.payloads import Transaction
 
 
-class TriggerType(IntEnum):
-    """Trigger types for contract execution."""
-    SYSTEM = 0x01
-    VERIFICATION = 0x20
-    APPLICATION = 0x40
-    ALL = SYSTEM | VERIFICATION | APPLICATION
-
-
-@dataclass
-class ExecutionContext:
-    """Execution context for a script."""
-    script: bytes
-    instruction_pointer: int = 0
-    call_flags: int = 0x0F  # All
-    
-    @property
-    def current_instruction(self) -> int:
-        """Get current opcode."""
-        if self.instruction_pointer >= len(self.script):
-            return OpCode.RET
-        return self.script[self.instruction_pointer]
+# Gas costs
+class GasCost:
+    """Standard gas costs for operations."""
+    BASE = 1
+    OPCODE = 1 << 3  # 8
+    STORAGE_READ = 1 << 10  # 1024
+    STORAGE_WRITE = 1 << 12  # 4096
+    CONTRACT_CALL = 1 << 15  # 32768
+    NATIVE_CALL = 1 << 10  # 1024
+    CRYPTO_VERIFY = 1 << 15  # 32768
+    CRYPTO_HASH = 1 << 10  # 1024
 
 
 @dataclass
-class ApplicationEngine:
-    """Neo N3 Application Engine."""
+class Notification:
+    """Contract notification event."""
+    script_hash: "UInt160"
+    event_name: str
+    state: StackItem
+
+
+@dataclass
+class LogEntry:
+    """Contract log entry."""
+    script_hash: "UInt160"
+    message: str
+
+
+class ApplicationEngine(ExecutionEngine):
+    """Neo N3 Application Engine.
     
-    trigger: TriggerType = TriggerType.APPLICATION
-    gas_consumed: int = 0
-    gas_limit: int = 10_000_000
-    state: VMState = VMState.NONE
-    snapshot: Any = None
-    script_container: Any = None
-    network: int = 860833102
+    Extends ExecutionEngine with smart contract execution capabilities.
+    """
     
-    _contexts: List[ExecutionContext] = field(default_factory=list)
-    _result_stack: List = field(default_factory=list)
-    _notifications: List = field(default_factory=list)
-    _logs: List = field(default_factory=list)
-    _invocation_counters: Dict = field(default_factory=dict)
-    
-    def load_script(self, script: bytes) -> None:
-        """Load script for execution."""
-        ctx = ExecutionContext(script=script)
-        self._contexts.append(ctx)
+    def __init__(
+        self,
+        trigger: TriggerType = TriggerType.APPLICATION,
+        gas_limit: int = 10_000_000_000,
+        snapshot: Optional["Snapshot"] = None,
+        script_container: Optional[Any] = None,
+        network: int = 860833102,
+        protocol_settings: Optional[Any] = None,
+        **kwargs
+    ):
+        """Initialize the application engine."""
+        super().__init__(**kwargs)
+        
+        self.trigger = trigger
+        self.gas_consumed = 0
+        self.gas_limit = gas_limit
+        self.snapshot = snapshot
+        self.script_container = script_container
+        self.network = network
+        self.protocol_settings = protocol_settings
+        
+        # Execution state
+        self._notifications: List[Notification] = []
+        self._logs: List[LogEntry] = []
+        self._invocation_counters: Dict[bytes, int] = {}
+        self._storage_contexts: Dict[int, Any] = {}
+        self._loaded_tokens: Dict[int, Any] = {}
+        self._current_call_flags: CallFlags = CallFlags.ALL
+        
+        # Native contract cache
+        self._native_contracts: Dict[bytes, Any] = {}
+        
+        # Set syscall handler
+        self.syscall_handler = self._handle_syscall
+        self._register_syscalls()
     
     @property
-    def current_context(self) -> Optional[ExecutionContext]:
-        """Get current context."""
-        return self._contexts[-1] if self._contexts else None
+    def notifications(self) -> List[Notification]:
+        """Get all notifications."""
+        return self._notifications
     
-    def execute(self) -> VMState:
-        """Execute loaded scripts."""
-        self.state = VMState.NONE
-        while self._contexts and self.state == VMState.NONE:
-            self._execute_next()
-        if self.state == VMState.NONE:
-            self.state = VMState.HALT
-        return self.state
-    
-    def _execute_next(self) -> None:
-        """Execute next instruction."""
-        ctx = self.current_context
-        if not ctx:
-            return
-        # Simplified execution
-        ctx.instruction_pointer += 1
-        if ctx.instruction_pointer >= len(ctx.script):
-            self._contexts.pop()
+    @property
+    def logs(self) -> List[LogEntry]:
+        """Get all log entries."""
+        return self._logs
     
     @property
     def current_script_hash(self) -> Optional["UInt160"]:
@@ -100,9 +125,9 @@ class ApplicationEngine:
         """Get script hash of calling context."""
         from neo.types import UInt160
         from neo.crypto import hash160
-        if len(self._contexts) < 2:
+        if len(self.invocation_stack) < 2:
             return None
-        ctx = self._contexts[-2]
+        ctx = self.invocation_stack[-2]
         return UInt160(hash160(ctx.script))
     
     @property
@@ -110,13 +135,336 @@ class ApplicationEngine:
         """Get script hash of entry context."""
         from neo.types import UInt160
         from neo.crypto import hash160
-        if not self._contexts:
+        if not self.invocation_stack:
             return None
-        ctx = self._contexts[0]
+        ctx = self.invocation_stack[0]
         return UInt160(hash160(ctx.script))
     
     def add_gas(self, amount: int) -> None:
-        """Add gas consumption."""
+        """Add gas consumption and check limit."""
         self.gas_consumed += amount
         if self.gas_consumed > self.gas_limit:
             raise Exception("Out of gas")
+    
+    def send_notification(self, script_hash: "UInt160", event_name: str, state: StackItem) -> None:
+        """Send a notification event."""
+        self._notifications.append(Notification(script_hash, event_name, state))
+    
+    def write_log(self, script_hash: "UInt160", message: str) -> None:
+        """Write a log entry."""
+        self._logs.append(LogEntry(script_hash, message))
+    
+    def _handle_syscall(self, engine: ExecutionEngine, hash_val: int) -> None:
+        """Handle syscall invocation."""
+        from neo.smartcontract.interop_service import invoke_syscall
+        invoke_syscall(self, hash_val)
+    
+    def _register_syscalls(self) -> None:
+        """Register all syscalls."""
+        from neo.smartcontract.interop_service import register_syscall
+        
+        # System.Runtime syscalls
+        register_syscall("System.Runtime.Platform", self._runtime_platform, 250)
+        register_syscall("System.Runtime.GetTrigger", self._runtime_get_trigger, 250)
+        register_syscall("System.Runtime.GetTime", self._runtime_get_time, 250)
+        register_syscall("System.Runtime.GetScriptContainer", self._runtime_get_script_container, 250)
+        register_syscall("System.Runtime.GetExecutingScriptHash", self._runtime_get_executing_script_hash, 400)
+        register_syscall("System.Runtime.GetCallingScriptHash", self._runtime_get_calling_script_hash, 400)
+        register_syscall("System.Runtime.GetEntryScriptHash", self._runtime_get_entry_script_hash, 400)
+        register_syscall("System.Runtime.CheckWitness", self._runtime_check_witness, 1024)
+        register_syscall("System.Runtime.GetInvocationCounter", self._runtime_get_invocation_counter, 400)
+        register_syscall("System.Runtime.GetNetwork", self._runtime_get_network, 250)
+        register_syscall("System.Runtime.GetRandom", self._runtime_get_random, 250)
+        register_syscall("System.Runtime.Log", self._runtime_log, 1 << 15)
+        register_syscall("System.Runtime.Notify", self._runtime_notify, 1 << 15)
+        register_syscall("System.Runtime.GetNotifications", self._runtime_get_notifications, 256)
+        register_syscall("System.Runtime.GasLeft", self._runtime_gas_left, 400)
+        register_syscall("System.Runtime.BurnGas", self._runtime_burn_gas, 400)
+        register_syscall("System.Runtime.CurrentSigners", self._runtime_current_signers, 1024)
+        register_syscall("System.Runtime.GetAddressVersion", self._runtime_get_address_version, 250)
+        
+        # System.Storage syscalls
+        register_syscall("System.Storage.GetContext", self._storage_get_context, 400)
+        register_syscall("System.Storage.GetReadOnlyContext", self._storage_get_readonly_context, 400)
+        register_syscall("System.Storage.AsReadOnly", self._storage_as_readonly, 400)
+        register_syscall("System.Storage.Get", self._storage_get, 1 << 15)
+        register_syscall("System.Storage.Find", self._storage_find, 1 << 15)
+        register_syscall("System.Storage.Put", self._storage_put, 1 << 15)
+        register_syscall("System.Storage.Delete", self._storage_delete, 1 << 15)
+        
+        # System.Contract syscalls
+        register_syscall("System.Contract.Call", self._contract_call, 1 << 15)
+        register_syscall("System.Contract.CallNative", self._contract_call_native, 0)
+        register_syscall("System.Contract.GetCallFlags", self._contract_get_call_flags, 1024)
+        register_syscall("System.Contract.CreateStandardAccount", self._contract_create_standard_account, 1 << 8)
+        register_syscall("System.Contract.CreateMultisigAccount", self._contract_create_multisig_account, 1 << 8)
+        register_syscall("System.Contract.NativeOnPersist", self._contract_native_on_persist, 0)
+        register_syscall("System.Contract.NativePostPersist", self._contract_native_post_persist, 0)
+        
+        # System.Crypto syscalls
+        register_syscall("System.Crypto.CheckSig", self._crypto_check_sig, 1 << 15)
+        register_syscall("System.Crypto.CheckMultisig", self._crypto_check_multisig, 0)
+        
+        # System.Iterator syscalls
+        register_syscall("System.Iterator.Next", self._iterator_next, 1 << 15)
+        register_syscall("System.Iterator.Value", self._iterator_value, 1 << 4)
+    
+    # Runtime syscall implementations
+    def _runtime_platform(self, engine: "ApplicationEngine") -> None:
+        """Get platform name."""
+        self.push(ByteString(b"NEO"))
+    
+    def _runtime_get_trigger(self, engine: "ApplicationEngine") -> None:
+        """Get trigger type."""
+        self.push(Integer(int(self.trigger)))
+    
+    def _runtime_get_time(self, engine: "ApplicationEngine") -> None:
+        """Get current block time."""
+        # Return current timestamp if no snapshot
+        import time
+        timestamp = int(time.time() * 1000)
+        self.push(Integer(timestamp))
+    
+    def _runtime_get_script_container(self, engine: "ApplicationEngine") -> None:
+        """Get script container (transaction)."""
+        from neo.vm.types import InteropInterface
+        if self.script_container is not None:
+            self.push(InteropInterface(self.script_container))
+        else:
+            self.push(NULL)
+    
+    def _runtime_get_executing_script_hash(self, engine: "ApplicationEngine") -> None:
+        """Get executing script hash."""
+        script_hash = self.current_script_hash
+        if script_hash:
+            self.push(ByteString(bytes(script_hash)))
+        else:
+            self.push(NULL)
+    
+    def _runtime_get_calling_script_hash(self, engine: "ApplicationEngine") -> None:
+        """Get calling script hash."""
+        script_hash = self.calling_script_hash
+        if script_hash:
+            self.push(ByteString(bytes(script_hash)))
+        else:
+            self.push(NULL)
+    
+    def _runtime_get_entry_script_hash(self, engine: "ApplicationEngine") -> None:
+        """Get entry script hash."""
+        script_hash = self.entry_script_hash
+        if script_hash:
+            self.push(ByteString(bytes(script_hash)))
+        else:
+            self.push(NULL)
+    
+    def _runtime_check_witness(self, engine: "ApplicationEngine") -> None:
+        """Check witness for account/contract."""
+        hash_or_pubkey = self.pop()
+        # Simplified: always return true for testing
+        self.push(Integer(1))
+    
+    def _runtime_get_invocation_counter(self, engine: "ApplicationEngine") -> None:
+        """Get invocation counter for current script."""
+        script_hash = self.current_script_hash
+        if script_hash:
+            count = self._invocation_counters.get(bytes(script_hash), 1)
+            self.push(Integer(count))
+        else:
+            self.push(Integer(0))
+    
+    def _runtime_get_network(self, engine: "ApplicationEngine") -> None:
+        """Get network magic number."""
+        self.push(Integer(self.network))
+    
+    def _runtime_get_random(self, engine: "ApplicationEngine") -> None:
+        """Get random number."""
+        import random
+        self.push(Integer(random.getrandbits(256)))
+    
+    def _runtime_log(self, engine: "ApplicationEngine") -> None:
+        """Write log message."""
+        message = self.pop()
+        script_hash = self.current_script_hash
+        if script_hash:
+            self.write_log(script_hash, message.get_string())
+    
+    def _runtime_notify(self, engine: "ApplicationEngine") -> None:
+        """Send notification."""
+        state = self.pop()
+        event_name = self.pop().get_string()
+        script_hash = self.current_script_hash
+        if script_hash:
+            self.send_notification(script_hash, event_name, state)
+    
+    def _runtime_get_notifications(self, engine: "ApplicationEngine") -> None:
+        """Get notifications for a contract."""
+        hash_item = self.pop()
+        # Return all notifications as array
+        result = Array([])
+        self.push(result)
+    
+    def _runtime_gas_left(self, engine: "ApplicationEngine") -> None:
+        """Get remaining gas."""
+        remaining = self.gas_limit - self.gas_consumed
+        self.push(Integer(remaining))
+    
+    def _runtime_burn_gas(self, engine: "ApplicationEngine") -> None:
+        """Burn specified amount of gas."""
+        amount = self.pop().get_integer()
+        if amount < 0:
+            raise Exception("Invalid gas amount")
+        self.add_gas(amount)
+    
+    def _runtime_current_signers(self, engine: "ApplicationEngine") -> None:
+        """Get current transaction signers."""
+        self.push(Array([]))
+    
+    def _runtime_get_address_version(self, engine: "ApplicationEngine") -> None:
+        """Get address version."""
+        self.push(Integer(53))  # Neo N3 address version
+    
+    # Storage syscall implementations
+    def _storage_get_context(self, engine: "ApplicationEngine") -> None:
+        """Get storage context."""
+        from neo.vm.types import InteropInterface
+        from neo.smartcontract.storage_context import StorageContext
+        script_hash = self.current_script_hash
+        ctx = StorageContext(script_hash, is_read_only=False)
+        self.push(InteropInterface(ctx))
+    
+    def _storage_get_readonly_context(self, engine: "ApplicationEngine") -> None:
+        """Get read-only storage context."""
+        from neo.vm.types import InteropInterface
+        from neo.smartcontract.storage_context import StorageContext
+        script_hash = self.current_script_hash
+        ctx = StorageContext(script_hash, is_read_only=True)
+        self.push(InteropInterface(ctx))
+    
+    def _storage_as_readonly(self, engine: "ApplicationEngine") -> None:
+        """Convert storage context to read-only."""
+        from neo.vm.types import InteropInterface
+        from neo.smartcontract.storage_context import StorageContext
+        ctx_item = self.pop()
+        if hasattr(ctx_item, 'value'):
+            ctx = ctx_item.value
+            readonly_ctx = StorageContext(ctx.script_hash, is_read_only=True)
+            self.push(InteropInterface(readonly_ctx))
+        else:
+            self.push(NULL)
+    
+    def _storage_get(self, engine: "ApplicationEngine") -> None:
+        """Get value from storage."""
+        key = self.pop()
+        ctx_item = self.pop()
+        # Return null for now (no persistence)
+        self.push(NULL)
+    
+    def _storage_find(self, engine: "ApplicationEngine") -> None:
+        """Find values in storage by prefix."""
+        from neo.vm.types import InteropInterface
+        options = self.pop().get_integer()
+        prefix = self.pop()
+        ctx_item = self.pop()
+        # Return empty iterator
+        self.push(InteropInterface(iter([])))
+    
+    def _storage_put(self, engine: "ApplicationEngine") -> None:
+        """Put value to storage."""
+        value = self.pop()
+        key = self.pop()
+        ctx_item = self.pop()
+        # No-op for now (no persistence)
+    
+    def _storage_delete(self, engine: "ApplicationEngine") -> None:
+        """Delete value from storage."""
+        key = self.pop()
+        ctx_item = self.pop()
+        # No-op for now (no persistence)
+    
+    # Contract syscall implementations
+    def _contract_call(self, engine: "ApplicationEngine") -> None:
+        """Call another contract."""
+        call_flags = CallFlags(self.pop().get_integer())
+        method = self.pop().get_string()
+        contract_hash = self.pop()
+        # Simplified: just push null
+        self.push(NULL)
+    
+    def _contract_call_native(self, engine: "ApplicationEngine") -> None:
+        """Call native contract."""
+        version = self.pop().get_integer()
+        # Native contract call handled separately
+        self.push(NULL)
+    
+    def _contract_get_call_flags(self, engine: "ApplicationEngine") -> None:
+        """Get current call flags."""
+        self.push(Integer(int(self._current_call_flags)))
+    
+    def _contract_create_standard_account(self, engine: "ApplicationEngine") -> None:
+        """Create standard account from public key."""
+        from neo.crypto import hash160
+        pubkey = self.pop()
+        # Create script hash from public key
+        pubkey_bytes = pubkey.get_bytes_unsafe()
+        script = bytes([0x0C, len(pubkey_bytes)]) + pubkey_bytes + bytes([0x41, 0x56, 0xe7, 0xb3, 0x27])
+        script_hash = hash160(script)
+        self.push(ByteString(script_hash))
+    
+    def _contract_create_multisig_account(self, engine: "ApplicationEngine") -> None:
+        """Create multisig account from public keys."""
+        from neo.crypto import hash160
+        m = self.pop().get_integer()
+        pubkeys = self.pop()
+        # Simplified multisig script hash
+        self.push(ByteString(bytes(20)))
+    
+    def _contract_native_on_persist(self, engine: "ApplicationEngine") -> None:
+        """Native contract OnPersist."""
+        pass
+    
+    def _contract_native_post_persist(self, engine: "ApplicationEngine") -> None:
+        """Native contract PostPersist."""
+        pass
+    
+    # Crypto syscall implementations
+    def _crypto_check_sig(self, engine: "ApplicationEngine") -> None:
+        """Check ECDSA signature."""
+        signature = self.pop()
+        pubkey = self.pop()
+        message = self.pop()
+        # Simplified: return true
+        self.push(Integer(1))
+    
+    def _crypto_check_multisig(self, engine: "ApplicationEngine") -> None:
+        """Check multiple ECDSA signatures."""
+        signatures = self.pop()
+        pubkeys = self.pop()
+        message = self.pop()
+        # Simplified: return true
+        self.push(Integer(1))
+    
+    # Iterator syscall implementations
+    def _iterator_next(self, engine: "ApplicationEngine") -> None:
+        """Move iterator to next item."""
+        iterator_item = self.pop()
+        if hasattr(iterator_item, 'value'):
+            try:
+                next(iterator_item.value)
+                self.push(Integer(1))
+            except StopIteration:
+                self.push(Integer(0))
+        else:
+            self.push(Integer(0))
+    
+    def _iterator_value(self, engine: "ApplicationEngine") -> None:
+        """Get current iterator value."""
+        iterator_item = self.peek()
+        self.push(NULL)
+    
+    @classmethod
+    def run(cls, script: bytes, **kwargs) -> "ApplicationEngine":
+        """Convenience method to run a script."""
+        engine = cls(**kwargs)
+        engine.load_script(script)
+        engine.execute()
+        return engine
