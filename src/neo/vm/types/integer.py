@@ -8,12 +8,19 @@ from neo.types import BigInteger
 class Integer(StackItem):
     """Integer value on the stack."""
     
+    MAX_SIZE = 32  # Maximum bytes for integer representation
+    
     ZERO: Integer
     
     __slots__ = ("_value",)
     
     def __init__(self, value: int | BigInteger) -> None:
-        self._value = BigInteger(value)
+        big_int = BigInteger(value)
+        # Enforce size limit
+        byte_len = len(big_int.to_bytes_le())
+        if byte_len > self.MAX_SIZE:
+            raise OverflowError(f"Integer too large: {byte_len} bytes exceeds maximum {self.MAX_SIZE}")
+        self._value = big_int
     
     @property
     def type(self) -> StackItemType:
