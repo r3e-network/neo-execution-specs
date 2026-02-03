@@ -7,7 +7,7 @@ following the style of Ethereum's execution-specs project.
 
 ## Current Progress
 
-**Current Stats: ~215 files, ~15,000 lines, 1024 tests passing** 🎉
+**Current Stats: 200 source files, ~17,000 lines, 1037 tests passing** 🎉
 
 ### ✅ Completed (Phase 1 - Foundation)
 - [x] Basic types (UInt160, UInt256, BigInteger)
