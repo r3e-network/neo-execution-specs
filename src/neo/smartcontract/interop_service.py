@@ -25,3 +25,36 @@ def get_interop_hash(name: str) -> int:
     data = name.encode('ascii')
     hash_bytes = hashlib.sha256(data).digest()[:4]
     return int.from_bytes(hash_bytes, 'little')
+
+
+# Syscall registry
+_syscalls: Dict[int, InteropDescriptor] = {}
+
+
+def register_syscall(
+    name: str,
+    handler: Callable,
+    price: int = 0,
+    flags: CallFlags = CallFlags.NONE
+) -> None:
+    """Register a syscall."""
+    hash_val = get_interop_hash(name)
+    _syscalls[hash_val] = InteropDescriptor(name, handler, price, flags)
+
+
+def get_syscall(hash_val: int) -> InteropDescriptor | None:
+    """Get syscall by hash."""
+    return _syscalls.get(hash_val)
+
+
+def invoke_syscall(engine: "ApplicationEngine", hash_val: int) -> None:
+    """Invoke a syscall by hash."""
+    descriptor = get_syscall(hash_val)
+    if descriptor is None:
+        raise ValueError(f"Unknown syscall: {hash_val:#x}")
+    
+    # Charge gas
+    engine.add_gas(descriptor.price)
+    
+    # Invoke handler
+    descriptor.handler(engine)
