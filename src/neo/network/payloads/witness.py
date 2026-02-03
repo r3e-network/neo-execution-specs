@@ -1,6 +1,15 @@
-"""Neo N3 Witness."""
+"""Neo N3 Witness.
 
+Reference: Neo.Network.P2P.Payloads.Witness
+"""
+
+from __future__ import annotations
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from neo.io.binary_reader import BinaryReader
+    from neo.io.binary_writer import BinaryWriter
 
 
 def _get_var_size(value: int) -> int:
@@ -16,7 +25,7 @@ def _get_var_size(value: int) -> int:
 
 @dataclass
 class Witness:
-    """Transaction witness."""
+    """Transaction witness containing invocation and verification scripts."""
     invocation_script: bytes = b""
     verification_script: bytes = b""
     
@@ -38,3 +47,29 @@ class Witness:
         """Get verification script hash."""
         from neo.crypto.hash import hash160
         return hash160(self.verification_script)
+    
+    def serialize(self, writer: "BinaryWriter") -> None:
+        """Serialize the witness."""
+        writer.write_var_bytes(self.invocation_script)
+        writer.write_var_bytes(self.verification_script)
+    
+    @classmethod
+    def deserialize(cls, reader: "BinaryReader") -> "Witness":
+        """Deserialize a witness."""
+        invocation = reader.read_var_bytes(0xFFFF)
+        verification = reader.read_var_bytes(0xFFFF)
+        return cls(invocation_script=invocation, verification_script=verification)
+    
+    def to_bytes(self) -> bytes:
+        """Serialize to bytes."""
+        from neo.io.binary_writer import BinaryWriter
+        writer = BinaryWriter()
+        self.serialize(writer)
+        return writer.to_bytes()
+    
+    @classmethod
+    def from_bytes(cls, data: bytes) -> "Witness":
+        """Deserialize from bytes."""
+        from neo.io.binary_reader import BinaryReader
+        reader = BinaryReader(data)
+        return cls.deserialize(reader)
