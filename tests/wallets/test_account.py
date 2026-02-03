@@ -1,14 +1,48 @@
-"""Tests for Account."""
+"""Tests for Account module."""
 
 import pytest
-from neo.wallets.account import Account
-from neo.types.uint160 import UInt160
+from neo.wallets.account import (
+    Account,
+    AccountType,
+    Contract,
+    ContractParameter,
+    script_hash_to_address,
+    address_to_script_hash,
+)
 
 
-class TestAccount:
-    """Test Account."""
+class TestAccountType:
+    """Tests for AccountType enum."""
     
-    def test_create(self):
-        """Test create."""
-        acc = Account(UInt160())
-        assert acc is not None
+    def test_standard(self):
+        """Test STANDARD value."""
+        assert AccountType.STANDARD == 0
+    
+    def test_multi_sig(self):
+        """Test MULTI_SIG value."""
+        assert AccountType.MULTI_SIG == 1
+    
+    def test_contract(self):
+        """Test CONTRACT value."""
+        assert AccountType.CONTRACT == 2
+
+
+class TestContractParameter:
+    """Tests for ContractParameter."""
+    
+    def test_creation(self):
+        """Test parameter creation."""
+        param = ContractParameter("sig", "Signature")
+        assert param.name == "sig"
+        assert param.type == "Signature"
+
+
+class TestContract:
+    """Tests for Contract."""
+    
+    def test_creation(self):
+        """Test contract creation."""
+        contract = Contract(script=b'\x10\x40')
+        assert contract.script == b'\x10\x40'
+        assert contract.parameters == []
+        assert contract.deployed is False
