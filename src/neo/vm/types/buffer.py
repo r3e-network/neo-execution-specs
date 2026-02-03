@@ -27,5 +27,26 @@ class Buffer(StackItem):
     def get_boolean(self) -> bool:
         return True
     
+    def get_span(self) -> bytes:
+        """Get the raw bytes."""
+        return bytes(self._value)
+    
+    def get_string(self) -> str:
+        """Get as UTF-8 string."""
+        return self._value.decode('utf-8', errors='replace')
+    
+    @property
+    def inner_buffer(self) -> bytearray:
+        """Get the mutable inner buffer."""
+        return self._value
+    
     def __len__(self) -> int:
         return len(self._value)
+    
+    def __setitem__(self, index: int, value: int) -> None:
+        """Set byte at index."""
+        self._value[index] = value
+    
+    def __getitem__(self, index: int) -> int:
+        """Get byte at index."""
+        return self._value[index]
