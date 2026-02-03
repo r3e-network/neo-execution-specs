@@ -34,7 +34,21 @@ following the style of Ethereum's execution-specs project.
 - [x] Memory store implementation
 - [x] Persistence layer interfaces
 
-**Current Stats: 197 files, ~14,700 lines, 247 tests passing**
+**Current Stats: 197 files, ~14,700 lines, 384 tests passing**
+
+### ✅ Recently Completed
+- [x] BLS12-381 cryptography (G1, G2, Gt, Scalar, pairing)
+- [x] Enhanced ScriptBuilder with emit_push, emit_call, emit_syscall
+- [x] Comprehensive StdLib tests (encoding, conversion, memory, string)
+- [x] Token tests (NEO, GAS, account states)
+- [x] Network payload tests (Witness, Signer, WitnessScope)
+- [x] Persistence tests (MemoryStore, SeekDirection)
+- [x] CryptoLib tests (hash functions, curve enums)
+- [x] Ledger tests (VerifyResult, TransactionRemovalReason)
+- [x] Wallet tests (KeyPair)
+- [x] IO tests (BinaryReader, BinaryWriter)
+- [x] Contract type tests (CallFlags, TriggerType, ContractParameterType)
+- [x] VM numeric instruction tests
 
 ## Implementation Phases
 
