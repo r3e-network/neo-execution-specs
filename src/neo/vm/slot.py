@@ -20,11 +20,24 @@ class Slot:
     
     def __init__(
         self, 
-        items: Optional[List[StackItem]] = None,
-        reference_counter: Optional[ReferenceCounter] = None
+        count_or_items: int | List["StackItem"] | None = None,
+        reference_counter: Optional["ReferenceCounter"] = None
     ) -> None:
-        self._items: List[StackItem] = items or []
+        from neo.vm.types import NULL
+        if isinstance(count_or_items, int):
+            # Create slot with count NULL items
+            self._items: List["StackItem"] = [NULL for _ in range(count_or_items)]
+        elif count_or_items is None:
+            self._items = []
+        else:
+            self._items = list(count_or_items)
         self._reference_counter = reference_counter
+    
+    @classmethod
+    def from_items(cls, items: List["StackItem"], 
+                   reference_counter: Optional["ReferenceCounter"] = None) -> "Slot":
+        """Create slot from list of items."""
+        return cls(items, reference_counter)
     
     def __len__(self) -> int:
         return len(self._items)
