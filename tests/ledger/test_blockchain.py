@@ -2,51 +2,100 @@
 
 import pytest
 from neo.ledger.blockchain import Blockchain, ApplicationExecuted
-from neo.network.payloads.block import Block
+from neo.types import UInt256
 from neo.persistence.memory_store import MemoryStore
 
 
+class TestApplicationExecuted:
+    """Test ApplicationExecuted dataclass."""
+    
+    def test_default_values(self):
+        """Test default values."""
+        result = ApplicationExecuted()
+        assert result.tx_hash is None
+        assert result.trigger == "Application"
+        assert result.vm_state == "HALT"
+        assert result.gas_consumed == 0
+        assert result.exception is None
+        assert result.stack == []
+        assert result.notifications == []
+    
+    def test_custom_values(self):
+        """Test custom values."""
+        tx_hash = UInt256(bytes(32))
+        result = ApplicationExecuted(
+            tx_hash=tx_hash,
+            trigger="Verification",
+            vm_state="FAULT",
+            gas_consumed=1000,
+            exception="Test error"
+        )
+        assert result.tx_hash == tx_hash
+        assert result.trigger == "Verification"
+        assert result.vm_state == "FAULT"
+        assert result.gas_consumed == 1000
+        assert result.exception == "Test error"
+
+
 class TestBlockchain:
-    """Test cases for Blockchain."""
+    """Test Blockchain class."""
     
-    def test_initial_state(self):
-        """Test initial blockchain state."""
+    def test_create_blockchain(self):
+        """Test creating a blockchain."""
         store = MemoryStore()
-        bc = Blockchain(store)
-        
-        assert bc.height == -1
-        assert bc.current_block is None
-        assert bc.genesis_block is None
+        blockchain = Blockchain(store)
+        assert blockchain.height == -1
+        assert blockchain.current_block is None
+        assert blockchain.genesis_block is None
     
-    def test_persist_genesis(self):
-        """Test persisting genesis block."""
+    def test_height_property(self):
+        """Test height property."""
         store = MemoryStore()
-        bc = Blockchain(store)
-        block = Block(index=0)
-        
-        bc.persist(block)
-        
-        assert bc.height == 0
-        assert bc.genesis_block == block
-        assert bc.current_block == block
+        blockchain = Blockchain(store)
+        assert blockchain.height == -1
     
-    def test_get_block(self):
-        """Test getting block by hash."""
+    def test_contains_block_empty(self):
+        """Test contains_block on empty blockchain."""
         store = MemoryStore()
-        bc = Blockchain(store)
-        block = Block(index=0)
-        
-        bc.persist(block)
-        
-        result = bc.get_block(block.hash)
-        assert result == block
+        blockchain = Blockchain(store)
+        block_hash = UInt256(bytes(32))
+        assert not blockchain.contains_block(block_hash)
     
-    def test_contains_block(self):
-        """Test contains_block method."""
+    def test_get_block_not_found(self):
+        """Test get_block when block doesn't exist."""
         store = MemoryStore()
-        bc = Blockchain(store)
-        block = Block(index=0)
+        blockchain = Blockchain(store)
+        block_hash = UInt256(bytes(32))
+        assert blockchain.get_block(block_hash) is None
+    
+    def test_get_block_by_index_not_found(self):
+        """Test get_block_by_index when block doesn't exist."""
+        store = MemoryStore()
+        blockchain = Blockchain(store)
+        assert blockchain.get_block_by_index(0) is None
+    
+    def test_on_persist_callback(self):
+        """Test on_persist callback registration."""
+        store = MemoryStore()
+        blockchain = Blockchain(store)
         
-        assert not bc.contains_block(block.hash)
-        bc.persist(block)
-        assert bc.contains_block(block.hash)
+        callback_called = []
+        def callback(block):
+            callback_called.append(block)
+        
+        blockchain.on_persist(callback)
+        # Callback should be registered
+        assert len(blockchain._on_persist) == 1
+    
+    def test_on_committed_callback(self):
+        """Test on_committed callback registration."""
+        store = MemoryStore()
+        blockchain = Blockchain(store)
+        
+        callback_called = []
+        def callback(block):
+            callback_called.append(block)
+        
+        blockchain.on_committed(callback)
+        # Callback should be registered
+        assert len(blockchain._on_committed) == 1

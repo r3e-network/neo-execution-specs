@@ -1,126 +1,145 @@
-"""Tests for exception handling (TRY/CATCH/FINALLY)."""
+"""Tests for TRY/CATCH/FINALLY exception handling."""
 
 import pytest
-from neo.vm.exception_handling import (
-    ExceptionHandlingContext,
-    ExceptionHandlingState,
-    TryStack,
-)
+from neo.vm.execution_engine import ExecutionEngine, VMState
+from neo.vm.opcode import OpCode
 
 
-class TestExceptionHandlingContext:
-    """Tests for ExceptionHandlingContext."""
+class TestTryCatchFinally:
+    """Test TRY/CATCH/FINALLY exception handling."""
     
-    def test_context_creation(self):
-        """Test creating an exception handling context."""
-        ctx = ExceptionHandlingContext(catch_pointer=10, finally_pointer=20)
-        assert ctx.catch_pointer == 10
-        assert ctx.finally_pointer == 20
-        assert ctx.end_pointer == -1
-        assert ctx.state == ExceptionHandlingState.TRY
-    
-    def test_has_catch(self):
-        """Test has_catch property."""
-        ctx_with_catch = ExceptionHandlingContext(catch_pointer=10, finally_pointer=-1)
-        ctx_without_catch = ExceptionHandlingContext(catch_pointer=-1, finally_pointer=20)
+    def test_try_no_exception(self):
+        """Test TRY block without exception."""
+        # TRY { push 42 } CATCH { push 0 } -> should get 42
+        script = bytes([
+            0x3b, 8, 0,      # TRY catch=8, finally=0
+            0x0c, 1, 42,     # PUSHDATA1 42
+            0x3d, 5,         # ENDTRY +5 (jump past catch)
+            0x10,            # PUSH0 (catch block)
+            0x3d, 0,         # ENDTRY +0
+        ])
         
-        assert ctx_with_catch.has_catch is True
-        assert ctx_without_catch.has_catch is False
-    
-    def test_has_finally(self):
-        """Test has_finally property."""
-        ctx_with_finally = ExceptionHandlingContext(catch_pointer=-1, finally_pointer=20)
-        ctx_without_finally = ExceptionHandlingContext(catch_pointer=10, finally_pointer=-1)
+        engine = ExecutionEngine()
+        engine.load_script(script)
+        state = engine.execute()
         
-        assert ctx_with_finally.has_finally is True
-        assert ctx_without_finally.has_finally is False
+        assert state == VMState.HALT
+        assert engine.result_stack.peek().get_integer() == 42
     
-    def test_state_transitions(self):
-        """Test state transitions."""
-        ctx = ExceptionHandlingContext(catch_pointer=10, finally_pointer=20)
+    def test_try_with_throw(self):
+        """Test TRY block with THROW."""
+        # TRY { push "err"; throw } CATCH { drop; push 99 }
+        script = bytes([
+            0x3b, 11, 0,     # TRY catch=11, finally=0
+            0x0c, 3, 101, 114, 114,  # PUSHDATA1 "err"
+            0x3a,            # THROW
+            0x3d, 8,         # ENDTRY +8 (jump to end)
+            0x45,            # DROP (catch: drop exception)
+            0x0c, 1, 99,     # PUSHDATA1 99
+            0x3d, 2,         # ENDTRY +2 (jump past itself)
+        ])
         
-        assert ctx.state == ExceptionHandlingState.TRY
-        ctx.state = ExceptionHandlingState.CATCH
-        assert ctx.state == ExceptionHandlingState.CATCH
-        ctx.state = ExceptionHandlingState.FINALLY
-        assert ctx.state == ExceptionHandlingState.FINALLY
+        engine = ExecutionEngine()
+        engine.load_script(script)
+        state = engine.execute()
+        
+        assert state == VMState.HALT
+        assert engine.result_stack.peek().get_integer() == 99
+    
+    def test_try_finally_no_exception(self):
+        """Test TRY/FINALLY without exception."""
+        # TRY { push 1 } FINALLY { push 2 }
+        script = bytes([
+            0x3b, 0, 7,      # TRY catch=0, finally=7
+            0x0c, 1, 1,      # PUSHDATA1 1
+            0x3d, 4,         # ENDTRY +4 (to end)
+            0x0c, 1, 2,      # PUSHDATA1 2 (finally)
+            0x3f,            # ENDFINALLY
+        ])
+        
+        engine = ExecutionEngine()
+        engine.load_script(script)
+        state = engine.execute()
+        
+        assert state == VMState.HALT
+        assert len(engine.result_stack) == 2
+    
+    def test_abort_cannot_be_caught(self):
+        """Test that ABORT cannot be caught."""
+        script = bytes([
+            0x3b, 5, 0,      # TRY catch=5, finally=0
+            0x38,            # ABORT
+            0x3d, 4,         # ENDTRY (not reached)
+            0x0c, 1, 99,     # PUSHDATA1 99 (catch)
+            0x3d, 0,         # ENDTRY
+        ])
+        
+        engine = ExecutionEngine()
+        engine.load_script(script)
+        state = engine.execute()
+        
+        assert state == VMState.FAULT
+    
+    def test_assert_true_continues(self):
+        """Test ASSERT with true continues execution."""
+        script = bytes([
+            0x08,            # PUSHT
+            0x39,            # ASSERT
+            0x0c, 1, 42,     # PUSHDATA1 42
+        ])
+        
+        engine = ExecutionEngine()
+        engine.load_script(script)
+        state = engine.execute()
+        
+        assert state == VMState.HALT
+        assert engine.result_stack.peek().get_integer() == 42
+    
+    def test_assert_false_faults(self):
+        """Test ASSERT with false causes fault."""
+        script = bytes([
+            0x09,            # PUSHF
+            0x39,            # ASSERT
+        ])
+        
+        engine = ExecutionEngine()
+        engine.load_script(script)
+        state = engine.execute()
+        
+        assert state == VMState.FAULT
 
 
-class TestTryStack:
-    """Tests for TryStack."""
+class TestExceptionPropagation:
+    """Test exception propagation through call stack."""
     
-    def test_empty_stack(self):
-        """Test empty try stack."""
-        stack = TryStack()
-        assert len(stack) == 0
-        assert not stack
-        assert stack.peek() is None
+    def test_uncaught_exception_faults(self):
+        """Test uncaught exception causes fault."""
+        script = bytes([
+            0x0c, 3, 101, 114, 114,  # PUSHDATA1 "err"
+            0x3a,            # THROW
+        ])
+        
+        engine = ExecutionEngine()
+        engine.load_script(script)
+        state = engine.execute()
+        
+        assert state == VMState.FAULT
     
-    def test_push_and_pop(self):
-        """Test push and pop operations."""
-        stack = TryStack()
-        ctx = ExceptionHandlingContext(catch_pointer=10, finally_pointer=20)
+    def test_exception_in_catch_propagates(self):
+        """Test exception in catch block propagates."""
+        # TRY { throw } CATCH { throw again }
+        script = bytes([
+            0x3b, 10, 0,     # TRY catch=10
+            0x0c, 3, 101, 114, 114,  # PUSHDATA1 "err"
+            0x3a,            # THROW
+            0x3d, 6,         # ENDTRY
+            0x0c, 3, 101, 114, 114,  # PUSHDATA1 "err2" (catch)
+            0x3a,            # THROW again
+            0x3d, 0,         # ENDTRY
+        ])
         
-        stack.push(ctx)
-        assert len(stack) == 1
-        assert stack
+        engine = ExecutionEngine()
+        engine.load_script(script)
+        state = engine.execute()
         
-        popped = stack.pop()
-        assert popped is ctx
-        assert len(stack) == 0
-    
-    def test_peek(self):
-        """Test peek operation."""
-        stack = TryStack()
-        ctx = ExceptionHandlingContext(catch_pointer=10, finally_pointer=20)
-        
-        stack.push(ctx)
-        peeked = stack.peek()
-        assert peeked is ctx
-        assert len(stack) == 1  # Still on stack
-    
-    def test_try_peek(self):
-        """Test try_peek operation."""
-        stack = TryStack()
-        
-        success, ctx = stack.try_peek()
-        assert success is False
-        assert ctx is None
-        
-        new_ctx = ExceptionHandlingContext(catch_pointer=10, finally_pointer=20)
-        stack.push(new_ctx)
-        
-        success, ctx = stack.try_peek()
-        assert success is True
-        assert ctx is new_ctx
-    
-    def test_try_pop(self):
-        """Test try_pop operation."""
-        stack = TryStack()
-        
-        success, ctx = stack.try_pop()
-        assert success is False
-        assert ctx is None
-        
-        new_ctx = ExceptionHandlingContext(catch_pointer=10, finally_pointer=20)
-        stack.push(new_ctx)
-        
-        success, ctx = stack.try_pop()
-        assert success is True
-        assert ctx is new_ctx
-        assert len(stack) == 0
-    
-    def test_nested_try_blocks(self):
-        """Test nested try blocks."""
-        stack = TryStack()
-        ctx1 = ExceptionHandlingContext(catch_pointer=10, finally_pointer=20)
-        ctx2 = ExceptionHandlingContext(catch_pointer=30, finally_pointer=40)
-        
-        stack.push(ctx1)
-        stack.push(ctx2)
-        
-        assert len(stack) == 2
-        assert stack.peek() is ctx2
-        
-        stack.pop()
-        assert stack.peek() is ctx1
+        assert state == VMState.FAULT
