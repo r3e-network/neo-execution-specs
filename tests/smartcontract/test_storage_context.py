@@ -20,3 +20,11 @@ class TestStorageContext:
         hash_val = UInt160(b'\x01' * 20)
         ctx = StorageContext(hash_val, is_read_only=True)
         assert ctx.is_read_only is True
+    
+    def test_as_read_only(self):
+        """Test converting to read-only."""
+        hash_val = UInt160(b'\x01' * 20)
+        ctx = StorageContext(hash_val)
+        ro_ctx = ctx.as_read_only()
+        assert ro_ctx.is_read_only is True
+        assert ro_ctx.script_hash == hash_val
