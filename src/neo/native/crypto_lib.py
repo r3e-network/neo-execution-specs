@@ -118,6 +118,10 @@ class CryptoLib(NativeContract):
             
         Returns:
             32-byte Keccak-256 hash
+            
+        Raises:
+            ImportError: If neither pycryptodome nor pysha3 is available.
+                        Note: hashlib.sha3_256 is NOT Keccak-256!
         """
         try:
             from Crypto.Hash import keccak
@@ -129,9 +133,10 @@ class CryptoLib(NativeContract):
                 import sha3
                 return sha3.keccak_256(data).digest()
             except ImportError:
-                # Fallback: use hashlib if available (Python 3.11+)
-                import hashlib
-                return hashlib.sha3_256(data).digest()
+                raise ImportError(
+                    "Keccak256 requires pycryptodome or pysha3 library. "
+                    "Install with: pip install pycryptodome"
+                )
     
     # ========== Signature Verification ==========
     
