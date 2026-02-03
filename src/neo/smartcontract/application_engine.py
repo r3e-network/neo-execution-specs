@@ -421,11 +421,34 @@ class ApplicationEngine(ExecutionEngine):
             self.push(NULL)
     
     def _storage_get(self, engine: "ApplicationEngine") -> None:
-        """Get value from storage."""
+        """Get value from storage.
+        
+        Retrieves a value from contract storage using the provided key
+        and storage context.
+        """
         key = self.pop()
         ctx_item = self.pop()
-        # Return null for now (no persistence)
-        self.push(NULL)
+        
+        # Get storage context
+        if not hasattr(ctx_item, 'value'):
+            self.push(NULL)
+            return
+        
+        ctx = ctx_item.value
+        if self.snapshot is None:
+            self.push(NULL)
+            return
+        
+        # Build full storage key: contract_id + user_key
+        key_bytes = key.get_bytes_unsafe()
+        full_key = self._build_storage_key(ctx, key_bytes)
+        
+        # Get value from snapshot
+        value = self.snapshot.get(full_key)
+        if value is None:
+            self.push(NULL)
+        else:
+            self.push(ByteString(value))
     
     def _storage_find(self, engine: "ApplicationEngine") -> None:
         """Find values in storage by prefix."""
@@ -437,17 +460,78 @@ class ApplicationEngine(ExecutionEngine):
         self.push(InteropInterface(iter([])))
     
     def _storage_put(self, engine: "ApplicationEngine") -> None:
-        """Put value to storage."""
+        """Put value to storage.
+        
+        Stores a value in contract storage using the provided key
+        and storage context. Requires write permission.
+        """
         value = self.pop()
         key = self.pop()
         ctx_item = self.pop()
-        # No-op for now (no persistence)
+        
+        # Get storage context
+        if not hasattr(ctx_item, 'value'):
+            raise Exception("Invalid storage context")
+        
+        ctx = ctx_item.value
+        
+        # Check if context is read-only
+        if ctx.is_read_only:
+            raise Exception("Cannot write to read-only storage context")
+        
+        if self.snapshot is None:
+            raise Exception("No snapshot available for storage")
+        
+        # Build full storage key
+        key_bytes = key.get_bytes_unsafe()
+        value_bytes = value.get_bytes_unsafe()
+        full_key = self._build_storage_key(ctx, key_bytes)
+        
+        # Put value to snapshot
+        self.snapshot.put(full_key, value_bytes)
+        
+        # Add gas cost for storage write
+        self.add_gas(GasCost.STORAGE_WRITE)
     
     def _storage_delete(self, engine: "ApplicationEngine") -> None:
-        """Delete value from storage."""
+        """Delete value from storage.
+        
+        Removes a value from contract storage using the provided key
+        and storage context. Requires write permission.
+        """
         key = self.pop()
         ctx_item = self.pop()
-        # No-op for now (no persistence)
+        
+        # Get storage context
+        if not hasattr(ctx_item, 'value'):
+            raise Exception("Invalid storage context")
+        
+        ctx = ctx_item.value
+        
+        # Check if context is read-only
+        if ctx.is_read_only:
+            raise Exception("Cannot delete from read-only storage context")
+        
+        if self.snapshot is None:
+            raise Exception("No snapshot available for storage")
+        
+        # Build full storage key
+        key_bytes = key.get_bytes_unsafe()
+        full_key = self._build_storage_key(ctx, key_bytes)
+        
+        # Delete from snapshot
+        self.snapshot.delete(full_key)
+    
+    def _build_storage_key(self, ctx, key: bytes) -> bytes:
+        """Build full storage key from context and user key.
+        
+        Storage keys are prefixed with the contract's script hash
+        to isolate storage between contracts.
+        """
+        # Storage key format: PREFIX + script_hash + user_key
+        STORAGE_PREFIX = b'\x15'  # Storage prefix
+        script_hash = bytes(ctx.script_hash) if ctx.script_hash else bytes(20)
+        return STORAGE_PREFIX + script_hash + key
     
     # Contract syscall implementations
     def _contract_call(self, engine: "ApplicationEngine") -> None:
