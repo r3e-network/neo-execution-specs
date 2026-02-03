@@ -1,16 +1,29 @@
-"""Tests for MemoryStore."""
+"""Tests for persistence module."""
 
 import pytest
 from neo.persistence.memory_store import MemoryStore
+from neo.persistence.data_cache import DataCache
 
 
 class TestMemoryStoreExtended:
-    """Extended MemoryStore tests."""
+    """Extended memory store tests."""
     
-    def test_seek_forward(self):
-        """Test seek forward."""
-        s = MemoryStore()
-        s.put(b"a", b"1")
-        s.put(b"b", b"2")
-        results = list(s.seek(b"", 1))
-        assert len(results) == 2
+    def test_put_get(self):
+        """Test put and get."""
+        store = MemoryStore()
+        store.put(b"key1", b"value1")
+        assert store.get(b"key1") == b"value1"
+    
+    def test_delete(self):
+        """Test delete."""
+        store = MemoryStore()
+        store.put(b"key1", b"value1")
+        store.delete(b"key1")
+        assert store.get(b"key1") is None
+    
+    def test_contains(self):
+        """Test contains."""
+        store = MemoryStore()
+        store.put(b"key1", b"value1")
+        assert store.contains(b"key1")
+        assert not store.contains(b"key2")

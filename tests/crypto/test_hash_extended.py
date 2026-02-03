@@ -1,23 +1,29 @@
-"""Tests for crypto hash functions."""
+"""Tests for crypto module."""
 
 import pytest
-from neo.crypto.hash import sha256, hash160, hash256
+from neo.crypto.hash import hash160, hash256, sha256, ripemd160
 
 
-class TestCryptoHash:
-    """Test crypto hash functions."""
+class TestHashFunctions:
+    """Hash function tests."""
     
     def test_sha256(self):
         """Test SHA256."""
-        result = sha256(b"hello")
+        result = sha256(b"test")
+        assert len(result) == 32
+    
+    def test_hash256(self):
+        """Test double SHA256."""
+        result = hash256(b"test")
         assert len(result) == 32
     
     def test_hash160(self):
-        """Test HASH160."""
-        result = hash160(b"hello")
+        """Test RIPEMD160(SHA256)."""
+        result = hash160(b"test")
         assert len(result) == 20
     
-    def test_hash256(self):
-        """Test HASH256."""
-        result = hash256(b"hello")
-        assert len(result) == 32
+    def test_deterministic(self):
+        """Test hash functions are deterministic."""
+        data = b"hello world"
+        assert hash256(data) == hash256(data)
+        assert hash160(data) == hash160(data)
