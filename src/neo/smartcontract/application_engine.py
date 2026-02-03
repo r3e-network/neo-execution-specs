@@ -451,12 +451,131 @@ class ApplicationEngine(ExecutionEngine):
     
     # Contract syscall implementations
     def _contract_call(self, engine: "ApplicationEngine") -> None:
-        """Call another contract."""
+        """Call another contract.
+        
+        Loads the target contract from storage, verifies permissions,
+        and creates a new execution context for the called method.
+        """
+        from neo.types import UInt160
+        from neo.native.contract_management import ContractManagement, ContractState
+        
+        # Pop arguments in reverse order
+        args = self.pop()  # Arguments array
         call_flags = CallFlags(self.pop().get_integer())
         method = self.pop().get_string()
-        contract_hash = self.pop()
-        # Simplified: just push null
-        self.push(NULL)
+        contract_hash_item = self.pop()
+        
+        # Get contract hash
+        hash_bytes = contract_hash_item.get_bytes_unsafe()
+        if len(hash_bytes) != 20:
+            raise Exception(f"Invalid contract hash length: {len(hash_bytes)}")
+        contract_hash = UInt160(hash_bytes)
+        
+        # Verify call flags are allowed
+        if not self._check_call_flags(call_flags):
+            raise Exception("Invalid call flags")
+        
+        # Look up contract from storage
+        contract = self._get_contract(contract_hash)
+        if contract is None:
+            raise Exception(f"Contract not found: {contract_hash}")
+        
+        # Check if method exists and is callable
+        if not self._check_method_permission(contract, method, call_flags):
+            raise Exception(f"Method not allowed: {method}")
+        
+        # Create new execution context for the called contract
+        self._call_contract_internal(contract, method, args, call_flags)
+    
+    def _check_call_flags(self, flags: CallFlags) -> bool:
+        """Check if the requested call flags are allowed by current context."""
+        # The called contract's flags must be a subset of current flags
+        return (flags & self._current_call_flags) == flags
+    
+    def _get_contract(self, contract_hash: "UInt160") -> Optional[Any]:
+        """Get contract state from storage."""
+        if self.snapshot is None:
+            return None
+        
+        # Try to get from native contracts first
+        native = self._get_native_contract(contract_hash)
+        if native is not None:
+            return native
+        
+        # Look up in contract management storage
+        from neo.native.contract_management import ContractManagement, ContractState, PREFIX_CONTRACT
+        
+        # Create storage key for contract
+        key = bytes([PREFIX_CONTRACT]) + bytes(contract_hash)
+        item = self.snapshot.try_get(key)
+        if item is None:
+            return None
+        
+        return ContractState.from_bytes(item.value)
+    
+    def _get_native_contract(self, contract_hash: "UInt160") -> Optional[Any]:
+        """Get native contract by hash."""
+        hash_bytes = bytes(contract_hash)
+        return self._native_contracts.get(hash_bytes)
+    
+    def _check_method_permission(self, contract: Any, method: str, flags: CallFlags) -> bool:
+        """Check if the method can be called with the given flags."""
+        # For now, allow all methods
+        # In full implementation, would check manifest permissions
+        return True
+    
+    def _call_contract_internal(self, contract: Any, method: str, 
+                                 args: StackItem, flags: CallFlags) -> None:
+        """Execute a contract call by loading its script."""
+        from neo.vm.execution_context import ExecutionContext
+        
+        # Get the contract script (NEF)
+        if hasattr(contract, 'nef'):
+            script = self._extract_script_from_nef(contract.nef)
+        elif hasattr(contract, 'script'):
+            script = contract.script
+        else:
+            raise Exception("Contract has no executable script")
+        
+        # Save current call flags and set new ones
+        old_flags = self._current_call_flags
+        self._current_call_flags = flags
+        
+        # Track invocation count
+        from neo.crypto import hash160
+        script_hash = hash160(script)
+        self._invocation_counters[script_hash] = self._invocation_counters.get(script_hash, 0) + 1
+        
+        # Push arguments onto stack for the called method
+        if hasattr(args, '__iter__') and not isinstance(args, (bytes, str)):
+            for arg in reversed(list(args)):
+                self.push(arg)
+        elif args is not None and args != NULL:
+            self.push(args)
+        
+        # Load the contract script
+        self.load_script(script)
+        
+        # In a full implementation, we would:
+        # 1. Find the method entry point in the NEF/manifest
+        # 2. Jump to that entry point
+        # 3. Execute until return
+        # 4. Restore previous context
+        # For now, we execute from the beginning
+        
+        # Restore call flags after execution (would be done in return handler)
+        # self._current_call_flags = old_flags
+    
+    def _extract_script_from_nef(self, nef: bytes) -> bytes:
+        """Extract executable script from NEF file."""
+        if len(nef) < 64:
+            return nef  # Assume raw script if too short for NEF
+        
+        # NEF format: magic(4) + compiler(64) + source(256) + reserve(2) + 
+        #             tokens_len(var) + tokens + reserve(2) + script_len(var) + script + checksum(4)
+        # Simplified: just return the NEF as script for now
+        # In full implementation, would parse NEF structure
+        return nef
     
     def _contract_call_native(self, engine: "ApplicationEngine") -> None:
         """Call native contract."""
