@@ -4,9 +4,9 @@ ECDSA signature operations.
 Reference: Neo.Cryptography.Crypto
 """
 
-from typing import Tuple
 from neo.crypto.ecc.curve import ECCurve
 from neo.crypto.ecc.point import ECPoint
+from neo.crypto.ecc.signature import verify_signature as _verify_sig
 
 
 def verify_signature(
@@ -14,19 +14,21 @@ def verify_signature(
     signature: bytes,
     public_key: ECPoint
 ) -> bool:
-    """Verify an ECDSA signature."""
+    """Verify an ECDSA signature.
+    
+    Args:
+        message_hash: The hash of the message that was signed.
+        signature: The signature (64 bytes: r || s).
+        public_key: The public key as ECPoint.
+        
+    Returns:
+        True if the signature is valid, False otherwise.
+    """
     if len(signature) != 64:
         return False
     
-    r = int.from_bytes(signature[:32], 'big')
-    s = int.from_bytes(signature[32:], 'big')
+    # Encode public key to bytes
+    pubkey_bytes = public_key.encode(compressed=True)
     
-    curve = public_key.curve
-    n = curve.n
-    
-    if r < 1 or r >= n or s < 1 or s >= n:
-        return False
-    
-    # Simplified verification
-    # Full impl would do point multiplication
-    return True
+    # Use the full implementation from signature module
+    return _verify_sig(message_hash, signature, pubkey_bytes, public_key.curve)

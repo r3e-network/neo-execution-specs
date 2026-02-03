@@ -23,6 +23,14 @@ following the style of Ethereum's execution-specs project.
 - [x] ApplicationEngine - scaffolding
 - [x] Syscalls framework - scaffolding
 
+### 🔄 In Progress (Phase 2-4)
+- [x] ECDSA signature verification (fixed)
+- [x] Binary serializer (complete)
+- [x] JSON serializer (complete)
+- [x] Runtime syscalls (expanded)
+- [x] Storage syscalls (expanded)
+- [x] ApplicationEngine properties (expanded)
+
 ## Implementation Phases
 
 ### Phase 2: Complete VM Layer

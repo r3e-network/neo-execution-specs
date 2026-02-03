@@ -18,6 +18,8 @@ class Block(Header):
     transactions: List[Transaction] = field(default_factory=list)
     """Transactions in the block."""
     
+    _hash: Optional[UInt256] = field(default=None, repr=False)
+    
     @property
     def hash(self) -> UInt256:
         """Get the block hash."""
@@ -30,11 +32,21 @@ class Block(Header):
         """Get data for hash calculation."""
         data = bytearray()
         data.extend(self.version.to_bytes(4, 'little'))
-        data.extend(self.prev_hash.to_bytes())
-        data.extend(self.merkle_root.to_bytes())
+        # Handle both bytes and UInt256
+        if hasattr(self.prev_hash, 'to_bytes'):
+            data.extend(self.prev_hash.to_bytes())
+        else:
+            data.extend(self.prev_hash)
+        if hasattr(self.merkle_root, 'to_bytes'):
+            data.extend(self.merkle_root.to_bytes())
+        else:
+            data.extend(self.merkle_root)
         data.extend(self.timestamp.to_bytes(8, 'little'))
         data.extend(self.nonce.to_bytes(8, 'little'))
         data.extend(self.index.to_bytes(4, 'little'))
         data.append(self.primary_index)
-        data.extend(self.next_consensus.to_bytes())
+        if hasattr(self.next_consensus, 'to_bytes'):
+            data.extend(self.next_consensus.to_bytes())
+        else:
+            data.extend(self.next_consensus)
         return bytes(data)

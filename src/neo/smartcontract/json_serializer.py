@@ -1,86 +1,171 @@
-"""JsonSerializer - Serialize/deserialize StackItems to JSON."""
+"""Neo N3 JSON Serializer.
+
+Reference: Neo.SmartContract.JsonSerializer
+"""
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Dict, List, Union
 import json
+from typing import Any, Dict, List, Union, Optional
+from io import StringIO
 
-if TYPE_CHECKING:
-    from neo.vm.types import StackItem
+from neo.vm.types import (
+    StackItem, StackItemType, Integer, Boolean, ByteString,
+    Buffer, Array, Struct, Map, Null, NULL
+)
 
 
 class JsonSerializer:
-    """JSON serializer for StackItems."""
+    """Serialize and deserialize stack items to/from JSON.
     
-    MAX_SAFE_INTEGER = 9007199254740991
-    MIN_SAFE_INTEGER = -9007199254740991
+    Format follows Neo N3 specification for JSON serialization.
+    """
     
-    @staticmethod
-    def serialize(item: StackItem) -> Any:
-        """Serialize StackItem to JSON-compatible value."""
-        from neo.vm.types import (
-            Integer, ByteString, Boolean,
-            Array, Map, Buffer, NULL
-        )
+    MAX_SIZE = 1024 * 1024  # 1MB max
+    MAX_ITEMS = 2048
+    
+    @classmethod
+    def serialize(cls, item: StackItem, max_size: int = MAX_SIZE) -> bytes:
+        """Serialize a stack item to JSON bytes.
         
-        if item is NULL or item is None:
-            return None
-        elif isinstance(item, Boolean):
-            return item.value
-        elif isinstance(item, Integer):
-            val = item.value
-            if val > JsonSerializer.MAX_SAFE_INTEGER:
-                raise ValueError("Integer too large")
-            if val < JsonSerializer.MIN_SAFE_INTEGER:
-                raise ValueError("Integer too small")
-            return val
-        elif isinstance(item, (ByteString, Buffer)):
-            val = item.value if hasattr(item, 'value') else bytes(item)
-            try:
-                return val.decode('utf-8')
-            except:
-                return val.hex()
-        elif isinstance(item, Array):
-            return [JsonSerializer.serialize(i) for i in item]
-        elif isinstance(item, Map):
-            result = {}
-            for k, v in item.items():
-                if not isinstance(k, ByteString):
-                    raise ValueError("Map key must be ByteString")
-                key_str = k.value.decode('utf-8')
-                result[key_str] = JsonSerializer.serialize(v)
-            return result
-        else:
-            raise ValueError(f"Unsupported type: {type(item)}")
+        Args:
+            item: The stack item to serialize.
+            max_size: Maximum allowed serialized size.
+            
+        Returns:
+            JSON bytes (UTF-8 encoded).
+        """
+        json_value = cls._to_json(item, set())
+        result = json.dumps(json_value, separators=(',', ':')).encode('utf-8')
+        
+        if len(result) > max_size:
+            raise ValueError(f"Serialized size {len(result)} exceeds max {max_size}")
+        
+        return result
     
-    @staticmethod
-    def deserialize(value: Any) -> StackItem:
-        """Deserialize JSON value to StackItem."""
-        from neo.vm.types import (
-            Integer, ByteString, Boolean,
-            Array, Map, NULL
-        )
+    @classmethod
+    def _to_json(cls, item: StackItem, seen: set) -> Any:
+        """Convert stack item to JSON-compatible value."""
+        item_type = item.type
+        
+        # Check for circular references
+        if item_type in (StackItemType.ARRAY, StackItemType.STRUCT, StackItemType.MAP):
+            item_id = id(item)
+            if item_id in seen:
+                raise ValueError("Circular reference detected")
+            seen = seen | {item_id}
+        
+        if item_type == StackItemType.ANY:
+            return None
+        
+        elif item_type == StackItemType.BOOLEAN:
+            return item.get_boolean()
+        
+        elif item_type == StackItemType.INTEGER:
+            return item.value
+        
+        elif item_type == StackItemType.BYTESTRING:
+            # Encode as base64
+            import base64
+            return base64.b64encode(item.value).decode('ascii')
+        
+        elif item_type == StackItemType.BUFFER:
+            import base64
+            return base64.b64encode(bytes(item.value)).decode('ascii')
+        
+        elif item_type == StackItemType.ARRAY:
+            items = item._items
+            if len(items) > cls.MAX_ITEMS:
+                raise ValueError(f"Array too large: {len(items)}")
+            return [cls._to_json(sub, seen) for sub in items]
+        
+        elif item_type == StackItemType.STRUCT:
+            items = item._items
+            if len(items) > cls.MAX_ITEMS:
+                raise ValueError(f"Struct too large: {len(items)}")
+            return [cls._to_json(sub, seen) for sub in items]
+        
+        elif item_type == StackItemType.MAP:
+            entries = list(item._dict.items())
+            if len(entries) > cls.MAX_ITEMS:
+                raise ValueError(f"Map too large: {len(entries)}")
+            result = 
+            for key, value in entries:
+                # Map keys must be primitive types
+                key_json = cls._key_to_string(key)
+                result[key_json] = cls._to_json(value, seen)
+            return result
+        
+        else:
+            raise ValueError(f"Cannot serialize type: {item_type}")
+    
+    @classmethod
+    def _key_to_string(cls, key: StackItem) -> str:
+        """Convert a map key to string."""
+        if key.type == StackItemType.BOOLEAN:
+            return "true" if key.get_boolean() else "false"
+        elif key.type == StackItemType.INTEGER:
+            return str(key.value)
+        elif key.type == StackItemType.BYTESTRING:
+            import base64
+            return base64.b64encode(key.value).decode('ascii')
+        else:
+            raise ValueError(f"Invalid map key type: {key.type}")
+    
+    @classmethod
+    def deserialize(cls, data: bytes, max_size: int = MAX_SIZE) -> StackItem:
+        """Deserialize JSON bytes to a stack item.
+        
+        Args:
+            data: JSON bytes to deserialize.
+            max_size: Maximum allowed data size.
+            
+        Returns:
+            Deserialized stack item.
+        """
+        if len(data) > max_size:
+            raise ValueError(f"Data size {len(data)} exceeds max {max_size}")
+        
+        json_value = json.loads(data.decode('utf-8'))
+        return cls._from_json(json_value, 0)
+    
+    @classmethod
+    def _from_json(cls, value: Any, depth: int) -> StackItem:
+        """Convert JSON value to stack item."""
+        if depth > 128:
+            raise ValueError("Deserialization depth exceeded")
         
         if value is None:
             return NULL
+        
         elif isinstance(value, bool):
             return Boolean(value)
+        
         elif isinstance(value, int):
             return Integer(value)
-        elif isinstance(value, float):
-            if value % 1 != 0:
-                raise ValueError("Decimal not allowed")
-            return Integer(int(value))
+        
         elif isinstance(value, str):
-            return ByteString(value.encode('utf-8'))
+            # Try to decode as base64
+            import base64
+            try:
+                decoded = base64.b64decode(value)
+                return ByteString(decoded)
+            except Exception:
+                return ByteString(value.encode('utf-8'))
+        
         elif isinstance(value, list):
-            arr = Array()
-            for item in value:
-                arr.append(JsonSerializer.deserialize(item))
-            return arr
+            if len(value) > cls.MAX_ITEMS:
+                raise ValueError(f"Array too large: {len(value)}")
+            items = [cls._from_json(v, depth + 1) for v in value]
+            return Array(items)
+        
         elif isinstance(value, dict):
-            m = Map()
+            if len(value) > cls.MAX_ITEMS:
+                raise ValueError(f"Map too large: {len(value)}")
+            result = Map()
             for k, v in value.items():
-                m[ByteString(k.encode('utf-8'))] = JsonSerializer.deserialize(v)
-            return m
+                key = ByteString(k.encode('utf-8'))
+                result[key] = cls._from_json(v, depth + 1)
+            return result
+        
         else:
             raise ValueError(f"Unsupported JSON type: {type(value)}")

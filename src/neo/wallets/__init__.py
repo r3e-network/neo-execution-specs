@@ -1,19 +1,16 @@
-"""
-Neo address utilities.
+"""Neo N3 Wallet module."""
 
-Reference: Neo.Wallets.Helper
-"""
+from neo.wallets.key_pair import KeyPair, base58_encode, base58_decode
+from neo.wallets.account import Account, Contract, script_hash_to_address, address_to_script_hash
+from neo.wallets.wallet import Wallet
 
-from neo.crypto.base58 import base58_check_encode, base58_check_decode
-from neo.crypto.hash import hash160
-
-
-def script_hash_to_address(script_hash: bytes, version: int = 53) -> str:
-    """Convert script hash to Neo address."""
-    return base58_check_encode(bytes([version]) + script_hash)
-
-
-def address_to_script_hash(address: str) -> bytes:
-    """Convert Neo address to script hash."""
-    data = base58_check_decode(address)
-    return data[1:]  # Remove version byte
+__all__ = [
+    "KeyPair",
+    "Account", 
+    "Contract",
+    "Wallet",
+    "base58_encode",
+    "base58_decode",
+    "script_hash_to_address",
+    "address_to_script_hash",
+]
