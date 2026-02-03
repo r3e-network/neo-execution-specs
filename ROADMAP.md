@@ -30,6 +30,11 @@ following the style of Ethereum's execution-specs project.
 - [x] Runtime syscalls (expanded)
 - [x] Storage syscalls (expanded)
 - [x] ApplicationEngine properties (expanded)
+- [x] Interop service with syscall registry
+- [x] Memory store implementation
+- [x] Persistence layer interfaces
+
+**Current Stats: 197 files, ~14,600 lines, 239 tests passing**
 
 ## Implementation Phases
 
