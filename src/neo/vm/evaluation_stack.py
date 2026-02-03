@@ -38,3 +38,21 @@ class EvaluationStack:
         """Copy all items to target stack."""
         for item in self._items:
             target.push(item)
+    
+    def swap(self, i: int, j: int) -> None:
+        """Swap items at indices i and j (from top)."""
+        idx_i = -(i + 1)
+        idx_j = -(j + 1)
+        self._items[idx_i], self._items[idx_j] = self._items[idx_j], self._items[idx_i]
+    
+    def insert(self, index: int, item: StackItem) -> None:
+        """Insert item at index (from top)."""
+        if len(self._items) >= self._max_size:
+            raise StackOverflowException("Stack overflow")
+        pos = len(self._items) - index
+        self._items.insert(pos, item)
+    
+    def remove(self, index: int) -> StackItem:
+        """Remove and return item at index (from top)."""
+        pos = -(index + 1)
+        return self._items.pop(pos)
