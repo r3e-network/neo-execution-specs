@@ -34,9 +34,22 @@ following the style of Ethereum's execution-specs project.
 - [x] Memory store implementation
 - [x] Persistence layer interfaces
 
-**Current Stats: ~225 files, ~13,000 lines, 736 tests passing** 🎉
+**Current Stats: ~210 files, ~14,000 lines, 1003 tests passing** 🎉
 
-### ✅ Recently Completed (Round 5)
+### ✅ Recently Completed (Round 6)
+- [x] BloomFilter full implementation (add, check, optimal params)
+- [x] BloomFilter, Murmur3, Ed25519 crypto tests
+- [x] VM limits enforcement tests
+- [x] WitnessCondition serialization/deserialization tests
+- [x] BigInteger extended tests (fixed from_bytes_le bug)
+- [x] Protocol settings tests
+- [x] Wallet/KeyPair Base58 tests
+- [x] Hardfork enum tests
+- [x] NEF extended tests (MethodToken, serialization)
+- [x] Exception hierarchy tests
+- [x] **Milestone: 1000+ tests passing!**
+
+### ✅ Previously Completed (Round 5)
 - [x] TransactionVerifier with state-independent and state-dependent verification
 - [x] BlockVerifier with structure and chain link verification
 - [x] Enhanced MerkleTree with proof generation and verification
