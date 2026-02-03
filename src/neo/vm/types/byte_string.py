@@ -44,6 +44,14 @@ class ByteString(StackItem):
         if isinstance(other, ByteString):
             return self._value == other._value
         return False
+    
+    def __hash__(self) -> int:
+        """Make ByteString hashable for use as Map keys."""
+        return hash(self._value)
+    
+    def get_bytes_unsafe(self) -> bytes:
+        """Get raw bytes without copy."""
+        return self._value
 
 
 ByteString.EMPTY = ByteString(b"")
