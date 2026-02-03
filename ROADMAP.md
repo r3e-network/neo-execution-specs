@@ -34,7 +34,7 @@ following the style of Ethereum's execution-specs project.
 - [x] Memory store implementation
 - [x] Persistence layer interfaces
 
-**Current Stats: 197 files, ~14,700 lines, 246 tests passing**
+**Current Stats: 197 files, ~14,700 lines, 247 tests passing**
 
 ## Implementation Phases
 
