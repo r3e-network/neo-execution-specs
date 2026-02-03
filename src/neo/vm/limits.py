@@ -28,3 +28,8 @@ class ExecutionEngineLimits:
         """Assert that stack size is within limits."""
         if size > self.max_stack_size:
             raise Exception(f"Stack size {size} exceeds maximum {self.max_stack_size}")
+    
+    def assert_shift(self, shift: int) -> None:
+        """Assert that shift amount is valid."""
+        if shift < 0 or shift > 256:
+            raise Exception(f"Shift amount {shift} out of range")
