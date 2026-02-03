@@ -96,8 +96,9 @@ class ApplicationEngine(ExecutionEngine):
         # Native contract cache
         self._native_contracts: Dict[bytes, Any] = {}
         
-        # Set syscall handler
+        # Set syscall handler and token handler
         self.syscall_handler = self._handle_syscall
+        self.token_handler = self._handle_token_call
         self._register_syscalls()
     
     @property
@@ -158,6 +159,84 @@ class ApplicationEngine(ExecutionEngine):
         """Handle syscall invocation."""
         from neo.smartcontract.interop_service import invoke_syscall
         invoke_syscall(self, hash_val)
+    
+    def _handle_token_call(self, engine: ExecutionEngine, token_index: int) -> None:
+        """Handle CALLT instruction - call by method token.
+        
+        CALLT uses a token index to reference a MethodToken in the current
+        context's NEF file. The token contains:
+        - Contract hash (20 bytes)
+        - Method name
+        - Parameter count
+        - Has return value flag
+        - Call flags
+        
+        This allows static contract calls without runtime hash resolution.
+        """
+        from neo.types import UInt160
+        from neo.smartcontract.call_flags import CallFlags
+        
+        # Get method tokens from current context
+        ctx = self.current_context
+        if ctx is None:
+            raise Exception("No execution context for CALLT")
+        
+        # Get tokens from context's NEF (stored in shared states)
+        tokens = self._get_context_tokens(ctx)
+        if tokens is None or token_index >= len(tokens):
+            raise Exception(f"Invalid token index: {token_index}")
+        
+        token = tokens[token_index]
+        
+        # Extract token information
+        contract_hash = UInt160(token.hash)
+        method = token.method
+        params_count = token.parameters_count
+        has_return = token.has_return_value
+        call_flags = CallFlags(token.call_flags)
+        
+        # Pop arguments from stack based on parameter count
+        args = []
+        for _ in range(params_count):
+            args.append(self.pop())
+        args.reverse()  # Arguments were pushed in order, popped in reverse
+        
+        # Look up the contract
+        contract = self._get_contract(contract_hash)
+        if contract is None:
+            raise Exception(f"Contract not found: {contract_hash}")
+        
+        # Verify call flags
+        if not self._check_call_flags(call_flags):
+            raise Exception("Call flags not allowed")
+        
+        # Create arguments array
+        args_array = Array(args) if args else Array([])
+        
+        # Call the contract
+        self._call_contract_internal(contract, method, args_array, call_flags)
+    
+    def _get_context_tokens(self, ctx: ExecutionContext) -> Optional[list]:
+        """Get method tokens for the current execution context.
+        
+        Tokens are stored in the context's shared states when the
+        contract is loaded from a NEF file.
+        """
+        # Check if tokens are stored in shared states
+        if hasattr(ctx, '_shared_states') and hasattr(ctx._shared_states, 'states'):
+            return ctx._shared_states.states.get('method_tokens')
+        return None
+    
+    def load_script_with_tokens(self, script: bytes, tokens: list, rv_count: int = -1) -> ExecutionContext:
+        """Load a script with associated method tokens.
+        
+        This is used when loading contracts from NEF files that contain
+        method tokens for CALLT instructions.
+        """
+        ctx = self.load_script(script, rv_count)
+        # Store tokens in shared states
+        ctx._shared_states.states['method_tokens'] = tokens
+        return ctx
     
     def _register_syscalls(self) -> None:
         """Register all syscalls."""

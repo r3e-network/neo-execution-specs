@@ -101,6 +101,16 @@ class ScriptBuilder:
         self._data.extend(method_hash.to_bytes(4, 'little'))
         return self
     
+    def emit_callt(self, token_index: int) -> "ScriptBuilder":
+        """Emit CALLT instruction with token index."""
+        self.emit(OpCode.CALLT)
+        self._data.extend(token_index.to_bytes(2, 'little'))
+        return self
+    
+    def to_array(self) -> bytes:
+        """Get script bytes (alias for to_bytes)."""
+        return bytes(self._data)
+    
     def to_bytes(self) -> bytes:
         """Get script bytes."""
         return bytes(self._data)

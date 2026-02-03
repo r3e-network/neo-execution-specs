@@ -230,9 +230,22 @@ def calla(engine: ExecutionEngine, instruction: Instruction) -> None:
 
 
 def callt(engine: ExecutionEngine, instruction: Instruction) -> None:
-    """Call function by token (for contract calls)."""
-    token = int.from_bytes(instruction.operand, 'little', signed=False)
-    raise Exception(f"Token not found: {token}")
+    """Call function by token (for contract calls).
+    
+    CALLT uses a 2-byte token index to reference a MethodToken in the NEF file.
+    The token contains the contract hash, method name, parameter count,
+    return value flag, and call flags.
+    
+    This instruction requires a token_handler to be set on the engine.
+    In ApplicationEngine, this handler resolves the token and calls the contract.
+    """
+    token_index = int.from_bytes(instruction.operand, 'little', signed=False)
+    
+    # Check if engine has a token handler
+    if hasattr(engine, 'token_handler') and engine.token_handler is not None:
+        engine.token_handler(engine, token_index)
+    else:
+        raise Exception(f"CALLT requires token handler. Token index: {token_index}")
 
 
 def abort(engine: ExecutionEngine, instruction: Instruction) -> None:

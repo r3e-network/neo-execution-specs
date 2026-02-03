@@ -42,6 +42,7 @@ class ExecutionEngine:
     is_jumping: bool = False
     reference_counter: Optional[ReferenceCounter] = None
     syscall_handler: Optional[Callable[[ExecutionEngine, int], None]] = None
+    token_handler: Optional[Callable[[ExecutionEngine, int], None]] = None
     _handlers: Dict[int, Callable] = field(default_factory=dict, repr=False)
     
     def __post_init__(self):
