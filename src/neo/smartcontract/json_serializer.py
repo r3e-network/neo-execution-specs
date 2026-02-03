@@ -88,7 +88,7 @@ class JsonSerializer:
             entries = list(item._dict.items())
             if len(entries) > cls.MAX_ITEMS:
                 raise ValueError(f"Map too large: {len(entries)}")
-            result = 
+            result = {}
             for key, value in entries:
                 # Map keys must be primitive types
                 key_json = cls._key_to_string(key)
@@ -156,7 +156,7 @@ class JsonSerializer:
             if len(value) > cls.MAX_ITEMS:
                 raise ValueError(f"Array too large: {len(value)}")
             items = [cls._from_json(v, depth + 1) for v in value]
-            return Array(items)
+            return Array(items=items)
         
         elif isinstance(value, dict):
             if len(value) > cls.MAX_ITEMS:
