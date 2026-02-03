@@ -149,9 +149,12 @@ class G1Projective:
     def to_affine(self) -> G1Affine:
         if self.z == 0:
             return G1Affine.identity()
+        # Jacobian coordinates: (x, y) = (X/Z^2, Y/Z^3)
         z_inv = pow(self.z, -1, P)
-        x = (self.x * z_inv) % P
-        y = (self.y * z_inv) % P
+        z_inv2 = (z_inv * z_inv) % P
+        z_inv3 = (z_inv2 * z_inv) % P
+        x = (self.x * z_inv2) % P
+        y = (self.y * z_inv3) % P
         return G1Affine(x, y)
     
     def to_compressed(self) -> bytes:
@@ -186,11 +189,16 @@ class G1Projective:
         if other.z == 0:
             return self
         
-        # Standard projective addition
-        u1 = (self.x * other.z) % P
-        u2 = (other.x * self.z) % P
-        s1 = (self.y * other.z) % P
-        s2 = (other.y * self.z) % P
+        # Jacobian addition formula
+        z1_sq = (self.z * self.z) % P
+        z2_sq = (other.z * other.z) % P
+        z1_cu = (z1_sq * self.z) % P
+        z2_cu = (z2_sq * other.z) % P
+        
+        u1 = (self.x * z2_sq) % P
+        u2 = (other.x * z1_sq) % P
+        s1 = (self.y * z2_cu) % P
+        s2 = (other.y * z1_cu) % P
         
         if u1 == u2:
             if s1 == s2:
@@ -212,14 +220,22 @@ class G1Projective:
         if self.z == 0:
             return self
         
-        w = (3 * self.x * self.x) % P
-        s = (self.y * self.z) % P
-        b = (self.x * self.y * s) % P
-        h = (w * w - 8 * b) % P
+        # Jacobian doubling formula for curve y^2 = x^3 + b (a=0)
+        a = (self.x * self.x) % P
+        b = (self.y * self.y) % P
+        c = (b * b) % P
         
-        x3 = (2 * h * s) % P
-        y3 = (w * (4 * b - h) - 8 * self.y * self.y * s * s) % P
-        z3 = (8 * s * s * s) % P
+        d = (self.x + b) % P
+        d = (d * d) % P
+        d = (d - a - c) % P
+        d = (d + d) % P  # d = 2*((X+B)^2 - A - C)
+        
+        e = (a + a + a) % P  # e = 3*A
+        f = (e * e) % P
+        
+        x3 = (f - d - d) % P
+        y3 = (e * (d - x3) - 8 * c) % P
+        z3 = (2 * self.y * self.z) % P
         
         return G1Projective(x3, y3, z3)
     

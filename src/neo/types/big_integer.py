@@ -49,12 +49,13 @@ class BigInteger(int):
         
         if negative:
             # Two's complement
-            data = bytearray(data)
+            result = []
             carry = 1
-            for i in range(len(data)):
-                data[i] = (~data[i] & 0xFF) + carry
-                carry = data[i] >> 8
-                data[i] &= 0xFF
+            for b in data:
+                val = (~b & 0xFF) + carry
+                carry = val >> 8
+                result.append(val & 0xFF)
+            data = bytes(result)
         
         value = int.from_bytes(data, "little")
         return cls(-value if negative else value)

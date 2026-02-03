@@ -212,8 +212,11 @@ class G2Projective:
     def to_affine(self) -> G2Affine:
         if self.z.is_zero():
             return G2Affine.identity()
+        # Jacobian coordinates: (x, y) = (X/Z^2, Y/Z^3)
         z_inv = self.z.invert()
-        return G2Affine(self.x * z_inv, self.y * z_inv)
+        z_inv2 = z_inv * z_inv
+        z_inv3 = z_inv2 * z_inv
+        return G2Affine(self.x * z_inv2, self.y * z_inv3)
     
     def to_compressed(self) -> bytes:
         return self.to_affine().to_compressed()
@@ -245,10 +248,16 @@ class G2Projective:
         if other.z.is_zero():
             return self
         
-        u1 = self.x * other.z
-        u2 = other.x * self.z
-        s1 = self.y * other.z
-        s2 = other.y * self.z
+        # Jacobian addition formula
+        z1_sq = self.z * self.z
+        z2_sq = other.z * other.z
+        z1_cu = z1_sq * self.z
+        z2_cu = z2_sq * other.z
+        
+        u1 = self.x * z2_sq
+        u2 = other.x * z1_sq
+        s1 = self.y * z2_cu
+        s2 = other.y * z1_cu
         
         if u1 == u2:
             if s1 == s2:

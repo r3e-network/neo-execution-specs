@@ -56,63 +56,36 @@ def pairing(g1: "G1Affine | G1Projective", g2: "G2Affine | G2Projective") -> "Gt
 def _pairing_py_ecc(g1: "G1Affine", g2: "G2Affine") -> "Gt":
     """Compute pairing using py_ecc library."""
     from .gt import Gt
-    from .g2 import Fp2
-    from py_ecc.fields import bls12_381_FQ2
+    from py_ecc.fields import bls12_381_FQ as FQ, bls12_381_FQ2 as FQ2
     
-    # Convert G1 point to py_ecc format (x, y) tuple
-    g1_point = (g1.x, g1.y)
+    # Convert G1 point to py_ecc format using FQ field elements
+    g1_point = (FQ(g1.x), FQ(g1.y))
     
-    # Convert G2 point to py_ecc format ((x_c0, x_c1), (y_c0, y_c1))
-    g2_x = bls12_381_FQ2((g2.x.c0, g2.x.c1))
-    g2_y = bls12_381_FQ2((g2.y.c0, g2.y.c1))
+    # Convert G2 point to py_ecc format using FQ2 field elements
+    # FQ2 expects a tuple (c0, c1) where element = c0 + c1*u
+    g2_x = FQ2((g2.x.c0, g2.x.c1))
+    g2_y = FQ2((g2.y.c0, g2.y.c1))
     g2_point = (g2_x, g2_y)
     
     # Compute pairing
     result = _py_ecc_pairing(g2_point, g1_point)
     
-    # Convert FQ12 result to Gt (576 bytes)
-    gt_bytes = _fq12_to_bytes(result)
-    return Gt(gt_bytes)
+    # Return Gt with FQ12 directly for proper arithmetic
+    return Gt(fq12=result)
 
 
 def _fq12_to_bytes(fq12) -> bytes:
     """Convert FQ12 element to 576-byte representation."""
-    # FQ12 is represented as coefficients in the tower extension
-    # Fp12 = Fp6[w]/(w^2 - v), Fp6 = Fp2[v]/(v^3 - u - 1), Fp2 = Fp[u]/(u^2 + 1)
-    # Total: 12 Fp elements = 12 * 48 = 576 bytes
+    # FQ12 has 12 FQ coefficients directly
+    # Total: 12 * 48 = 576 bytes
     result = bytearray(576)
     
-    # Extract coefficients from FQ12
-    # FQ12 has coefficients attribute that gives us the tower structure
-    coeffs = _extract_fq12_coeffs(fq12)
-    
-    for i, coeff in enumerate(coeffs):
+    for i, coeff in enumerate(fq12.coeffs):
+        # Each coefficient is an FQ element, convert to int
         coeff_int = int(coeff)
         result[i*48:(i+1)*48] = coeff_int.to_bytes(48, 'big')
     
     return bytes(result)
-
-
-def _extract_fq12_coeffs(fq12) -> list:
-    """Extract 12 Fp coefficients from FQ12."""
-    coeffs = []
-    
-    # FQ12 = FQ6 + FQ6*w
-    # Each FQ6 = FQ2 + FQ2*v + FQ2*v^2
-    # Each FQ2 = FQ + FQ*u
-    
-    # Access the coefficients through the nested structure
-    c0 = fq12.coeffs[0]  # FQ6
-    c1 = fq12.coeffs[1]  # FQ6
-    
-    for fq6 in [c0, c1]:
-        # FQ6 has 3 FQ2 coefficients
-        for fq2 in fq6.coeffs:
-            # FQ2 has 2 FQ coefficients
-            coeffs.append(fq2.coeffs[0])
-            coeffs.append(fq2.coeffs[1])
-    
-    return coeffs
 
 
 def _pairing_placeholder(g1: "G1Affine", g2: "G2Affine") -> "Gt":
