@@ -421,3 +421,32 @@ class NeoToken(FungibleToken):
         m = engine.protocol_settings.committee_members_count
         if engine.persisting_block.index % m == 0:
             self._refresh_committee(engine)
+    
+    def _refresh_committee(self, engine: Any) -> None:
+        """Refresh the committee based on current votes.
+        
+        Selects the top N candidates by votes to form the new committee,
+        where N is the committee_members_count from protocol settings.
+        """
+        # Get all candidates with their votes
+        candidates = self.get_candidates(engine.snapshot)
+        
+        # Sort by votes (descending), then by public key for determinism
+        candidates.sort(key=lambda x: (-x[1], x[0]))
+        
+        # Get committee size from protocol settings
+        committee_count = engine.protocol_settings.committee_members_count
+        
+        # Select top candidates for committee
+        new_committee = candidates[:committee_count]
+        
+        # Serialize committee data: pubkey (33 bytes) + votes (32 bytes) for each
+        committee_data = bytearray()
+        for pubkey, votes in new_committee:
+            committee_data.extend(pubkey)
+            committee_data.extend(votes.to_bytes(32, 'little', signed=True))
+        
+        # Store new committee
+        key = self._create_storage_key(PREFIX_COMMITTEE)
+        item = engine.snapshot.get_and_change(key, lambda: StorageItem())
+        item.value = bytes(committee_data)
