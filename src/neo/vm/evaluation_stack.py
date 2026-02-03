@@ -56,3 +56,22 @@ class EvaluationStack:
         """Remove and return item at index (from top)."""
         pos = -(index + 1)
         return self._items.pop(pos)
+    
+    def reverse(self, n: int) -> None:
+        """Reverse the top n items on the stack.
+        
+        Args:
+            n: Number of items to reverse from the top
+            
+        Raises:
+            Exception: If n is invalid or exceeds stack size
+        """
+        if n < 0:
+            raise Exception(f"Invalid reverse count: {n}")
+        if n > len(self._items):
+            raise Exception(f"Insufficient stack items for reverse: need {n}, have {len(self._items)}")
+        if n <= 1:
+            return
+        # Reverse top n items in place
+        start = len(self._items) - n
+        self._items[start:] = self._items[start:][::-1]

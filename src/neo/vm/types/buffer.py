@@ -50,3 +50,7 @@ class Buffer(StackItem):
     def __getitem__(self, index: int) -> int:
         """Get byte at index."""
         return self._value[index]
+    
+    def reverse(self) -> None:
+        """Reverse bytes in place."""
+        self._value.reverse()
