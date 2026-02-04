@@ -1,27 +1,27 @@
 # Neo N3 Execution Specs
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1024%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1037%20passing-brightgreen.svg)](tests/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A Python reference implementation of the Neo N3 protocol, prioritizing **readability** over performance.
 
-## Overview
+## What is This?
 
-This project provides an executable specification for:
-- **NeoVM** - Neo Virtual Machine with all 200+ opcodes
-- **ApplicationEngine** - Smart contract execution environment
-- **Native Contracts** - All 10 built-in system contracts
-- **Cryptography** - ECDSA, Ed25519, BLS12-381, hash functions
-- **Persistence** - Storage layer with snapshots and caching
+This project provides an **executable specification** for Neo N3, similar to Ethereum's [execution-specs](https://github.com/ethereum/execution-specs). It serves as:
 
-## Status
+- 📖 **Reference Implementation** - Clear, readable code that documents the protocol
+- ✅ **Validation Tool** - Cross-check other implementations via diff testing
+- 🧪 **Test Vector Generator** - Create standardized test cases
+- 📚 **Learning Resource** - Understand Neo internals
+
+## Features
 
 | Component | Status | Tests |
 |-----------|--------|-------|
-| VM Core | ✅ Complete | 400+ |
+| NeoVM (200+ opcodes) | ✅ Complete | 400+ |
 | Cryptography | ✅ Complete | 150+ |
-| Native Contracts | ✅ Complete | 200+ |
+| Native Contracts (10) | ✅ Complete | 200+ |
 | Storage Layer | ✅ Complete | 100+ |
 | Network Types | ✅ Complete | 150+ |
 | **Total** | **Production Ready** | **1037** |
@@ -39,6 +39,65 @@ pip install neo-execution-specs[crypto]
 pip install neo-execution-specs[all]
 ```
 
+## Quick Start
+
+### Execute a Simple Script
+
+```python
+from neo.vm import ExecutionEngine, ScriptBuilder
+from neo.vm.opcode import OpCode
+
+# Build script: 10 + 20
+sb = ScriptBuilder()
+sb.emit_push(10)
+sb.emit_push(20)
+sb.emit(OpCode.ADD)
+
+# Execute
+engine = ExecutionEngine()
+engine.load_script(sb.to_array())
+engine.execute()
+
+# Get result
+result = engine.result_stack.pop()
+print(f"10 + 20 = {result.get_integer()}")  # Output: 30
+```
+
+### Use Cryptographic Functions
+
+```python
+from neo.crypto import hash
+
+data = b"Hello, Neo!"
+print(f"SHA256: {hash.sha256(data).hex()}")
+print(f"Hash160: {hash.hash160(data).hex()}")
+```
+
+## CLI Tools
+
+### neo-diff - Diff Testing
+
+Compare Python spec execution with C# reference:
+
+```bash
+# Validate test vectors (Python only)
+neo-diff --vectors tests/vectors/vm/ --python-only
+
+# Compare with C# neo-cli
+neo-diff --vectors tests/vectors/ --csharp-rpc http://localhost:10332
+```
+
+### neo-t8n - State Transition
+
+Ethereum-style state transition tool:
+
+```bash
+neo-t8n --input-alloc alloc.json \
+        --input-txs txs.json \
+        --input-env env.json \
+        --output-result result.json
+```
+
 ## Development
 
 ```bash
@@ -48,8 +107,7 @@ cd neo-execution-specs
 
 # Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# or: .venv\Scripts\activate  # Windows
+source .venv/bin/activate
 
 # Install dependencies
 pip install -e ".[all]"
@@ -57,7 +115,7 @@ pip install -e ".[all]"
 # Run tests
 pytest
 
-# Run tests with coverage
+# Run with coverage
 pytest --cov=neo --cov-report=html
 ```
 
@@ -65,77 +123,42 @@ pytest --cov=neo --cov-report=html
 
 ```
 src/neo/
-├── vm/                 # NeoVM - Virtual Machine
-│   ├── execution_engine.py
-│   ├── instructions/   # All opcode implementations
-│   └── types/          # Stack item types
-├── crypto/             # Cryptography
-│   ├── ecc/            # Elliptic curve operations
-│   ├── bls12_381/      # BLS12-381 pairing
-│   └── ed25519.py      # Ed25519 signatures
-├── smartcontract/      # Smart Contract Layer
-│   ├── application_engine.py
-│   ├── manifest/       # Contract manifests
-│   └── syscalls/       # System calls
-├── native/             # Native Contracts
-│   ├── neo_token.py    # NEO token
-│   ├── gas_token.py    # GAS token
-│   └── ...             # Other native contracts
-├── network/            # Network Types
-│   └── payloads/       # Block, Transaction, etc.
-└── persistence/        # Storage Layer
-    ├── memory_store.py
-    └── snapshot.py
+├── vm/              # NeoVM - Virtual Machine
+├── crypto/          # Cryptography (ECC, BLS, hashes)
+├── smartcontract/   # ApplicationEngine, syscalls
+├── native/          # 10 native contracts
+├── network/         # Block, Transaction, etc.
+├── persistence/     # Storage layer
+├── types/           # UInt160, UInt256, BigInteger
+└── tools/           # CLI tools (diff, t8n)
 ```
 
-## Quick Example
+## Documentation
 
-```python
-from neo.vm import ExecutionEngine, ScriptBuilder
-from neo.vm.opcode import OpCode
-
-# Build a simple script
-sb = ScriptBuilder()
-sb.emit_push(10)
-sb.emit_push(20)
-sb.emit(OpCode.ADD)
-script = sb.to_array()
-
-# Execute
-engine = ExecutionEngine()
-engine.load_script(script)
-engine.execute()
-
-# Get result
-result = engine.result_stack.pop()
-print(f"10 + 20 = {result.get_integer()}")  # Output: 10 + 20 = 30
-```
+- [Architecture](docs/architecture.md) - System design and module structure
+- [API Reference](docs/api.md) - Main APIs and examples
+- [Testing Guide](docs/testing.md) - Test vectors and diff testing
+- [Contributing](CONTRIBUTING.md) - How to contribute
+- [Changelog](CHANGELOG.md) - Version history
+- [Roadmap](ROADMAP.md) - Implementation progress
 
 ## Optional Dependencies
 
 | Package | Purpose |
 |---------|---------|
-| `cryptography` | Ed25519 signature support |
-| `pycryptodome` | Keccak256 hash function |
-| `py_ecc` | BLS12-381 pairing operations |
+| `cryptography` | Ed25519 signatures |
+| `pycryptodome` | Keccak256 hash |
+| `py_ecc` | BLS12-381 pairing |
 
 Install with: `pip install neo-execution-specs[crypto]`
-
-## Documentation
-
-- [ROADMAP.md](ROADMAP.md) - Implementation progress and phases
-- [VERIFICATION-REPORT.md](VERIFICATION-REPORT.md) - Quality assessment
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
-
-## Contributing
-
-Contributions are welcome! Please read the contributing guidelines before submitting PRs.
 
 ## References
 
 - [Neo N3 Documentation](https://docs.neo.org/)
 - [Neo GitHub](https://github.com/neo-project/neo)
 - [Neo VM](https://github.com/neo-project/neo-vm)
+- [Ethereum Execution Specs](https://github.com/ethereum/execution-specs)
