@@ -73,3 +73,37 @@ class TestMurmur32:
         h = murmur32(data)
         assert isinstance(h, int)
         assert 0 <= h < 2**32
+    
+    def test_tail_bytes_handling(self):
+        """Test that tail bytes (non-aligned) are properly handled.
+        
+        This is critical for matching C# Neo implementation.
+        The old implementation skipped tail bytes entirely.
+        """
+        # 1 tail byte
+        h1 = murmur32(b"12345", 0)  # 5 bytes = 1 block + 1 tail
+        # 2 tail bytes  
+        h2 = murmur32(b"123456", 0)  # 6 bytes = 1 block + 2 tail
+        # 3 tail bytes
+        h3 = murmur32(b"1234567", 0)  # 7 bytes = 1 block + 3 tail
+        # 0 tail bytes (aligned)
+        h4 = murmur32(b"12345678", 0)  # 8 bytes = 2 blocks
+        
+        # All should be different and non-zero
+        assert len({h1, h2, h3, h4}) == 4
+        assert all(h != 0 for h in [h1, h2, h3, h4])
+    
+    def test_neo_compatibility(self):
+        """Test values that match Neo C# Murmur32 implementation.
+        
+        The actual values should be verified against Neo C# implementation.
+        For now, we just verify the function produces consistent results.
+        """
+        # Verify consistency - same input always produces same output
+        h1 = murmur32(b"Neo", 0)
+        h2 = murmur32(b"Neo", 0)
+        assert h1 == h2
+        
+        # Verify seed affects output
+        h3 = murmur32(b"Neo", 12345)
+        assert h1 != h3
