@@ -1,0 +1,88 @@
+name: Diff Testing
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      neo_cli_version:
+        description: 'Neo CLI Docker image version'
+        required: false
+        default: 'latest'
+
+jobs:
+  diff-test:
+    runs-on: ubuntu-latest
+    services:
+      neo-cli:
+        image: cityofzion/neo-cli:${{ github.event.inputs.neo_cli_version || 'latest' }}
+        ports:
+          - 10332:10332
+          - 10333:10333
+        options: >-
+          --health-cmd "curl -f http://localhost:10332 || exit 1"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+
+      - name: Wait for neo-cli
+        run: |
+          echo "Waiting for neo-cli to be ready..."
+          for i in {1..30}; do
+            if curl -s http://localhost:10332 > /dev/null 2>&1; then
+              echo "neo-cli is ready!"
+              break
+            fi
+            echo "Attempt $i/30..."
+            sleep 5
+          done
+
+      - name: Run diff tests
+        run: |
+          neo-diff \
+            --vectors tests/vectors/ \
+            --csharp-rpc http://localhost:10332 \
+            --output diff-report.json
+
+      - name: Upload diff report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diff-report
+          path: diff-report.json
+          retention-days: 30
+
+      - name: Generate summary
+        if: always()
+        run: |
+          if [ -f diff-report.json ]; then
+            echo "## Diff Test Results" >> $GITHUB_STEP_SUMMARY
+            python -c "
+          import json
+          with open('diff-report.json') as f:
+              data = json.load(f)
+          total = data.get('total', 0)
+          passed = data.get('passed', 0)
+          failed = data.get('failed', 0)
+          print(f'| Metric | Value |')
+          print(f'|--------|-------|')
+          print(f'| Total Tests | {total} |')
+          print(f'| Passed | {passed} |')
+          print(f'| Failed | {failed} |')
+          " >> $GITHUB_STEP_SUMMARY
+          fi
