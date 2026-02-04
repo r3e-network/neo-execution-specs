@@ -24,7 +24,13 @@ class ByteString(StackItem):
         return self._value
     
     def get_boolean(self) -> bool:
-        return len(self._value) > 0
+        """Convert to boolean - True if any byte is non-zero.
+        
+        This matches C# behavior which uses Unsafe.NotZero() to check
+        if any byte in the span is non-zero.
+        """
+        # Check if any byte is non-zero (matches C# Unsafe.NotZero)
+        return any(b != 0 for b in self._value)
     
     def get_integer(self) -> BigInteger:
         return BigInteger.from_bytes_le(self._value)

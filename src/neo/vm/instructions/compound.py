@@ -23,13 +23,21 @@ if TYPE_CHECKING:
 
 
 def packmap(engine: ExecutionEngine, instruction: Instruction) -> None:
-    """Pack key-value pairs into a map."""
+    """Pack key-value pairs into a map.
+    
+    Keys must be PrimitiveType (Integer, ByteString, or Boolean).
+    """
+    from neo.vm.types import ByteString, Boolean
+    
     size = int(engine.pop().get_integer())
     if size < 0 or size * 2 > len(engine.current_context.evaluation_stack):
         raise Exception(f"Invalid map size: {size}")
     result = Map(engine.reference_counter)
     for _ in range(size):
         key = engine.pop()
+        # C# requires key to be PrimitiveType
+        if not isinstance(key, (Integer, ByteString, Boolean)):
+            raise Exception(f"Map key must be PrimitiveType, got {type(key).__name__}")
         value = engine.pop()
         result[key] = value
     engine.push(result)

@@ -5,9 +5,11 @@ from dataclasses import dataclass
 
 # Execution limits
 MAX_STACK_SIZE = 2048
-MAX_ITEM_SIZE = 1024 * 1024
+MAX_ITEM_SIZE = 65535 * 2  # 131070, matches C# ushort.MaxValue * 2
 MAX_INVOCATION_STACK_SIZE = 1024
 MAX_SCRIPT_LENGTH = 512 * 1024
+MAX_SHIFT = 256  # Maximum bits for SHL/SHR
+MAX_COMPARABLE_SIZE = 65536  # Maximum size for comparison operations
 
 
 @dataclass

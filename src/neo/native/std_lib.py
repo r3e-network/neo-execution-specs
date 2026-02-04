@@ -3,6 +3,7 @@
 from __future__ import annotations
 import base64
 import json
+import regex
 from typing import Any, List, Optional, Union
 
 from neo.native.native_contract import NativeContract, CallFlags
@@ -223,14 +224,22 @@ class StdLib(NativeContract):
             return value
     
     def itoa(self, value: int, base: int = 10) -> str:
-        """Convert an integer to a string."""
+        """Convert an integer to a string.
+        
+        For base 16 with negative numbers, uses two's complement representation
+        matching C# BigInteger.ToString("X") behavior.
+        """
         if base == 10:
             return str(value)
         elif base == 16:
             if value < 0:
-                # Two's complement for negative numbers
-                return format(value & ((1 << 256) - 1), 'x')
-            return format(value, 'x')
+                # Use two's complement representation, matching C# BigInteger.ToString("X")
+                # Convert to bytes then to hex
+                byte_len = (value.bit_length() + 8) // 8  # Include sign bit
+                bytes_val = value.to_bytes(byte_len, 'big', signed=True)
+                return bytes_val.hex().upper()
+            else:
+                return format(value, 'X')
         else:
             raise ValueError(f"Invalid base: {base}")
     
@@ -380,22 +389,15 @@ class StdLib(NativeContract):
         return parts
     
     def str_len(self, s: str) -> int:
-        """Get the length of a string in grapheme clusters."""
+        """Get the length of a string in grapheme clusters.
+        
+        Uses Unicode grapheme cluster segmentation to match C# StringInfo.LengthInTextElements.
+        """
         if len(s) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
         
-        # Count grapheme clusters (simplified - counts code points for now)
-        # In a full implementation, would use grapheme cluster segmentation
-        import unicodedata
-        count = 0
-        i = 0
-        while i < len(s):
-            # Skip combining characters
-            count += 1
-            i += 1
-            while i < len(s) and unicodedata.category(s[i]).startswith('M'):
-                i += 1
-        return count
+        # Use regex \X pattern for grapheme cluster matching
+        return len(regex.findall(r'\X', s))
     
     def base64_url_encode(self, data: str) -> str:
         """Encode string to base64url format.

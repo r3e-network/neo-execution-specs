@@ -91,8 +91,8 @@ class TestStdLibConversion:
         assert self.stdlib.itoa(0) == "0"
     
     def test_itoa_hex(self):
-        """Test integer to string (hex)."""
-        assert self.stdlib.itoa(255, 16) == "ff"
+        """Test integer to string (hex) - uppercase to match C# BigInteger.ToString("X")."""
+        assert self.stdlib.itoa(255, 16) == "FF"
         assert self.stdlib.itoa(16, 16) == "10"
     
     def test_atoi_decimal(self):

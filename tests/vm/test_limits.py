@@ -89,8 +89,8 @@ class TestLimitConstants:
         assert MAX_STACK_SIZE == 2048
     
     def test_max_item_size(self):
-        """Test MAX_ITEM_SIZE constant."""
-        assert MAX_ITEM_SIZE == 1024 * 1024  # 1 MB
+        """Test MAX_ITEM_SIZE constant matches C# ushort.MaxValue * 2."""
+        assert MAX_ITEM_SIZE == 65535 * 2  # 131070, matches C#
     
     def test_max_invocation_stack_size(self):
         """Test MAX_INVOCATION_STACK_SIZE constant."""

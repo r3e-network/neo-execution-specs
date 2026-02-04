@@ -145,10 +145,9 @@ def shl(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Left shift integer."""
     shift = int(engine.pop().get_integer())
     engine.limits.assert_shift(shift)
-    x = engine.pop().get_integer()
     if shift == 0:
-        engine.push(Integer(x))
-        return
+        return  # C# returns without pushing when shift is 0
+    x = engine.pop().get_integer()
     engine.push(Integer(x << shift))
 
 
@@ -156,10 +155,9 @@ def shr(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Right shift integer."""
     shift = int(engine.pop().get_integer())
     engine.limits.assert_shift(shift)
-    x = engine.pop().get_integer()
     if shift == 0:
-        engine.push(Integer(x))
-        return
+        return  # C# returns without pushing when shift is 0
+    x = engine.pop().get_integer()
     engine.push(Integer(x >> shift))
 
 

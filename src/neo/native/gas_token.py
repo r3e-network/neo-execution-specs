@@ -51,6 +51,7 @@ class GasToken(FungibleToken):
         
         For each transaction:
         - Burns system fee and network fee from sender
+        - Handles NotaryAssisted attribute fee deduction
         - Mints network fee to primary validator
         """
         total_network_fee = 0
@@ -61,6 +62,14 @@ class GasToken(FungibleToken):
             if total_fee > 0:
                 self.burn(engine, tx.sender, total_fee)
             total_network_fee += tx.network_fee
+            
+            # Handle NotaryAssisted attribute (matches C# behavior)
+            notary_assisted = getattr(tx, 'get_attribute', lambda t: None)('NotaryAssisted')
+            if notary_assisted is not None:
+                n_keys = getattr(notary_assisted, 'n_keys', 0)
+                attr_type = getattr(notary_assisted, 'type', 0)
+                attr_fee = engine.policy.get_attribute_fee(attr_type) if hasattr(engine, 'policy') else 0
+                total_network_fee -= (n_keys + 1) * attr_fee
         
         # Mint network fee to primary validator
         if total_network_fee > 0:
