@@ -63,9 +63,9 @@ class PythonExecutor:
         elif item.type == StackItemType.BOOLEAN:
             return StackValue(type="Boolean", value=item.get_boolean())
         elif item.type == StackItemType.BYTESTRING:
-            return StackValue(type="ByteString", value=item.get_bytes().hex())
+            return StackValue(type="ByteString", value=item.get_bytes_unsafe().hex())
         elif item.type == StackItemType.BUFFER:
-            return StackValue(type="Buffer", value=item.get_bytes().hex())
+            return StackValue(type="Buffer", value=item.get_bytes_unsafe().hex())
         elif item.type == StackItemType.ARRAY:
             items = [self._convert_stack_item(i) for i in item]
             return StackValue(type="Array", value=[i.to_dict() for i in items])
