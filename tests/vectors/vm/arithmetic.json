@@ -1,0 +1,317 @@
+{
+  "name": "arithmetic",
+  "description": "Arithmetic instruction test vectors (ADD, SUB, MUL, DIV, MOD, etc.)",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "ADD_basic",
+      "description": "Basic addition: 3 + 5 = 8",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x13159e",
+      "post": {
+        "stack": [
+          8
+        ]
+      }
+    },
+    {
+      "name": "ADD_negative",
+      "description": "Addition with negative: 5 + (-3) = 2",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1500fd9e",
+      "post": {
+        "stack": [
+          2
+        ]
+      }
+    },
+    {
+      "name": "ADD_zero",
+      "description": "Addition with zero: 7 + 0 = 7",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x17109e",
+      "post": {
+        "stack": [
+          7
+        ]
+      }
+    },
+    {
+      "name": "SUB_basic",
+      "description": "Basic subtraction: 7 - 3 = 4",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x17139f",
+      "post": {
+        "stack": [
+          4
+        ]
+      }
+    },
+    {
+      "name": "SUB_negative_result",
+      "description": "Subtraction with negative result: 3 - 7 = -4",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x13179f",
+      "post": {
+        "stack": [
+          -4
+        ]
+      }
+    },
+    {
+      "name": "MUL_basic",
+      "description": "Basic multiplication: 3 * 4 = 12",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1314a0",
+      "post": {
+        "stack": [
+          12
+        ]
+      }
+    },
+    {
+      "name": "MUL_zero",
+      "description": "Multiplication by zero: 5 * 0 = 0",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1510a0",
+      "post": {
+        "stack": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "MUL_negative",
+      "description": "Multiplication with negative: 3 * (-4) = -12",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1300fca0",
+      "post": {
+        "stack": [
+          -12
+        ]
+      }
+    },
+    {
+      "name": "DIV_basic",
+      "description": "Basic division: 10 / 3 = 3 (integer)",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1a13a1",
+      "post": {
+        "stack": [
+          3
+        ]
+      }
+    },
+    {
+      "name": "DIV_exact",
+      "description": "Exact division: 12 / 4 = 3",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1c14a1",
+      "post": {
+        "stack": [
+          3
+        ]
+      }
+    },
+    {
+      "name": "MOD_basic",
+      "description": "Basic modulo: 10 % 3 = 1",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1a13a2",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "MOD_exact",
+      "description": "Exact modulo: 12 % 4 = 0",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1c14a2",
+      "post": {
+        "stack": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "NEGATE_positive",
+      "description": "Negate positive: -5 = -5",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x159b",
+      "post": {
+        "stack": [
+          -5
+        ]
+      }
+    },
+    {
+      "name": "NEGATE_negative",
+      "description": "Negate negative: -(-5) = 5",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00fb9b",
+      "post": {
+        "stack": [
+          5
+        ]
+      }
+    },
+    {
+      "name": "ABS_positive",
+      "description": "Absolute of positive: |5| = 5",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x159a",
+      "post": {
+        "stack": [
+          5
+        ]
+      }
+    },
+    {
+      "name": "ABS_negative",
+      "description": "Absolute of negative: |-5| = 5",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x159b9a",
+      "post": {
+        "stack": [
+          5
+        ]
+      }
+    },
+    {
+      "name": "INC_basic",
+      "description": "Increment: 5 + 1 = 6",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x159c",
+      "post": {
+        "stack": [
+          6
+        ]
+      }
+    },
+    {
+      "name": "DEC_basic",
+      "description": "Decrement: 5 - 1 = 4",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x159d",
+      "post": {
+        "stack": [
+          4
+        ]
+      }
+    },
+    {
+      "name": "SIGN_positive",
+      "description": "Sign of positive: sign(5) = 1",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1599",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "SIGN_negative",
+      "description": "Sign of negative: sign(-5) = -1",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x159b99",
+      "post": {
+        "stack": [
+          -1
+        ]
+      }
+    },
+    {
+      "name": "SIGN_zero",
+      "description": "Sign of zero: sign(0) = 0",
+      "pre": { "stack": [] },
+      "script": "0x1099",
+      "post": { "stack": [0] }
+    },
+    {
+      "name": "POW_basic",
+      "description": "Power: 2^3 = 8",
+      "pre": { "stack": [] },
+      "script": "0x1213a3",
+      "post": { "stack": [8] }
+    },
+    {
+      "name": "POW_zero_exp",
+      "description": "Power with zero exponent: 5^0 = 1",
+      "pre": { "stack": [] },
+      "script": "0x1510a3",
+      "post": { "stack": [1] }
+    },
+    {
+      "name": "SQRT_basic",
+      "description": "Square root: sqrt(16) = 4",
+      "pre": { "stack": [] },
+      "script": "0x0010a4",
+      "post": { "stack": [4] }
+    },
+    {
+      "name": "SQRT_9",
+      "description": "Square root: sqrt(9) = 3",
+      "pre": { "stack": [] },
+      "script": "0x0009a4",
+      "post": { "stack": [3] }
+    },
+    {
+      "name": "MODMUL_basic",
+      "description": "Modular multiplication: (3 * 4) % 5 = 2",
+      "pre": { "stack": [] },
+      "script": "0x131415a5",
+      "post": { "stack": [2] }
+    },
+    {
+      "name": "MODPOW_basic",
+      "description": "Modular exponentiation: (2^3) % 5 = 3",
+      "pre": { "stack": [] },
+      "script": "0x121315a6",
+      "post": { "stack": [3] }
+    }
+  ]
+}

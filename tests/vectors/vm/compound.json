@@ -1,0 +1,99 @@
+{
+  "name": "compound",
+  "description": "Compound type instruction test vectors (arrays, maps, structs)",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "NEWARRAY0_basic",
+      "description": "Create empty array",
+      "pre": { "stack": [] },
+      "script": "0xc2",
+      "post": { "stack": [{"type": "Array", "value": []}] }
+    },
+    {
+      "name": "NEWSTRUCT0_basic",
+      "description": "Create empty struct",
+      "pre": { "stack": [] },
+      "script": "0xc5",
+      "post": { "stack": [{"type": "Struct", "value": []}] }
+    },
+    {
+      "name": "NEWMAP_basic",
+      "description": "Create empty map",
+      "pre": { "stack": [] },
+      "script": "0xc8",
+      "post": { "stack": [{"type": "Map", "value": {}}] }
+    },
+    {
+      "name": "PACK_basic",
+      "description": "Pack 3 items into array",
+      "pre": { "stack": [] },
+      "script": "0x11121313c0",
+      "post": { "stack": [{"type": "Array", "value": [3, 2, 1]}] }
+    },
+    {
+      "name": "UNPACK_array",
+      "description": "Unpack array [1,2,3] onto stack",
+      "pre": { "stack": [] },
+      "script": "0x11121313c0c1",
+      "post": { "stack": [1, 2, 3, 3] }
+    },
+    {
+      "name": "NEWARRAY_sized",
+      "description": "Create array of size 3 with nulls",
+      "pre": { "stack": [] },
+      "script": "0x13c3",
+      "post": { "stack": [{"type": "Array", "value": [{"type": "Null", "value": null}, {"type": "Null", "value": null}, {"type": "Null", "value": null}]}] }
+    },
+    {
+      "name": "SIZE_array",
+      "description": "Get size of array [1,2,3]",
+      "pre": { "stack": [] },
+      "script": "0x11121313c0ca",
+      "post": { "stack": [3] }
+    },
+    {
+      "name": "SIZE_map",
+      "description": "Get size of empty map",
+      "pre": { "stack": [] },
+      "script": "0xc8ca",
+      "post": { "stack": [0] }
+    },
+    {
+      "name": "PICKITEM_array",
+      "description": "Pick item at index 1 from array [1,2,3]",
+      "pre": { "stack": [] },
+      "script": "0x11121313c011ce",
+      "post": { "stack": [2] }
+    },
+    {
+      "name": "PACKSTRUCT_basic",
+      "description": "Pack 2 items into struct",
+      "pre": { "stack": [] },
+      "script": "0x111212bf",
+      "post": { "stack": [{"type": "Struct", "value": [2, 1]}] }
+    },
+    {
+      "name": "APPEND_to_array",
+      "description": "Append 5 to array [1,2], array modified in place",
+      "pre": { "stack": [] },
+      "script": "0x111212c04a15cf",
+      "post": { "stack": [{"type": "Array", "value": [2, 1, 5]}] }
+    },
+    {
+      "name": "HASKEY_array_true",
+      "description": "Check if array has index 1",
+      "pre": { "stack": [] },
+      "script": "0x111212c011cb",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "HASKEY_array_false",
+      "description": "Check if array has index 5 (out of bounds)",
+      "pre": { "stack": [] },
+      "script": "0x111212c015cb",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    }
+  ]
+}

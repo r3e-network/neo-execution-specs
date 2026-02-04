@@ -1,0 +1,173 @@
+{
+  "name": "bitwise",
+  "description": "Bitwise instruction test vectors (AND, OR, XOR, etc.)",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "AND_basic",
+      "description": "Bitwise AND: 12 & 10 = 8",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1c1a91",
+      "post": {
+        "stack": [
+          8
+        ]
+      }
+    },
+    {
+      "name": "AND_zero",
+      "description": "AND with zero: 15 & 0 = 0",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1f1091",
+      "post": {
+        "stack": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "OR_basic",
+      "description": "Bitwise OR: 12 | 10 = 14",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1c1a92",
+      "post": {
+        "stack": [
+          14
+        ]
+      }
+    },
+    {
+      "name": "OR_zero",
+      "description": "OR with zero: 15 | 0 = 15",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1f1092",
+      "post": {
+        "stack": [
+          15
+        ]
+      }
+    },
+    {
+      "name": "XOR_basic",
+      "description": "Bitwise XOR: 12 ^ 10 = 6",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1c1a93",
+      "post": {
+        "stack": [
+          6
+        ]
+      }
+    },
+    {
+      "name": "XOR_same",
+      "description": "XOR same value: 15 ^ 15 = 0",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1f1f93",
+      "post": {
+        "stack": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "INVERT_zero",
+      "description": "Bitwise NOT: ~0 = -1",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1090",
+      "post": {
+        "stack": [
+          -1
+        ]
+      }
+    },
+    {
+      "name": "SHL_basic",
+      "description": "Shift left: 1 << 4 = 16",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1114a8",
+      "post": {
+        "stack": [
+          16
+        ]
+      }
+    },
+    {
+      "name": "SHL_zero",
+      "description": "Shift left by 0: 5 << 0 = 5",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1510a8",
+      "post": {
+        "stack": [
+          5
+        ]
+      }
+    },
+    {
+      "name": "SHR_basic",
+      "description": "Shift right: 16 >> 2 = 4",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x2012a9",
+      "post": {
+        "stack": [
+          4
+        ]
+      }
+    },
+    {
+      "name": "SHR_zero",
+      "description": "Shift right by 0: 5 >> 0 = 5",
+      "pre": { "stack": [] },
+      "script": "0x1510a9",
+      "post": { "stack": [5] }
+    },
+    {
+      "name": "EQUAL_integers_true",
+      "description": "Equal integers: 5 == 5",
+      "pre": { "stack": [] },
+      "script": "0x151597",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "EQUAL_integers_false",
+      "description": "Not equal integers: 5 == 3",
+      "pre": { "stack": [] },
+      "script": "0x151397",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "NOTEQUAL_integers_true",
+      "description": "Not equal: 5 != 3",
+      "pre": { "stack": [] },
+      "script": "0x151398",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "NOTEQUAL_integers_false",
+      "description": "Equal: 5 != 5",
+      "pre": { "stack": [] },
+      "script": "0x151598",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    }
+  ]
+}

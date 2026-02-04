@@ -1,0 +1,127 @@
+{
+  "name": "comparison",
+  "description": "Comparison instruction test vectors (LT, LE, GT, GE, etc.)",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "LT_true",
+      "description": "Less than true: 3 < 5",
+      "pre": { "stack": [] },
+      "script": "0x1315b5",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "LT_false",
+      "description": "Less than false: 5 < 3",
+      "pre": { "stack": [] },
+      "script": "0x1513b5",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "LT_equal",
+      "description": "Less than equal: 5 < 5",
+      "pre": { "stack": [] },
+      "script": "0x1515b5",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "LE_less",
+      "description": "Less or equal (less): 3 <= 5",
+      "pre": { "stack": [] },
+      "script": "0x1315b6",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "LE_equal",
+      "description": "Less or equal (equal): 5 <= 5",
+      "pre": { "stack": [] },
+      "script": "0x1515b6",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "GT_true",
+      "description": "Greater than true: 5 > 3",
+      "pre": { "stack": [] },
+      "script": "0x1513b7",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "GT_false",
+      "description": "Greater than false: 3 > 5",
+      "pre": { "stack": [] },
+      "script": "0x1315b7",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "GE_greater",
+      "description": "Greater or equal (greater): 5 >= 3",
+      "pre": { "stack": [] },
+      "script": "0x1513b8",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "GE_equal",
+      "description": "Greater or equal (equal): 5 >= 5",
+      "pre": { "stack": [] },
+      "script": "0x1515b8",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "NUMEQUAL_true",
+      "description": "Numeric equal true: 5 == 5",
+      "pre": { "stack": [] },
+      "script": "0x1515b3",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "NUMEQUAL_false",
+      "description": "Numeric equal false: 5 == 3",
+      "pre": { "stack": [] },
+      "script": "0x1513b3",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "MIN_basic",
+      "description": "Minimum: min(3, 5) = 3",
+      "pre": { "stack": [] },
+      "script": "0x1315b9",
+      "post": { "stack": [3] }
+    },
+    {
+      "name": "MAX_basic",
+      "description": "Maximum: max(3, 5) = 5",
+      "pre": { "stack": [] },
+      "script": "0x1315ba",
+      "post": { "stack": [5] }
+    },
+    {
+      "name": "WITHIN_true",
+      "description": "Within range: 5 in [3, 7)",
+      "pre": { "stack": [] },
+      "script": "0x151317bb",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "WITHIN_false_low",
+      "description": "Below range: 2 in [3, 7)",
+      "pre": { "stack": [] },
+      "script": "0x121317bb",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "NUMNOTEQUAL_true",
+      "description": "Numeric not equal: 5 != 3",
+      "pre": { "stack": [] },
+      "script": "0x1513b4",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "NUMNOTEQUAL_false",
+      "description": "Numeric not equal: 5 != 5",
+      "pre": { "stack": [] },
+      "script": "0x1515b4",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    }
+  ]
+}

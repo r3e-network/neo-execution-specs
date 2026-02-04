@@ -1,0 +1,61 @@
+{
+  "name": "bls12_381",
+  "description": "BLS12-381 cryptographic operation test vectors",
+  "category": "crypto",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "G1_identity",
+      "description": "G1 identity point (compressed)",
+      "operation": "G1_identity",
+      "input": {},
+      "output": {
+        "point": "0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "is_identity": true
+      }
+    },
+    {
+      "name": "G1_generator",
+      "description": "G1 generator point (compressed)",
+      "operation": "G1_generator",
+      "input": {},
+      "output": {
+        "point": "0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb",
+        "is_identity": false
+      }
+    },
+    {
+      "name": "G2_identity",
+      "description": "G2 identity point (compressed)",
+      "operation": "G2_identity",
+      "input": {},
+      "output": {
+        "point": "0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "is_identity": true
+      }
+    },
+    {
+      "name": "Scalar_modular",
+      "description": "Scalar modular reduction",
+      "operation": "Scalar_mod",
+      "input": {
+        "value": "0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000002"
+      },
+      "output": {
+        "reduced": 1
+      }
+    },
+    {
+      "name": "Pairing_identity_g1",
+      "description": "Pairing with G1 identity yields Gt identity",
+      "operation": "pairing",
+      "input": {
+        "g1": "0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "g2": "0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "output": {
+        "is_identity": true
+      }
+    }
+  ]
+}

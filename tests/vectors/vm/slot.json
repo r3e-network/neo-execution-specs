@@ -1,0 +1,36 @@
+{
+  "name": "slot",
+  "description": "Slot instruction test vectors (LDARG, STARG, LDLOC, STLOC, LDSFLD, STSFLD)",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "INITSLOT_STLOC_LDLOC",
+      "description": "Initialize slot, store and load local variable",
+      "pre": { "stack": [] },
+      "script": "0x570100157068",
+      "post": { "stack": [5] }
+    },
+    {
+      "name": "STLOC0_LDLOC0",
+      "description": "Store to local 0, load from local 0",
+      "pre": { "stack": [] },
+      "script": "0x570100137068",
+      "post": { "stack": [3] }
+    },
+    {
+      "name": "STLOC1_LDLOC1",
+      "description": "Store to local 1, load from local 1",
+      "pre": { "stack": [] },
+      "script": "0x570200147169",
+      "post": { "stack": [4] }
+    },
+    {
+      "name": "multiple_locals",
+      "description": "Store multiple locals and load them",
+      "pre": { "stack": [] },
+      "script": "0x5703001370147115726869",
+      "post": { "stack": [3, 4] }
+    }
+  ]
+}

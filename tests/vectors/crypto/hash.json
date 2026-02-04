@@ -1,0 +1,63 @@
+{
+  "name": "hash",
+  "description": "Hash function test vectors (SHA256, RIPEMD160, etc.)",
+  "category": "crypto",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "SHA256_hello",
+      "description": "SHA256 of 'hello'",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x68656c6c6f"
+      },
+      "output": {
+        "hash": "0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+      }
+    },
+    {
+      "name": "SHA256_empty",
+      "description": "SHA256 of empty data",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x"
+      },
+      "output": {
+        "hash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "Hash256_hello",
+      "description": "Double SHA256 of 'hello'",
+      "operation": "Hash256",
+      "input": {
+        "data": "0x68656c6c6f"
+      },
+      "output": {
+        "hash": "0x9595c9df90075148eb06860365df33584b75bff782a510c6cd4883a419833d50"
+      }
+    },
+    {
+      "name": "RIPEMD160_hello",
+      "description": "RIPEMD160 of 'hello'",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x68656c6c6f"
+      },
+      "output": {
+        "hash": "0x108f07b8382412612c048d07d13f814118445acd"
+      }
+    },
+    {
+      "name": "Hash160_hello",
+      "description": "Hash160 (SHA256+RIPEMD160) of 'hello'",
+      "operation": "Hash160",
+      "input": {
+        "data": "0x68656c6c6f"
+      },
+      "output": {
+        "hash": "0xb6a9c8c230722b7c748331a8b450f05566dc7d0f"
+      }
+    }
+  ]
+}

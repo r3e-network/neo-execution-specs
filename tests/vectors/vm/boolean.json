@@ -1,0 +1,78 @@
+{
+  "name": "boolean",
+  "description": "Boolean instruction test vectors (NOT, AND, OR, NZ)",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "NOT_true",
+      "description": "NOT true = false",
+      "pre": { "stack": [] },
+      "script": "0x11aa",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "NOT_false",
+      "description": "NOT false = true",
+      "pre": { "stack": [] },
+      "script": "0x10aa",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "BOOLAND_true_true",
+      "description": "true AND true = true",
+      "pre": { "stack": [] },
+      "script": "0x1111ab",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "BOOLAND_true_false",
+      "description": "true AND false = false",
+      "pre": { "stack": [] },
+      "script": "0x1110ab",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "BOOLAND_false_false",
+      "description": "false AND false = false",
+      "pre": { "stack": [] },
+      "script": "0x1010ab",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "BOOLOR_true_true",
+      "description": "true OR true = true",
+      "pre": { "stack": [] },
+      "script": "0x1111ac",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "BOOLOR_true_false",
+      "description": "true OR false = true",
+      "pre": { "stack": [] },
+      "script": "0x1110ac",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "BOOLOR_false_false",
+      "description": "false OR false = false",
+      "pre": { "stack": [] },
+      "script": "0x1010ac",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "NZ_nonzero",
+      "description": "NZ of nonzero = true",
+      "pre": { "stack": [] },
+      "script": "0x15b1",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "NZ_zero",
+      "description": "NZ of zero = false",
+      "pre": { "stack": [] },
+      "script": "0x10b1",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    }
+  ]
+}

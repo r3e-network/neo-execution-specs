@@ -1,0 +1,57 @@
+{
+  "name": "types",
+  "description": "Type instruction test vectors (ISNULL, ISTYPE, CONVERT)",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "ISNULL_true",
+      "description": "ISNULL on null returns true",
+      "pre": { "stack": [] },
+      "script": "0x0bd8",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "ISNULL_false",
+      "description": "ISNULL on integer returns false",
+      "pre": { "stack": [] },
+      "script": "0x15d8",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "ISTYPE_integer",
+      "description": "ISTYPE check if 5 is Integer (0x21)",
+      "pre": { "stack": [] },
+      "script": "0x15d921",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "ISTYPE_boolean",
+      "description": "ISTYPE check if true is Boolean (0x20)",
+      "pre": { "stack": [] },
+      "script": "0x08d920",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "ISTYPE_wrong",
+      "description": "ISTYPE check if 5 is Boolean (0x20) - false",
+      "pre": { "stack": [] },
+      "script": "0x15d920",
+      "post": { "stack": [{"type": "Boolean", "value": false}] }
+    },
+    {
+      "name": "CONVERT_to_boolean",
+      "description": "Convert integer 5 to boolean",
+      "pre": { "stack": [] },
+      "script": "0x15db20",
+      "post": { "stack": [{"type": "Boolean", "value": true}] }
+    },
+    {
+      "name": "CONVERT_to_integer",
+      "description": "Convert boolean true to integer",
+      "pre": { "stack": [] },
+      "script": "0x08db21",
+      "post": { "stack": [1] }
+    }
+  ]
+}

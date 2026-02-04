@@ -1,0 +1,249 @@
+{
+  "name": "stack",
+  "description": "Stack manipulation instruction test vectors",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "PUSH0",
+      "description": "Push 0 onto stack",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x10",
+      "post": {
+        "stack": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "PUSH1",
+      "description": "Push 1 onto stack",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "PUSH16",
+      "description": "Push 16 onto stack",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x20",
+      "post": {
+        "stack": [
+          16
+        ]
+      }
+    },
+    {
+      "name": "PUSHM1",
+      "description": "Push -1 onto stack",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0f",
+      "post": {
+        "stack": [
+          -1
+        ]
+      }
+    },
+    {
+      "name": "DUP_basic",
+      "description": "Duplicate top stack item",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x154a",
+      "post": {
+        "stack": [
+          5,
+          5
+        ]
+      }
+    },
+    {
+      "name": "DROP_basic",
+      "description": "Drop top stack item",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111245",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "SWAP_basic",
+      "description": "Swap top two items",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111250",
+      "post": {
+        "stack": [
+          2,
+          1
+        ]
+      }
+    },
+    {
+      "name": "OVER_basic",
+      "description": "Copy second item to top",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11124b",
+      "post": {
+        "stack": [
+          1,
+          2,
+          1
+        ]
+      }
+    },
+    {
+      "name": "ROT_basic",
+      "description": "Rotate top 3 items",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11121351",
+      "post": {
+        "stack": [
+          2,
+          3,
+          1
+        ]
+      }
+    },
+    {
+      "name": "NIP_basic",
+      "description": "Remove second item",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111246",
+      "post": {
+        "stack": [
+          2
+        ]
+      }
+    },
+    {
+      "name": "TUCK_basic",
+      "description": "Copy top item below second",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11124e",
+      "post": {
+        "stack": [
+          2,
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "DEPTH_empty",
+      "description": "Depth of empty stack",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x43",
+      "post": {
+        "stack": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "DEPTH_three",
+      "description": "Depth of 3-item stack",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11121343",
+      "post": {
+        "stack": [
+          1,
+          2,
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "name": "CLEAR_basic",
+      "description": "Clear entire stack",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11121349",
+      "post": {
+        "stack": []
+      }
+    },
+    {
+      "name": "REVERSE3_basic",
+      "description": "Reverse top 3 items",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11121353",
+      "post": {
+        "stack": [
+          3,
+          2,
+          1
+        ]
+      }
+    },
+    {
+      "name": "REVERSE4_basic",
+      "description": "Reverse top 4 items",
+      "pre": { "stack": [] },
+      "script": "0x1112131454",
+      "post": { "stack": [4, 3, 2, 1] }
+    },
+    {
+      "name": "PICK_basic",
+      "description": "Pick item at index 2 (third from top)",
+      "pre": { "stack": [] },
+      "script": "0x11121314124d",
+      "post": { "stack": [1, 2, 3, 4, 2] }
+    },
+    {
+      "name": "ROLL_basic",
+      "description": "Roll item at index 2 to top",
+      "pre": { "stack": [] },
+      "script": "0x1112131252",
+      "post": { "stack": [2, 3, 1] }
+    },
+    {
+      "name": "XDROP_basic",
+      "description": "Drop item at index 1",
+      "pre": { "stack": [] },
+      "script": "0x1112131148",
+      "post": { "stack": [1, 3] }
+    },
+    {
+      "name": "REVERSEN_basic",
+      "description": "Reverse top N items (N=3)",
+      "pre": { "stack": [] },
+      "script": "0x111213141355",
+      "post": { "stack": [1, 4, 3, 2] }
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "name": "control_flow",
+  "description": "Control flow instruction test vectors (JMP, JMPIF, CALL, RET, TRY)",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "JMP_forward",
+      "description": "Jump forward over PUSH2, result is 1",
+      "pre": { "stack": [] },
+      "script": "0x11220312",
+      "post": { "stack": [1] }
+    },
+    {
+      "name": "JMPIF_true",
+      "description": "Jump if true (1), skip PUSH2, result is 3",
+      "pre": { "stack": [] },
+      "script": "0x1311240312",
+      "post": { "stack": [3] }
+    },
+    {
+      "name": "JMPIF_false",
+      "description": "Jump if false (0), execute PUSH2, result is 3,2",
+      "pre": { "stack": [] },
+      "script": "0x1310240312",
+      "post": { "stack": [3, 2] }
+    },
+    {
+      "name": "JMPIFNOT_true",
+      "description": "Jump if not true (1), execute PUSH2",
+      "pre": { "stack": [] },
+      "script": "0x1311260312",
+      "post": { "stack": [3, 2] }
+    },
+    {
+      "name": "JMPIFNOT_false",
+      "description": "Jump if not false (0), skip PUSH2",
+      "pre": { "stack": [] },
+      "script": "0x1310260312",
+      "post": { "stack": [3] }
+    },
+    {
+      "name": "RET_basic",
+      "description": "Return from script with value on stack",
+      "pre": { "stack": [] },
+      "script": "0x1540",
+      "post": { "stack": [5] }
+    },
+    {
+      "name": "NOP_basic",
+      "description": "NOP does nothing",
+      "pre": { "stack": [] },
+      "script": "0x152115",
+      "post": { "stack": [5, 5] }
+    }
+  ]
+}

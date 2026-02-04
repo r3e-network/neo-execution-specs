@@ -54,3 +54,7 @@ class Buffer(StackItem):
     def reverse(self) -> None:
         """Reverse bytes in place."""
         self._value.reverse()
+    
+    def get_bytes_unsafe(self) -> bytes:
+        """Get raw bytes without copy."""
+        return bytes(self._value)

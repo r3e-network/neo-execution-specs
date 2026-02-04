@@ -1,0 +1,68 @@
+{
+  "name": "stdlib",
+  "description": "StdLib native contract test vectors",
+  "category": "native",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "StdLib_itoa_decimal",
+      "description": "Convert integer to string (decimal)",
+      "contract": "StdLib",
+      "method": "itoa",
+      "args": [123, 10],
+      "pre_state": {},
+      "post_state": {},
+      "result": "123"
+    },
+    {
+      "name": "StdLib_itoa_hex",
+      "description": "Convert integer to hex string",
+      "contract": "StdLib",
+      "method": "itoa",
+      "args": [255, 16],
+      "pre_state": {},
+      "post_state": {},
+      "result": "ff"
+    },
+    {
+      "name": "StdLib_atoi_decimal",
+      "description": "Convert string to integer (decimal)",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": ["123", 10],
+      "pre_state": {},
+      "post_state": {},
+      "result": 123
+    },
+    {
+      "name": "StdLib_base64Encode",
+      "description": "Base64 encode bytes",
+      "contract": "StdLib",
+      "method": "base64Encode",
+      "args": ["SGVsbG8="],
+      "pre_state": {},
+      "post_state": {},
+      "result": "U0dWc2JHOD0="
+    },
+    {
+      "name": "StdLib_memoryCompare_equal",
+      "description": "Compare equal byte arrays",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": ["0x0102", "0x0102"],
+      "pre_state": {},
+      "post_state": {},
+      "result": 0
+    },
+    {
+      "name": "StdLib_memoryCompare_less",
+      "description": "Compare byte arrays (first < second)",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": ["0x0101", "0x0102"],
+      "pre_state": {},
+      "post_state": {},
+      "result": -1
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "cryptolib",
+  "description": "CryptoLib native contract test vectors",
+  "category": "native",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "CryptoLib_sha256",
+      "description": "SHA256 hash of empty bytes",
+      "contract": "CryptoLib",
+      "method": "sha256",
+      "args": ["0x"],
+      "pre_state": {},
+      "post_state": {},
+      "result": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "CryptoLib_ripemd160",
+      "description": "RIPEMD160 hash of empty bytes",
+      "contract": "CryptoLib",
+      "method": "ripemd160",
+      "args": ["0x"],
+      "pre_state": {},
+      "post_state": {},
+      "result": "9c1185a5c5e9fc54612808977ee8f548b2258d31"
+    },
+    {
+      "name": "CryptoLib_murmur32",
+      "description": "Murmur32 hash",
+      "contract": "CryptoLib",
+      "method": "murmur32",
+      "args": ["0x68656c6c6f", 0],
+      "pre_state": {},
+      "post_state": {},
+      "result": 613153351
+    }
+  ]
+}

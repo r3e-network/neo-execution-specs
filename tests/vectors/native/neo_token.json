@@ -1,0 +1,38 @@
+{
+  "name": "neo_token",
+  "description": "NeoToken native contract test vectors",
+  "category": "native",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "NEO_totalSupply",
+      "description": "Get NEO total supply",
+      "contract": "NeoToken",
+      "method": "totalSupply",
+      "args": [],
+      "pre_state": {},
+      "post_state": {},
+      "result": 100000000
+    },
+    {
+      "name": "NEO_symbol",
+      "description": "Get NEO symbol",
+      "contract": "NeoToken",
+      "method": "symbol",
+      "args": [],
+      "pre_state": {},
+      "post_state": {},
+      "result": "NEO"
+    },
+    {
+      "name": "NEO_decimals",
+      "description": "Get NEO decimals",
+      "contract": "NeoToken",
+      "method": "decimals",
+      "args": [],
+      "pre_state": {},
+      "post_state": {},
+      "result": 0
+    }
+  ]
+}

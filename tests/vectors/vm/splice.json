@@ -1,0 +1,43 @@
+{
+  "name": "splice",
+  "description": "Splice instruction test vectors (CAT, SUBSTR, LEFT, RIGHT)",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "CAT_basic",
+      "description": "Concatenate two byte strings: [01 02] + [03 04] = [01 02 03 04]",
+      "pre": { "stack": [] },
+      "script": "0x0c0201020c0203048b",
+      "post": { "stack": [{"type": "Buffer", "value": "01020304"}] }
+    },
+    {
+      "name": "LEFT_basic",
+      "description": "Take left 2 bytes from [01 02 03 04]",
+      "pre": { "stack": [] },
+      "script": "0x0c0401020304128d",
+      "post": { "stack": [{"type": "Buffer", "value": "0102"}] }
+    },
+    {
+      "name": "RIGHT_basic",
+      "description": "Take right 2 bytes from [01 02 03 04]",
+      "pre": { "stack": [] },
+      "script": "0x0c0401020304128e",
+      "post": { "stack": [{"type": "Buffer", "value": "0304"}] }
+    },
+    {
+      "name": "SUBSTR_basic",
+      "description": "Substring from index 1, length 2: [01 02 03 04] -> [02 03]",
+      "pre": { "stack": [] },
+      "script": "0x0c040102030411128c",
+      "post": { "stack": [{"type": "Buffer", "value": "0203"}] }
+    },
+    {
+      "name": "NEWBUFFER_basic",
+      "description": "Create new buffer of size 4",
+      "pre": { "stack": [] },
+      "script": "0x1488",
+      "post": { "stack": [{"type": "Buffer", "value": "00000000"}] }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "state_transitions",
+  "description": "State transition test vectors",
+  "category": "state",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "simple_transfer",
+      "description": "Simple NEO transfer between accounts",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x...",
+        "sender": "NXV7ZhHiyM1aHXwpVsRZC6BwNFP2jghXAq",
+        "signers": [
+          "NXV7ZhHiyM1aHXwpVsRZC6BwNFP2jghXAq"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "NXV7ZhHiyM1aHXwpVsRZC6BwNFP2jghXAq": 100,
+          "NZNos2WqTbu5oCgyfss9kUJgBXJqhuYAaj": 0
+        }
+      },
+      "post_state": {
+        "balances": {
+          "NXV7ZhHiyM1aHXwpVsRZC6BwNFP2jghXAq": 90,
+          "NZNos2WqTbu5oCgyfss9kUJgBXJqhuYAaj": 10
+        }
+      },
+      "gas_consumed": 997860
+    }
+  ]
+}

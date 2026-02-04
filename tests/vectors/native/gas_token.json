@@ -1,0 +1,28 @@
+{
+  "name": "gas_token",
+  "description": "GasToken native contract test vectors",
+  "category": "native",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "GAS_symbol",
+      "description": "Get GAS symbol",
+      "contract": "GasToken",
+      "method": "symbol",
+      "args": [],
+      "pre_state": {},
+      "post_state": {},
+      "result": "GAS"
+    },
+    {
+      "name": "GAS_decimals",
+      "description": "Get GAS decimals",
+      "contract": "GasToken",
+      "method": "decimals",
+      "args": [],
+      "pre_state": {},
+      "post_state": {},
+      "result": 8
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "policy",
+  "description": "PolicyContract native contract test vectors",
+  "category": "native",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "Policy_getFeePerByte",
+      "description": "Get fee per byte (default)",
+      "contract": "PolicyContract",
+      "method": "getFeePerByte",
+      "args": [],
+      "pre_state": {},
+      "post_state": {},
+      "result": 1000
+    },
+    {
+      "name": "Policy_getExecFeeFactor",
+      "description": "Get execution fee factor (default)",
+      "contract": "PolicyContract",
+      "method": "getExecFeeFactor",
+      "args": [],
+      "pre_state": {},
+      "post_state": {},
+      "result": 30
+    },
+    {
+      "name": "Policy_getStoragePrice",
+      "description": "Get storage price (default)",
+      "contract": "PolicyContract",
+      "method": "getStoragePrice",
+      "args": [],
+      "pre_state": {},
+      "post_state": {},
+      "result": 100000
+    }
+  ]
+}
