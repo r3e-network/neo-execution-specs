@@ -32,10 +32,11 @@ class TestVMIntegration:
         """Test conditional execution."""
         sb = ScriptBuilder()
         sb.emit_push(True)
-        sb.emit_jump(OpCode.JMPIFNOT, 5)  # Jump over PUSH1
+        sb.emit_jump(OpCode.JMPIFNOT, 6)  # Jump to trailing NOP
         sb.emit_push(1)
-        sb.emit_jump(OpCode.JMP, 3)  # Jump over PUSH2
+        sb.emit_jump(OpCode.JMP, 3)  # Jump over PUSH2 to trailing NOP
         sb.emit_push(2)
+        sb.emit(OpCode.NOP)
         
         engine = ExecutionEngine()
         engine.load_script(sb.to_bytes())

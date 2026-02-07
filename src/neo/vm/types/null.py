@@ -18,6 +18,10 @@ class Null(StackItem):
     def type(self) -> StackItemType:
         return StackItemType.ANY
     
+    @property
+    def is_null(self) -> bool:
+        return True
+
     def get_boolean(self) -> bool:
         return False
 

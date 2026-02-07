@@ -136,22 +136,32 @@ class DataCache:
             self._cache[key] = Trackable(key, b"", TrackState.DELETED)
     
     def find(self, prefix: bytes = b"") -> Iterator[Tuple[bytes, bytes]]:
-        """Find all key-value pairs with given prefix."""
-        # First yield from cache
+        """Find all key-value pairs with given prefix, sorted by key."""
+        # Collect all matching entries (cache overrides store)
         cached_keys = set()
+        results: Dict[bytes, bytes] = {}
+
         for key, t in self._cache.items():
-            if key.startswith(prefix) and t.state != TrackState.DELETED:
+            if key.startswith(prefix):
                 cached_keys.add(key)
-                yield key, t.value
-        
-        # Then yield from store (excluding cached)
+                if t.state != TrackState.DELETED:
+                    results[key] = t.value
+
+        # Merge from store (excluding cached keys)
         for key, value in self._store.seek(prefix, 1):
             if key not in cached_keys:
-                yield key, value
-    
+                results[key] = value
+
+        # Yield sorted by key for deterministic ordering
+        for key in sorted(results):
+            yield key, results[key]
+
     def seek(self, prefix: bytes, direction: int = 1) -> Iterator[Tuple[bytes, bytes]]:
         """Seek with direction (1=forward, -1=backward)."""
-        return self.find(prefix)
+        items = list(self.find(prefix))
+        if direction < 0:
+            items.reverse()
+        yield from items
     
     def get_change_set(self) -> Iterator[Trackable]:
         """Get all changed entries."""

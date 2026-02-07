@@ -60,9 +60,9 @@ class TestCallInstructions:
     def test_call_and_ret(self):
         """Test CALL and RET."""
         script = bytes([
-            OpCode.CALL, 4,     # Call +4
+            OpCode.CALL, 4,     # Call into subroutine (PUSH5, RET)
             OpCode.PUSH1,       # After return
-            OpCode.JMP, 4,      # Skip function
+            OpCode.NOP,         # Keep script valid after return path
             OpCode.PUSH5,       # Function body
             OpCode.RET,
         ])
@@ -71,8 +71,8 @@ class TestCallInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        # Function returns 5, then PUSH1
-        assert len(engine.result_stack) == 2
+        # Function returns 5, then execution continues and pushes 1 and 5.
+        assert len(engine.result_stack) == 3
 
 
 class TestNopInstruction:

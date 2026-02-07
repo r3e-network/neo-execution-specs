@@ -92,18 +92,51 @@ class Notary(NativeContract):
     
     def verify(self, engine: Any, signature: bytes) -> bool:
         """Verify notary signature.
-        
-        Args:
-            engine: Application engine
-            signature: 64-byte signature
-            
-        Returns:
-            True if signature is valid
+
+        Checks that the transaction was signed by a designated P2P_NOTARY
+        node.  Returns False when no notary nodes are designated or the
+        signature does not match any of them.
         """
         if signature is None or len(signature) != 64:
             return False
-        # In full implementation, verifies against notary nodes
-        return True
+
+        # Retrieve designated notary nodes for the current block
+        try:
+            from neo.native.role_management import Role
+            snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+            if snapshot is None:
+                return False
+
+            block_index = 0
+            if hasattr(snapshot, 'persisting_block') and snapshot.persisting_block:
+                block_index = getattr(snapshot.persisting_block, 'index', 0)
+
+            # Look up designated notary nodes via RoleManagement
+            role_mgmt = NativeContract.get_contract_by_name("RoleManagement")
+            if role_mgmt is None:
+                return False
+
+            notary_nodes = role_mgmt.get_designated_by_role(
+                snapshot, Role.P2P_NOTARY, block_index
+            )
+            if not notary_nodes:
+                return False
+
+            # Verify signature against each notary node's public key
+            from neo.crypto.ecc.signature import verify_signature
+            from neo.crypto.ecc.curve import SECP256R1
+            message = getattr(engine.script_container, 'hash', None)
+            if message is None:
+                return False
+
+            for node in notary_nodes:
+                pubkey_bytes = node.encode(compressed=True)
+                if verify_signature(message, signature, pubkey_bytes, SECP256R1):
+                    return True
+        except Exception:
+            pass
+
+        return False
     
     def balance_of(self, snapshot: Any, account: UInt160) -> int:
         """Get deposit balance for account."""
@@ -131,12 +164,16 @@ class Notary(NativeContract):
         Returns:
             True if successful
         """
+        # Caller must be the account owner
+        if hasattr(engine, 'check_witness') and not engine.check_witness(account):
+            raise PermissionError("Account witness required")
+
         deposit = self._get_deposit(account)
         if deposit is None:
             return False
         if till < deposit.till:
             return False
-        
+
         deposit.till = till
         self._put_deposit(account, deposit)
         return True
@@ -148,23 +185,48 @@ class Notary(NativeContract):
         to_account: Optional[UInt160]
     ) -> bool:
         """Withdraw deposited GAS.
-        
+
+        Requires witness of ``from_account``.  The deposit must have expired
+        (``deposit.till`` <= current persisting block index) before withdrawal
+        is allowed.
+
         Args:
             engine: Application engine
             from_account: Account to withdraw from
             to_account: Account to send to (or from_account if None)
-            
+
         Returns:
             True if successful
         """
-        receive = to_account if to_account else from_account
+        # Caller must be the account owner
+        if hasattr(engine, 'check_witness') and not engine.check_witness(from_account):
+            raise PermissionError("Account witness required")
+
         deposit = self._get_deposit(from_account)
-        
         if deposit is None:
             return False
-        
-        # Remove deposit
+
+        # Deposit must be expired before withdrawal
+        block_index = 0
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is not None:
+            if hasattr(snapshot, 'persisting_block') and snapshot.persisting_block:
+                block_index = getattr(snapshot.persisting_block, 'index', 0)
+        if deposit.till > block_index:
+            return False
+
+        receive = to_account if to_account else from_account
+        amount = deposit.amount
+
+        # Remove deposit first
         self._remove_deposit(from_account)
+
+        # Transfer GAS to recipient
+        if amount > 0:
+            gas = NativeContract.get_contract_by_name("GasToken")
+            if gas is not None and hasattr(gas, 'transfer'):
+                gas.transfer(engine, self.hash, receive, amount, None)
+
         return True
     
     def get_max_not_valid_before_delta(self, snapshot: Any) -> int:
@@ -179,7 +241,9 @@ class Notary(NativeContract):
         """Set maximum NotValidBefore delta. Committee only."""
         if value < 1:
             raise ValueError("Value must be positive")
-        
+        if hasattr(engine, 'check_committee') and not engine.check_committee():
+            raise PermissionError("Committee signature required")
+
         key = self._create_storage_key(PREFIX_MAX_NOT_VALID_BEFORE_DELTA)
         if key.key not in self._storage:
             self._storage[key.key] = StorageItem()

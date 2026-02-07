@@ -73,8 +73,8 @@ class TestSeekDirection:
     
     def test_forward(self):
         """Test forward direction."""
-        assert SeekDirection.FORWARD == 0
-    
+        assert SeekDirection.FORWARD == 1
+
     def test_backward(self):
         """Test backward direction."""
-        assert SeekDirection.BACKWARD == 1
+        assert SeekDirection.BACKWARD == -1

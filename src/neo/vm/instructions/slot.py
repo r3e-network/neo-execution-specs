@@ -61,6 +61,8 @@ def initslot(engine: ExecutionEngine, instruction: Instruction) -> None:
         items = []
         for _ in range(arg_count):
             items.append(engine.pop())
+        # Reverse so arg0 = deepest stack item (first pushed)
+        items.reverse()
         ctx.arguments = engine.create_slot_from_items(items)
 
 

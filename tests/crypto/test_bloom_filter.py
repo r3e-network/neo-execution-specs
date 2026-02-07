@@ -14,11 +14,11 @@ class TestBloomFilter:
         assert bf.k == 3
         assert len(bf.bits) == 8  # 64 bits = 8 bytes
     
-    def test_init_rounds_up(self):
-        """Test that m is rounded up to multiple of 8."""
+    def test_init_non_multiple_of_8(self):
+        """Test that m is preserved exactly (C# compatible)."""
         bf = BloomFilter(m=65, k=3)
-        assert bf.m == 72  # Rounded up to 72
-        assert len(bf.bits) == 9
+        assert bf.m == 65  # Exact value, not rounded
+        assert len(bf.bits) == 9  # ceil(65/8) = 9 bytes
     
     def test_init_invalid_m(self):
         """Test that invalid m raises error."""

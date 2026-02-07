@@ -1,8 +1,13 @@
-"""Role Management contract."""
+"""Role Management contract.
+
+Reference: Neo.SmartContract.Native.RoleManagement
+"""
 
 from __future__ import annotations
 from enum import IntEnum
-from neo.native.native_contract import NativeContract
+from typing import Any, List
+
+from neo.native.native_contract import NativeContract, CallFlags
 from neo.types import UInt160
 
 
@@ -14,30 +19,111 @@ class Role(IntEnum):
     P2P_NOTARY = 32
 
 
+# Valid role values for validation
+_VALID_ROLES = frozenset(r.value for r in Role)
+
+
 class RoleManagement(NativeContract):
-    """Manages node roles."""
-    
-    id: int = -8
-    name: str = "RoleManagement"
-    
+    """Manages node roles.
+
+    Allows the committee to designate public keys for specific network
+    roles (validators, oracles, NeoFS alphabet nodes, P2P notary).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+
     @property
-    def hash(self) -> UInt160:
-        return UInt160(bytes.fromhex("49cf4e5378ffcd4dec034fd98a174c5491e395e2")[::-1])
-    
-    def get_designated_by_role(self, snapshot, role: Role, index: int):
-        """Get nodes designated for a role at block index."""
-        from neo.crypto.ecc import ECPoint
+    def name(self) -> str:
+        return "RoleManagement"
+
+    def _register_methods(self) -> None:
+        """Register RoleManagement contract methods."""
+        super()._register_methods()
+        self._register_method(
+            "getDesignatedByRole", self.get_designated_by_role,
+            cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES,
+        )
+        self._register_method(
+            "designateAsRole", self.designate_as_role,
+            cpu_fee=1 << 15, call_flags=CallFlags.STATES,
+        )
+
+    def get_designated_by_role(self, snapshot: Any, role: Role, index: int) -> list:
+        """Get nodes designated for a role at block index.
+
+        Args:
+            snapshot: Storage snapshot
+            role: The node role to query
+            index: Block index
+
+        Returns:
+            List of ECPoint public keys designated for the role
+        """
+        if not isinstance(role, int) or role not in _VALID_ROLES:
+            raise ValueError(f"Invalid role: {role}")
+        if index < 0:
+            raise ValueError("Index must be non-negative")
+
         key = self._create_key(role, index)
         data = snapshot.storage_get(key) if snapshot else None
         if data is None:
             return []
         return self._deserialize_nodes(data)
-    
-    def _create_key(self, role: Role, index: int) -> bytes:
+
+    def designate_as_role(
+        self,
+        engine: Any,
+        role: Role,
+        nodes: list,
+    ) -> None:
+        """Designate public keys for a network role. Committee only.
+
+        Args:
+            engine: Application engine
+            role: The role to designate nodes for
+            nodes: List of ECPoint public keys
+
+        Raises:
+            ValueError: If role is invalid or nodes list is empty
+            PermissionError: If caller is not the committee
+        """
+        if not isinstance(role, int) or role not in _VALID_ROLES:
+            raise ValueError(f"Invalid role: {role}")
+        if not nodes:
+            raise ValueError("Nodes list must not be empty")
+        if hasattr(engine, 'check_committee') and not engine.check_committee():
+            raise PermissionError("Committee signature required")
+
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            raise RuntimeError("Snapshot not available")
+
+        block_index = 0
+        if hasattr(snapshot, 'persisting_block') and snapshot.persisting_block:
+            block_index = getattr(snapshot.persisting_block, 'index', 0)
+
+        # Sort nodes by encoded form for deterministic storage
+        sorted_nodes = sorted(nodes, key=lambda n: n.encode(compressed=True))
+
+        key = self._create_key(role, block_index + 1)
+        data = self._serialize_nodes(sorted_nodes)
+        if hasattr(snapshot, 'storage_put'):
+            snapshot.storage_put(key, data)
+
+    def _create_key(self, role: int, index: int) -> bytes:
         """Create storage key for role designation."""
         prefix = bytes([11])  # Prefix_Designation
         return bytes(self.hash) + prefix + bytes([role]) + index.to_bytes(4, 'little')
-    
+
+    def _serialize_nodes(self, nodes: list) -> bytes:
+        """Serialize node list to storage format."""
+        result = bytearray()
+        result.append(len(nodes))
+        for node in nodes:
+            result.extend(node.encode(compressed=True))
+        return bytes(result)
+
     def _deserialize_nodes(self, data: bytes) -> list:
         """Deserialize node list from storage."""
         from neo.crypto.ecc.point import ECPoint

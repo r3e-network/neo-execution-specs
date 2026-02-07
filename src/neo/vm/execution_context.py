@@ -218,14 +218,18 @@ class ExecutionContext:
     
     def move_next(self) -> bool:
         """Move to the next instruction.
-        
+
         Returns:
             True if there is a next instruction, False otherwise.
         """
         current = self.current_instruction
         if current is None:
             return False
-        self._ip += current.size
+        new_ip = self._ip + current.size
+        # Clamp to script length (end-of-script is valid sentinel)
+        if new_ip > len(self.script):
+            new_ip = len(self.script)
+        self._ip = new_ip
         return self._ip < len(self.script)
     
     def get_state(self, state_type: type) -> Any:

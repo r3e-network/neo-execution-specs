@@ -13,5 +13,11 @@ class Struct(Array):
         return StackItemType.STRUCT
     
     def clone(self) -> Struct:
-        """Create a deep copy of this struct."""
-        return Struct([item for item in self._items])
+        """Create a deep copy of this struct (recursively clones nested Structs)."""
+        result = Struct()
+        for item in self._items:
+            if isinstance(item, Struct):
+                result.add(item.clone())
+            else:
+                result.add(item)
+        return result

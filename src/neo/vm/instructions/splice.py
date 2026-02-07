@@ -11,7 +11,7 @@ This module implements all splice opcodes (0x88-0x8E):
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from neo.vm.types import Buffer, ByteString
+from neo.vm.types import Buffer
 
 if TYPE_CHECKING:
     from neo.vm.execution_engine import ExecutionEngine, Instruction
@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 def newbuffer(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Create a new buffer of specified size."""
     length = int(engine.pop().get_integer())
+    if length < 0:
+        raise Exception(f"Buffer length cannot be negative: {length}")
     engine.limits.assert_max_item_size(length)
     engine.push(Buffer(length))
 
@@ -52,10 +54,10 @@ def cat(engine: ExecutionEngine, instruction: Instruction) -> None:
     x1 = engine.pop().get_span()
     length = len(x1) + len(x2)
     engine.limits.assert_max_item_size(length)
-    result = Buffer(length)
-    result.inner_buffer[0:len(x1)] = x1
-    result.inner_buffer[len(x1):] = x2
-    engine.push(result)
+    result = bytearray(length)
+    result[0:len(x1)] = x1
+    result[len(x1):] = x2
+    engine.push(Buffer(bytes(result)))
 
 
 def substr(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -69,9 +71,7 @@ def substr(engine: ExecutionEngine, instruction: Instruction) -> None:
     x = engine.pop().get_span()
     if index + count > len(x):
         raise Exception(f"Range out of bounds")
-    result = Buffer(count)
-    result.inner_buffer[:] = x[index:index+count]
-    engine.push(result)
+    engine.push(Buffer(bytes(x[index:index+count])))
 
 
 def left(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -82,9 +82,7 @@ def left(engine: ExecutionEngine, instruction: Instruction) -> None:
     x = engine.pop().get_span()
     if count > len(x):
         raise Exception(f"Count out of range: {count}")
-    result = Buffer(count)
-    result.inner_buffer[:] = x[:count]
-    engine.push(result)
+    engine.push(Buffer(bytes(x[:count])))
 
 
 def right(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -95,6 +93,7 @@ def right(engine: ExecutionEngine, instruction: Instruction) -> None:
     x = engine.pop().get_span()
     if count > len(x):
         raise Exception(f"Count out of range: {count}")
-    result = Buffer(count)
-    result.inner_buffer[:] = x[-count:]
-    engine.push(result)
+    if count == 0:
+        engine.push(Buffer(b''))
+    else:
+        engine.push(Buffer(bytes(x[-count:])))

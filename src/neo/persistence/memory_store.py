@@ -21,13 +21,18 @@ class MemoryStore(IStore):
         return key in self._data
     
     def seek(
-        self, 
-        prefix: bytes, 
+        self,
+        prefix: bytes,
         direction: int = 1
     ) -> Iterator[Tuple[bytes, bytes]]:
+        """Seek with prefix filtering and direction.
+
+        direction > 0 (Forward): ascending key order
+        direction < 0 (Backward): descending key order
+        """
         items = sorted(self._data.items())
         if direction < 0:
-            items = reversed(items)
+            items = list(reversed(items))
         for k, v in items:
             if k.startswith(prefix):
                 yield k, v

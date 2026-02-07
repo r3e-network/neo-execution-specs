@@ -64,7 +64,7 @@ class StorageKey:
         key_data = bytes([prefix])
         for arg in args:
             if isinstance(arg, int):
-                key_data += arg.to_bytes(4, 'big')
+                key_data += arg.to_bytes(4, 'little')
             elif isinstance(arg, bytes):
                 key_data += arg
             elif isinstance(arg, UInt160):
@@ -119,6 +119,7 @@ class NativeContract(ABC):
     
     _contracts: Dict[UInt160, 'NativeContract'] = {}
     _contracts_by_id: Dict[int, 'NativeContract'] = {}
+    _contracts_by_name: Dict[str, 'NativeContract'] = {}
     _id_counter: int = 0
     
     def __init__(self) -> None:
@@ -130,11 +131,12 @@ class NativeContract(ABC):
         # Register contract
         NativeContract._contracts[self._hash] = self
         NativeContract._contracts_by_id[self._id] = self
+        NativeContract._contracts_by_name[self.name] = self
     
     @classmethod
     def _get_next_id(cls) -> int:
-        cls._id_counter -= 1
-        return cls._id_counter
+        NativeContract._id_counter -= 1
+        return NativeContract._id_counter
     
     def _calculate_hash(self) -> UInt160:
         """Calculate contract hash: Hash160(0x00 * 20 + nef_checksum + name)."""
@@ -211,6 +213,11 @@ class NativeContract(ABC):
         """Get a native contract by ID."""
         return cls._contracts_by_id.get(id)
     
+    @classmethod
+    def get_contract_by_name(cls, name: str) -> Optional['NativeContract']:
+        """Get a native contract by name."""
+        return cls._contracts_by_name.get(name)
+
     @classmethod
     def is_native(cls, hash: UInt160) -> bool:
         """Check if a hash is a native contract."""

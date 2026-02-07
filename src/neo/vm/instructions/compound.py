@@ -34,8 +34,8 @@ def packmap(engine: ExecutionEngine, instruction: Instruction) -> None:
         raise Exception(f"Invalid map size: {size}")
     result = Map(engine.reference_counter)
     for _ in range(size):
+        # C# pops key first, then value: stack top-to-bottom = [key, value]
         key = engine.pop()
-        # C# requires key to be PrimitiveType
         if not isinstance(key, (Integer, ByteString, Boolean)):
             raise Exception(f"Map key must be PrimitiveType, got {type(key).__name__}")
         value = engine.pop()

@@ -181,9 +181,14 @@ class TestStdLibSerialization:
         assert result == bytes([0x00])
     
     def test_serialize_bool_true(self):
-        """Test serializing true."""
+        """Test serializing true — type 0x20 (Boolean) + value 0x01."""
         result = self.stdlib.serialize(True)
-        assert result == bytes([0x20])
+        assert result == bytes([0x20, 0x01])
+
+    def test_serialize_bool_false(self):
+        """Test serializing false — type 0x20 (Boolean) + value 0x00."""
+        result = self.stdlib.serialize(False)
+        assert result == bytes([0x20, 0x00])
     
     def test_serialize_integer(self):
         """Test serializing integer."""

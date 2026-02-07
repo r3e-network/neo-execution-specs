@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 # Try to import cryptography library
 try:
-    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric import ec, utils
     from cryptography.hazmat.primitives import hashes
     from cryptography.exceptions import InvalidSignature
     HAS_CRYPTOGRAPHY = True
@@ -28,43 +28,47 @@ def verify_signature(
     curve: "ECCurve"
 ) -> bool:
     """Verify an ECDSA signature.
-    
+
+    Neo's ``Crypto.VerifySignature`` calls ``ECDsa.VerifyData`` with
+    ``HashAlgorithmName.SHA256``, meaning the library hashes the raw
+    message internally.  Callers in this codebase, however, already
+    pass a SHA-256 digest (e.g. ``script_container.hash``).  We
+    therefore use ``Prehashed(SHA256())`` so the digest is **not**
+    hashed a second time.
+
     Args:
-        message: The message that was signed.
+        message: SHA-256 digest of the data that was signed (32 bytes).
         signature: The signature (64 bytes: r || s).
         pubkey: The public key (33 or 65 bytes).
         curve: The elliptic curve to use.
-        
+
     Returns:
         True if the signature is valid, False otherwise.
     """
-    # Validate input lengths first
     if len(pubkey) not in (33, 65):
         return False
     if len(signature) != 64:
         return False
-    
+
     if not HAS_CRYPTOGRAPHY:
-        # Fallback: return False when library not available
         return False
-    
+
     try:
-        # Parse public key
         public_key = ec.EllipticCurvePublicKey.from_encoded_point(
             _get_curve_instance(curve), pubkey
         )
-        
-        # Parse signature (r || s, each 32 bytes)
+
         r = int.from_bytes(signature[:32], 'big')
         s = int.from_bytes(signature[32:], 'big')
-        
-        # Convert to DER format for cryptography library
         der_sig = _encode_der_signature(r, s)
-        
-        # Verify
-        public_key.verify(der_sig, message, ec.ECDSA(hashes.SHA256()))
+
+        # Use Prehashed — message is already a SHA-256 digest
+        public_key.verify(
+            der_sig, message,
+            ec.ECDSA(utils.Prehashed(hashes.SHA256()))
+        )
         return True
-        
+
     except (InvalidSignature, ValueError, Exception):
         return False
 

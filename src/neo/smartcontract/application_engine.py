@@ -261,7 +261,8 @@ class ApplicationEngine(ExecutionEngine):
         register_syscall("System.Runtime.BurnGas", self._runtime_burn_gas, 400)
         register_syscall("System.Runtime.CurrentSigners", self._runtime_current_signers, 1024)
         register_syscall("System.Runtime.GetAddressVersion", self._runtime_get_address_version, 250)
-        
+        register_syscall("System.Runtime.LoadScript", self._runtime_load_script, 1 << 15)
+
         # System.Storage syscalls
         register_syscall("System.Storage.GetContext", self._storage_get_context, 400)
         register_syscall("System.Storage.GetReadOnlyContext", self._storage_get_readonly_context, 400)
@@ -298,11 +299,23 @@ class ApplicationEngine(ExecutionEngine):
         self.push(Integer(int(self.trigger)))
     
     def _runtime_get_time(self, engine: "ApplicationEngine") -> None:
-        """Get current block time."""
-        # Return current timestamp if no snapshot
-        import time
-        timestamp = int(time.time() * 1000)
-        self.push(Integer(timestamp))
+        """Get current block time (deterministic).
+
+        Returns the timestamp from the current block's header via the
+        persistence snapshot. MUST NOT use wall-clock time — that would
+        break consensus across nodes.
+        """
+        if self.snapshot is not None and hasattr(self.snapshot, 'persisting_block'):
+            block = self.snapshot.persisting_block
+            if block is not None and hasattr(block, 'timestamp'):
+                self.push(Integer(block.timestamp))
+                return
+        # Fallback: use script_container timestamp if available
+        if self.script_container is not None and hasattr(self.script_container, 'timestamp'):
+            self.push(Integer(self.script_container.timestamp))
+            return
+        # No block context — push 0 rather than non-deterministic wall clock
+        self.push(Integer(0))
     
     def _runtime_get_script_container(self, engine: "ApplicationEngine") -> None:
         """Get script container (transaction)."""
@@ -424,9 +437,30 @@ class ApplicationEngine(ExecutionEngine):
         self.push(Integer(self.network))
     
     def _runtime_get_random(self, engine: "ApplicationEngine") -> None:
-        """Get random number."""
-        import random
-        self.push(Integer(random.getrandbits(256)))
+        """Get deterministic random number.
+
+        Uses a PRNG seeded from block + tx context so all nodes produce
+        the same sequence.  MUST NOT use Python's ``random`` module.
+        """
+        import hashlib
+        # Build a deterministic seed from available context
+        seed_parts = []
+        if self.snapshot is not None and hasattr(self.snapshot, 'persisting_block'):
+            block = self.snapshot.persisting_block
+            if block is not None and hasattr(block, 'hash'):
+                seed_parts.append(bytes(block.hash))
+        if self.script_container is not None and hasattr(self.script_container, 'hash'):
+            seed_parts.append(bytes(self.script_container.hash))
+        # Include invocation counter for uniqueness across calls
+        if not hasattr(self, '_random_counter'):
+            self._random_counter = 0
+        self._random_counter += 1
+        seed_parts.append(self._random_counter.to_bytes(8, 'little'))
+
+        seed = b''.join(seed_parts) if seed_parts else b'\x00' * 32
+        h = hashlib.sha256(seed).digest()
+        value = int.from_bytes(h, 'little', signed=False)
+        self.push(Integer(value))
     
     def _runtime_log(self, engine: "ApplicationEngine") -> None:
         """Write log message."""
@@ -436,9 +470,12 @@ class ApplicationEngine(ExecutionEngine):
             self.write_log(script_hash, message.get_string())
     
     def _runtime_notify(self, engine: "ApplicationEngine") -> None:
-        """Send notification."""
-        state = self.pop()
+        """Send notification.
+
+        C# pop order: eventName (top), state.
+        """
         event_name = self.pop().get_string()
+        state = self.pop()
         script_hash = self.current_script_hash
         if script_hash:
             self.send_notification(script_hash, event_name, state)
@@ -469,7 +506,21 @@ class ApplicationEngine(ExecutionEngine):
     def _runtime_get_address_version(self, engine: "ApplicationEngine") -> None:
         """Get address version."""
         self.push(Integer(53))  # Neo N3 address version
-    
+
+    def _runtime_load_script(self, engine: "ApplicationEngine") -> None:
+        """Load and execute a script dynamically.
+
+        Stack: [call_flags, script] -> []
+        """
+        call_flags_int = self.pop().get_integer()
+        script_data = self.pop().get_bytes_unsafe()
+
+        call_flags = CallFlags(call_flags_int)
+        if (call_flags & ~CallFlags.ALL) != 0:
+            raise Exception("Invalid call flags")
+
+        self.load_script(script_data)
+
     # Storage syscall implementations
     def _storage_get_context(self, engine: "ApplicationEngine") -> None:
         """Get storage context."""
@@ -501,12 +552,11 @@ class ApplicationEngine(ExecutionEngine):
     
     def _storage_get(self, engine: "ApplicationEngine") -> None:
         """Get value from storage.
-        
-        Retrieves a value from contract storage using the provided key
-        and storage context.
+
+        C# pop order: context (top), key.
         """
-        key = self.pop()
         ctx_item = self.pop()
+        key = self.pop()
         
         # Get storage context
         if not hasattr(ctx_item, 'value'):
@@ -530,23 +580,25 @@ class ApplicationEngine(ExecutionEngine):
             self.push(ByteString(value))
     
     def _storage_find(self, engine: "ApplicationEngine") -> None:
-        """Find values in storage by prefix."""
+        """Find values in storage by prefix.
+
+        C# pop order: context (top), prefix, options.
+        """
         from neo.vm.types import InteropInterface
-        options = self.pop().get_integer()
-        prefix = self.pop()
         ctx_item = self.pop()
-        # Return empty iterator
+        prefix = self.pop()
+        options = int(self.pop().get_integer())
+        # TODO: implement real storage iteration via snapshot.find()
         self.push(InteropInterface(iter([])))
     
     def _storage_put(self, engine: "ApplicationEngine") -> None:
         """Put value to storage.
-        
-        Stores a value in contract storage using the provided key
-        and storage context. Requires write permission.
+
+        C# pop order: context (top), key, value.
         """
-        value = self.pop()
-        key = self.pop()
         ctx_item = self.pop()
+        key = self.pop()
+        value = self.pop()
         
         # Get storage context
         if not hasattr(ctx_item, 'value'):
@@ -574,12 +626,11 @@ class ApplicationEngine(ExecutionEngine):
     
     def _storage_delete(self, engine: "ApplicationEngine") -> None:
         """Delete value from storage.
-        
-        Removes a value from contract storage using the provided key
-        and storage context. Requires write permission.
+
+        C# pop order: context (top), key.
         """
-        key = self.pop()
         ctx_item = self.pop()
+        key = self.pop()
         
         # Get storage context
         if not hasattr(ctx_item, 'value'):
@@ -622,11 +673,11 @@ class ApplicationEngine(ExecutionEngine):
         from neo.types import UInt160
         from neo.native.contract_management import ContractManagement, ContractState
         
-        # Pop arguments in reverse order
-        args = self.pop()  # Arguments array
-        call_flags = CallFlags(self.pop().get_integer())
-        method = self.pop().get_string()
+        # C# pop order: contractHash (top), method, callFlags
+        # No args pop — called method consumes args from the shared eval stack
         contract_hash_item = self.pop()
+        method = self.pop().get_string()
+        call_flags = CallFlags(int(self.pop().get_integer()))
         
         # Get contract hash
         hash_bytes = contract_hash_item.get_bytes_unsafe()
@@ -648,7 +699,9 @@ class ApplicationEngine(ExecutionEngine):
             raise Exception(f"Method not allowed: {method}")
         
         # Create new execution context for the called contract
-        self._call_contract_internal(contract, method, args, call_flags)
+        # Args are NOT popped here — they remain on the shared eval stack
+        # and are consumed by the called method via INITSLOT
+        self._call_contract_internal(contract, method, None, call_flags)
     
     def _check_call_flags(self, flags: CallFlags) -> bool:
         """Check if the requested call flags are allowed by current context."""
@@ -670,11 +723,11 @@ class ApplicationEngine(ExecutionEngine):
         
         # Create storage key for contract
         key = bytes([PREFIX_CONTRACT]) + bytes(contract_hash)
-        item = self.snapshot.try_get(key)
-        if item is None:
+        value = self.snapshot.try_get(key)
+        if value is None:
             return None
-        
-        return ContractState.from_bytes(item.value)
+
+        return ContractState.from_bytes(value)
     
     def _get_native_contract(self, contract_hash: "UInt160") -> Optional[Any]:
         """Get native contract by hash."""
@@ -779,18 +832,17 @@ class ApplicationEngine(ExecutionEngine):
     # Crypto syscall implementations
     def _crypto_check_sig(self, engine: "ApplicationEngine") -> None:
         """Check ECDSA signature.
-        
-        Verifies an ECDSA signature using secp256r1 curve.
-        The message should be the data that was signed (will be hashed with SHA256).
+
+        C# pop order: pubkey (top), signature.
         """
         from neo.crypto.ecc.curve import SECP256R1
         from neo.crypto.ecc.signature import verify_signature
-        
-        signature = self.pop()
+
         pubkey = self.pop()
-        
-        sig_bytes = signature.get_bytes_unsafe()
+        signature = self.pop()
+
         pubkey_bytes = pubkey.get_bytes_unsafe()
+        sig_bytes = signature.get_bytes_unsafe()
         
         # Get the message to verify - this is the transaction hash
         # In Neo, CheckSig verifies against the script container's hash
@@ -826,8 +878,9 @@ class ApplicationEngine(ExecutionEngine):
         from neo.crypto.ecc.curve import SECP256R1
         from neo.crypto.ecc.signature import verify_signature
         
-        signatures_item = self.pop()
+        # C# pop order: pubkeys (top), signatures
         pubkeys_item = self.pop()
+        signatures_item = self.pop()
         
         # Get the message hash from script container
         if self.script_container is None or not hasattr(self.script_container, 'hash'):

@@ -4,6 +4,11 @@ from enum import IntEnum
 
 
 class SeekDirection(IntEnum):
-    """Storage seek direction."""
-    FORWARD = 0
-    BACKWARD = 1
+    """Storage seek direction.
+
+    Matches C# Neo.IO.Storage.SeekDirection:
+      Forward  =  1
+      Backward = -1
+    """
+    FORWARD = 1
+    BACKWARD = -1

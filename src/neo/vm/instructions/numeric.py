@@ -125,6 +125,8 @@ def modmul(engine: ExecutionEngine, instruction: Instruction) -> None:
     modulus = engine.pop().get_integer()
     x2 = engine.pop().get_integer()
     x1 = engine.pop().get_integer()
+    if modulus == 0:
+        raise Exception("Modulus cannot be zero")
     engine.push(Integer((x1 * x2) % modulus))
 
 
@@ -133,6 +135,13 @@ def modpow(engine: ExecutionEngine, instruction: Instruction) -> None:
     modulus = engine.pop().get_integer()
     exponent = engine.pop().get_integer()
     value = engine.pop().get_integer()
+    if modulus == 0:
+        raise Exception("Modulus cannot be zero")
+    if exponent < -1:
+        raise Exception("Exponent must be >= -1")
+    if modulus == 1:
+        engine.push(Integer(0))
+        return
     if exponent == -1:
         # Modular inverse
         result = pow(value, -1, modulus)
@@ -145,20 +154,22 @@ def shl(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Left shift integer."""
     shift = int(engine.pop().get_integer())
     engine.limits.assert_shift(shift)
-    if shift == 0:
-        return  # C# returns without pushing when shift is 0
     x = engine.pop().get_integer()
-    engine.push(Integer(x << shift))
+    if shift == 0:
+        engine.push(Integer(x))
+    else:
+        engine.push(Integer(x << shift))
 
 
 def shr(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Right shift integer."""
     shift = int(engine.pop().get_integer())
     engine.limits.assert_shift(shift)
-    if shift == 0:
-        return  # C# returns without pushing when shift is 0
     x = engine.pop().get_integer()
-    engine.push(Integer(x >> shift))
+    if shift == 0:
+        engine.push(Integer(x))
+    else:
+        engine.push(Integer(x >> shift))
 
 
 def not_(engine: ExecutionEngine, instruction: Instruction) -> None:

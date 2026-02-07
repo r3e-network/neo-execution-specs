@@ -87,7 +87,8 @@ class StdLib(NativeContract):
         if item is None:
             return bytes([0x00])  # Null
         elif isinstance(item, bool):
-            return bytes([0x20 if item else 0x21])  # Boolean
+            # StackItemType.Boolean = 0x20, followed by value byte
+            return bytes([0x20, 0x01 if item else 0x00])
         elif isinstance(item, int):
             # Integer
             if item == 0:
@@ -133,11 +134,15 @@ class StdLib(NativeContract):
         
         if type_byte == 0x00:  # Null
             return None, offset
-        elif type_byte == 0x20:  # True
-            return True, offset
-        elif type_byte == 0x21:  # Integer or False
+        elif type_byte == 0x20:  # Boolean
             if offset >= len(data):
-                return False, offset
+                raise ValueError("Truncated boolean value")
+            value_byte = data[offset]
+            offset += 1
+            return value_byte != 0, offset
+        elif type_byte == 0x21:  # Integer
+            if offset >= len(data):
+                raise ValueError("Truncated integer length")
             length = data[offset]
             offset += 1
             if length == 0:

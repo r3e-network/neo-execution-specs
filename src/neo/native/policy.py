@@ -111,7 +111,7 @@ class PolicyContract(NativeContract):
             engine: Application engine
             value: Fee factor (must be 1-100)
         """
-        if value == 0 or value > MAX_EXEC_FEE_FACTOR:
+        if value <= 0 or value > MAX_EXEC_FEE_FACTOR:
             raise ValueError(f"ExecFeeFactor must be between [1, {MAX_EXEC_FEE_FACTOR}], got {value}")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
@@ -137,7 +137,7 @@ class PolicyContract(NativeContract):
             engine: Application engine
             value: Price (must be 1-10000000)
         """
-        if value == 0 or value > MAX_STORAGE_PRICE:
+        if value <= 0 or value > MAX_STORAGE_PRICE:
             raise ValueError(f"StoragePrice must be between [1, {MAX_STORAGE_PRICE}], got {value}")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")

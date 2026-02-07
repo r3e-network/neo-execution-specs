@@ -31,12 +31,11 @@ class BloomFilter:
             raise ValueError("m must be positive")
         if k <= 0:
             raise ValueError("k must be positive")
-        
-        # Round up to nearest byte
-        self.m = ((m + 7) // 8) * 8
+
+        self.m = m
         self.k = k
         self.seed = seed
-        self.bits = bytearray(self.m // 8)
+        self.bits = bytearray((m + 7) // 8)
     
     def add(self, element: bytes) -> None:
         """Add an element to the Bloom filter.
@@ -75,7 +74,7 @@ class BloomFilter:
     
     def clear(self) -> None:
         """Clear all bits in the filter."""
-        self.bits = bytearray(self.m // 8)
+        self.bits = bytearray((self.m + 7) // 8)
     
     def get_bits(self) -> bytes:
         """Get the raw bit array."""

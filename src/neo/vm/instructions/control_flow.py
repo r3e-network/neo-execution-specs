@@ -308,4 +308,7 @@ def ret(engine: ExecutionEngine, instruction: Instruction) -> None:
 def syscall(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Call system service by hash."""
     hash_value = int.from_bytes(instruction.operand, 'little', signed=False)
-    raise Exception(f"Syscall not found: {hash_value}")
+    if hasattr(engine, 'syscall_handler') and engine.syscall_handler is not None:
+        engine.syscall_handler(engine, hash_value)
+    else:
+        raise Exception(f"Syscall not found: {hash_value}")

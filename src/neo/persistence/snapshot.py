@@ -46,7 +46,11 @@ class Snapshot(ABC):
     def commit(self) -> None:
         """Commit changes."""
         pass
-    
+
+    def try_get(self, key: bytes) -> Optional[bytes]:
+        """Try to get a value by key. Returns None if not found."""
+        return self.get(key)
+
     def get_and_change(self, key: bytes, factory: Optional[Callable[[], bytes]] = None) -> Optional[bytes]:
         """Get value and mark for change."""
         value = self.get(key)
@@ -86,19 +90,23 @@ class MemorySnapshot(Snapshot):
         self._changes[key] = None
     
     def find(self, prefix: bytes) -> Iterator[Tuple[bytes, bytes]]:
-        """Find all key-value pairs with prefix."""
+        """Find all key-value pairs with prefix, sorted by key."""
         seen = set()
-        # First check changes
+        results: Dict[bytes, bytes] = {}
+        # Collect from changes (overrides store)
         for key, value in self._changes.items():
             if key.startswith(prefix):
                 seen.add(key)
                 if value is not None:
-                    yield key, value
-        # Then check store
-        for key, value in sorted(self._store.items()):
+                    results[key] = value
+        # Collect from store (excluding changed keys)
+        for key, value in self._store.items():
             if key.startswith(prefix) and key not in seen:
-                yield key, value
-    
+                results[key] = value
+        # Yield sorted for deterministic ordering
+        for key in sorted(results):
+            yield key, results[key]
+
     def commit(self) -> None:
         for key, value in self._changes.items():
             if value is None:
@@ -183,16 +191,22 @@ class StoreSnapshot(Snapshot):
         self._changes[key] = None
     
     def find(self, prefix: bytes) -> Iterator[Tuple[bytes, bytes]]:
-        """Find all key-value pairs with prefix."""
+        """Find all key-value pairs with prefix, sorted by key."""
         seen = set()
+        results: Dict[bytes, bytes] = {}
+        # Collect from changes (overrides store)
         for key, value in self._changes.items():
             if key.startswith(prefix):
                 seen.add(key)
                 if value is not None:
-                    yield key, value
+                    results[key] = value
+        # Collect from store (excluding changed keys)
         for key, value in self._store.seek(prefix, 1):
             if key not in seen:
-                yield key, value
+                results[key] = value
+        # Yield sorted for deterministic ordering
+        for key in sorted(results):
+            yield key, results[key]
     
     def commit(self) -> None:
         for key, value in self._changes.items():

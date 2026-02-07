@@ -22,6 +22,18 @@ class TestHardfork:
     def test_domovoi(self):
         """Test HF_DOMOVOI value."""
         assert Hardfork.HF_DOMOVOI == 3
+
+    def test_echidna(self):
+        """Test HF_ECHIDNA value."""
+        assert Hardfork.HF_ECHIDNA == 4
+
+    def test_faun(self):
+        """Test HF_FAUN value."""
+        assert Hardfork.HF_FAUN == 5
+
+    def test_gorgon(self):
+        """Test HF_GORGON value."""
+        assert Hardfork.HF_GORGON == 6
     
     def test_is_int_enum(self):
         """Test that Hardfork is IntEnum."""
@@ -32,8 +44,11 @@ class TestHardfork:
         assert Hardfork.HF_ASPIDOCHELONE < Hardfork.HF_BASILISK
         assert Hardfork.HF_BASILISK < Hardfork.HF_COCKATRICE
         assert Hardfork.HF_COCKATRICE < Hardfork.HF_DOMOVOI
+        assert Hardfork.HF_DOMOVOI < Hardfork.HF_ECHIDNA
+        assert Hardfork.HF_ECHIDNA < Hardfork.HF_FAUN
+        assert Hardfork.HF_FAUN < Hardfork.HF_GORGON
     
     def test_all_hardforks(self):
         """Test all hardforks are defined."""
         hardforks = list(Hardfork)
-        assert len(hardforks) == 4
+        assert len(hardforks) == 7

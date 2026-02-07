@@ -22,12 +22,12 @@ class TestJmp:
         assert engine.state == VMState.HALT
 
     def test_jmp_to_end(self):
-        """JMP to end of script."""
+        """JMP to end of script is invalid (Neo faults)."""
         engine = ExecutionEngine()
         script = bytes([OpCode.JMP, 2])  # Jump to end
         engine.load_script(script)
         engine.execute()
-        assert engine.state == VMState.HALT
+        assert engine.state == VMState.FAULT
 
     def test_nop(self):
         """NOP does nothing."""

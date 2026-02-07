@@ -21,6 +21,8 @@ classifiers = [
 ]
 dependencies = [
     "regex>=2024.0",
+    "cryptography>=41.0",
+    "pycryptodome>=3.19",
 ]
 
 [project.optional-dependencies]
@@ -30,13 +32,11 @@ dev = [
     "mypy>=1.0",
     "ruff>=0.1",
 ]
-crypto = [
-    "cryptography>=41.0",
-    "pycryptodome>=3.19",
+bls = [
     "py_ecc>=7.0",
 ]
 all = [
-    "neo-execution-specs[dev,crypto]",
+    "neo-execution-specs[dev,bls]",
 ]
 
 [tool.pytest.ini_options]

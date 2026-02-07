@@ -8,14 +8,14 @@
       "name": "JMP_forward",
       "description": "Jump forward over PUSH2, result is 1",
       "pre": { "stack": [] },
-      "script": "0x11220312",
+      "script": "0x11220212",
       "post": { "stack": [1] }
     },
     {
       "name": "JMPIF_true",
       "description": "Jump if true (1), skip PUSH2, result is 3",
       "pre": { "stack": [] },
-      "script": "0x1311240312",
+      "script": "0x1311240212",
       "post": { "stack": [3] }
     },
     {
@@ -36,7 +36,7 @@
       "name": "JMPIFNOT_false",
       "description": "Jump if not false (0), skip PUSH2",
       "pre": { "stack": [] },
-      "script": "0x1310260312",
+      "script": "0x1310260212",
       "post": { "stack": [3] }
     },
     {

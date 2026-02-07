@@ -18,6 +18,9 @@ neo-diff --vectors tests/vectors/ --python-only
 # Compare with C# neo-cli
 neo-diff --vectors tests/vectors/ --csharp-rpc http://localhost:10332
 
+# Compare with public Neo mainnet node (v3.9.1)
+neo-diff --vectors tests/vectors/vm/ --csharp-rpc http://seed1.neo.org:10332
+
 # Generate JSON report
 neo-diff --vectors tests/vectors/ -r http://localhost:10332 -o report.json
 ```
@@ -54,3 +57,31 @@ neo-diff --vectors tests/vectors/ -r http://localhost:10332 -o report.json
 - `reporter.py` - Report generation
 - `cli.py` - Command-line interface
 - `models.py` - Data models
+
+## RPC Compatibility Notes
+
+- Neo v3.9.1 `invokescript` endpoints expect the script parameter as **base64**.
+- Some other RPC providers accept **hex**.
+- `neo-diff` automatically tries base64 first and falls back to hex when needed.
+
+## Non-VM Vector Support
+
+`neo-diff` can now load and execute collection-style vectors in addition to raw VM script vectors.
+
+### Supported categories
+
+- `vm/*` - executed via `invokescript` and Python VM execution
+- `native/*` - executed via `invokefunction` against native contracts
+- `crypto/hash.json` - supports `SHA256`, `RIPEMD160`, `HASH160`, `HASH256`
+
+### Current skip rules
+
+- `crypto/bls12_381.json` vectors are skipped because BLS operations are not yet wired into the diff runner.
+- `state/state_transitions.json` vectors without an executable transaction script are skipped.
+
+Skipped vectors are reported as warnings during load.
+
+### Native RPC behavior
+
+- Native contract hashes are resolved from node RPC via `getnativecontracts`.
+- Contract calls use `invokefunction` with parameter encoding based on vector argument types.

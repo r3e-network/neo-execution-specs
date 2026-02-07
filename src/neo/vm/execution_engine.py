@@ -94,9 +94,12 @@ class ExecutionEngine:
             handler(self, instr)
             if not self.is_jumping:
                 ctx.move_next()
-        except VMUnhandledException:
+        except VMUnhandledException as e:
+            self.uncaught_exception = e.exception
             self.state = VMState.FAULT
-        except Exception:
+        except Exception as e:
+            from neo.vm.types import ByteString
+            self.uncaught_exception = ByteString(str(e).encode('utf-8'))
             self.state = VMState.FAULT
     
     def push(self, item: StackItem) -> None:
@@ -115,7 +118,7 @@ class ExecutionEngine:
         return Slot.from_items(items, self.reference_counter)
     
     def execute_jump(self, position: int) -> None:
-        if position < 0 or position > len(self.current_context.script):
+        if position < 0 or position >= len(self.current_context.script):
             raise Exception(f"Jump out of range: {position}")
         self.current_context.ip = position
         self.is_jumping = True
@@ -180,7 +183,9 @@ class ExecutionEngine:
     def execute_throw(self, ex: StackItem) -> None:
         self.uncaught_exception = ex
         pop_count = 0
-        for context in self.invocation_stack:
+        # Iterate from top of invocation stack (last element = top)
+        for i in range(len(self.invocation_stack) - 1, -1, -1):
+            context = self.invocation_stack[i]
             if context.try_stack is not None:
                 while len(context.try_stack) > 0:
                     try_ctx = context.try_stack.peek()
@@ -190,7 +195,8 @@ class ExecutionEngine:
                     if try_ctx.state == ExceptionHandlingState.CATCH and not try_ctx.has_finally:
                         context.try_stack.pop()
                         continue
-                    for _ in range(pop_count):
+                    # Pop contexts above the handler (safe: we iterate by index)
+                    while len(self.invocation_stack) > i + 1:
                         self.invocation_stack.pop()
                     if try_ctx.state == ExceptionHandlingState.TRY and try_ctx.has_catch:
                         try_ctx.state = ExceptionHandlingState.CATCH
