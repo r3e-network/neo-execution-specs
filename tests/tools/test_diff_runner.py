@@ -1,6 +1,7 @@
 """Tests for neo-diff RPC runner behavior."""
 
 import base64
+import gzip
 import io
 import json
 import urllib.error
@@ -12,8 +13,10 @@ import neo.tools.diff.runner as diff_runner
 
 
 class _DummyResponse:
-    def __init__(self, payload: dict):
-        self._raw = json.dumps(payload).encode("utf-8")
+    def __init__(self, payload: dict, *, headers: dict[str, str] | None = None, gzipped: bool = False):
+        raw = json.dumps(payload).encode("utf-8")
+        self._raw = gzip.compress(raw) if gzipped else raw
+        self.headers = headers or {}
 
     def read(self) -> bytes:
         return self._raw
@@ -73,6 +76,120 @@ def test_invokescript_retries_with_base64_when_neo_v391_requires_it(monkeypatch)
     assert len(sent_scripts) == 2
     assert sent_scripts[0] == base64.b64encode(vector.script).decode("ascii")
     assert sent_scripts[1] == "13159e"
+
+
+def test_rpc_call_decodes_gzip_json_responses(monkeypatch):
+    """Some RPC providers (e.g. neo-rs) always gzip JSON bodies."""
+
+    def fake_urlopen(request, timeout=30):
+        return _DummyResponse(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {"network": 860833102},
+            },
+            headers={"Content-Encoding": "gzip"},
+            gzipped=True,
+        )
+
+    monkeypatch.setattr(diff_runner.urllib.request, "urlopen", fake_urlopen)
+
+    response = CSharpExecutor("http://127.0.0.1:30332")._rpc_call("getversion", [])
+    assert response["result"]["network"] == 860833102
+
+
+def test_invokescript_retries_with_hex_on_invalid_character_error(monkeypatch):
+    """Some nodes reject base64 script params and require plain hex script input."""
+    sent_scripts: list[str] = []
+
+    def fake_invoke_with_param(self, script_param: str):
+        sent_scripts.append(script_param)
+        if len(sent_scripts) == 1:
+            return {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                    "code": -32602,
+                    "message": "Invalid params - Invalid character 'G' at position 1",
+                    "data": "Invalid character 'G' at position 1",
+                },
+            }
+
+        return {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "state": "HALT",
+                "gasconsumed": "0",
+                "stack": [],
+                "notifications": [],
+            },
+        }
+
+    monkeypatch.setattr(CSharpExecutor, "_invoke_script_with_param", fake_invoke_with_param)
+
+    script = bytes.fromhex("13159e")
+    response = CSharpExecutor("http://127.0.0.1:30332")._invoke_script(script)
+    assert response["result"]["state"] == "HALT"
+    assert sent_scripts == [base64.b64encode(script).decode("ascii"), "13159e"]
+
+
+def test_invokefunction_retries_bytearray_args_with_hex(monkeypatch):
+    """Some RPC providers require ByteArray args in hex instead of base64."""
+    invoke_calls: list[list[dict]] = []
+
+    def fake_rpc_call(self, method: str, params: list):
+        if method == "getnativecontracts":
+            return {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": [
+                    {
+                        "manifest": {"name": "CryptoLib"},
+                        "hash": "0x726cb6e0cd8628a1350a611384688911ab75f51b",
+                    }
+                ],
+            }
+
+        if method == "invokefunction":
+            encoded_args = params[2]
+            invoke_calls.append(encoded_args)
+            value = encoded_args[0]["value"]
+
+            if value == "AQI=":
+                return {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "error": {
+                        "code": -32602,
+                        "message": "Invalid params - Invalid character 'Q' at position 1",
+                        "data": "Invalid character 'Q' at position 1",
+                    },
+                }
+
+            return {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "state": "HALT",
+                    "gasconsumed": "0",
+                    "stack": [{"type": "ByteString", "value": "AQI="}],
+                    "notifications": [],
+                },
+            }
+
+        raise AssertionError(f"Unexpected RPC method: {method}")
+
+    monkeypatch.setattr(CSharpExecutor, "_rpc_call", fake_rpc_call)
+
+    response = CSharpExecutor("http://127.0.0.1:30332")._invoke_cryptolib("sha256", [b"\x01\x02"])
+
+    assert response["result"]["state"] == "HALT"
+    assert len(invoke_calls) == 2
+    assert invoke_calls[0][0]["type"] == "ByteArray"
+    assert invoke_calls[0][0]["value"] == "AQI="
+    assert invoke_calls[1][0]["type"] == "ByteArray"
+    assert invoke_calls[1][0]["value"] == "0102"
 
 
 def test_parse_stack_item_normalizes_rpc_types_and_buffer_base64():

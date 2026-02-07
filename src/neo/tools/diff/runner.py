@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import base64
+import gzip
 import hashlib
 import json
 import urllib.request
@@ -591,7 +592,11 @@ class CSharpExecutor:
         )
 
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            raw = resp.read()
+            encoding = (resp.headers.get("Content-Encoding") or "").lower()
+            if encoding == "gzip":
+                raw = gzip.decompress(raw)
+            return json.loads(raw.decode("utf-8"))
 
     def _invoke_script(self, script: bytes) -> dict:
         """Call invokescript RPC method."""
@@ -713,9 +718,17 @@ class CSharpExecutor:
 
     def _invoke_function(self, contract_hash: str, method: str, args: list[Any]) -> dict:
         params: list[Any] = [contract_hash, method]
-        if args:
-            params.append([self._encode_contract_arg(arg) for arg in args])
-        return self._rpc_call("invokefunction", params)
+        if not args:
+            return self._rpc_call("invokefunction", params)
+
+        encoded_args = [self._encode_contract_arg(arg, byte_format="base64") for arg in args]
+        response = self._rpc_call("invokefunction", [*params, encoded_args])
+
+        if self._is_invalid_bytearray_param_error(response):
+            encoded_args = [self._encode_contract_arg(arg, byte_format="hex") for arg in args]
+            response = self._rpc_call("invokefunction", [*params, encoded_args])
+
+        return response
 
     def _get_native_contract_hash(self, contract_name: str) -> str:
         if self._native_hashes is None:
@@ -733,25 +746,31 @@ class CSharpExecutor:
         return contract_hash
 
     @staticmethod
-    def _encode_contract_arg(value: Any) -> dict:
+    def _encode_contract_arg(value: Any, *, byte_format: str = "base64") -> dict:
         if isinstance(value, bool):
             return {"type": "Boolean", "value": value}
 
         if isinstance(value, int):
             return {"type": "Integer", "value": str(value)}
 
+        if byte_format not in {"base64", "hex"}:
+            raise ValueError(f"Unsupported byte_format: {byte_format}")
+
         if isinstance(value, (bytes, bytearray)):
+            raw = bytes(value)
+            encoded = base64.b64encode(raw).decode("ascii") if byte_format == "base64" else raw.hex()
             return {
                 "type": "ByteArray",
-                "value": base64.b64encode(bytes(value)).decode("ascii"),
+                "value": encoded,
             }
 
         if isinstance(value, str):
             if value.startswith(("0x", "0X")):
                 raw = _decode_hex_string(value)
+                encoded = base64.b64encode(raw).decode("ascii") if byte_format == "base64" else raw.hex()
                 return {
                     "type": "ByteArray",
-                    "value": base64.b64encode(raw).decode("ascii"),
+                    "value": encoded,
                 }
             return {"type": "String", "value": value}
 
@@ -759,12 +778,21 @@ class CSharpExecutor:
 
     @staticmethod
     def _is_invalid_base64_param_error(response: dict) -> bool:
-        """Detect Neo RPC error indicating base64 script encoding is required."""
+        """Detect script param errors indicating base64-vs-hex mismatch."""
         error = response.get("error")
         if not isinstance(error, dict):
             return False
         message = f"{error.get('message', '')} {error.get('data', '')}".lower()
-        return "invalid base64" in message
+        return "invalid base64" in message or "invalid character" in message
+
+    @staticmethod
+    def _is_invalid_bytearray_param_error(response: dict) -> bool:
+        """Detect ByteArray argument encoding mismatch (base64 vs hex)."""
+        error = response.get("error")
+        if not isinstance(error, dict):
+            return False
+        message = f"{error.get('message', '')} {error.get('data', '')}".lower()
+        return "invalid character" in message and "position" in message
 
     @staticmethod
     def _is_invalid_base64_http_error(error: urllib.error.HTTPError) -> bool:
