@@ -241,50 +241,55 @@ class ApplicationEngine(ExecutionEngine):
     def _register_syscalls(self) -> None:
         """Register all syscalls."""
         from neo.smartcontract.interop_service import register_syscall
-        
+        from neo.hardfork import Hardfork
+
         # System.Runtime syscalls
-        register_syscall("System.Runtime.Platform", self._runtime_platform, 250)
-        register_syscall("System.Runtime.GetTrigger", self._runtime_get_trigger, 250)
-        register_syscall("System.Runtime.GetTime", self._runtime_get_time, 250)
-        register_syscall("System.Runtime.GetScriptContainer", self._runtime_get_script_container, 250)
-        register_syscall("System.Runtime.GetExecutingScriptHash", self._runtime_get_executing_script_hash, 400)
-        register_syscall("System.Runtime.GetCallingScriptHash", self._runtime_get_calling_script_hash, 400)
-        register_syscall("System.Runtime.GetEntryScriptHash", self._runtime_get_entry_script_hash, 400)
-        register_syscall("System.Runtime.CheckWitness", self._runtime_check_witness, 1024)
-        register_syscall("System.Runtime.GetInvocationCounter", self._runtime_get_invocation_counter, 400)
-        register_syscall("System.Runtime.GetNetwork", self._runtime_get_network, 250)
-        register_syscall("System.Runtime.GetRandom", self._runtime_get_random, 250)
-        register_syscall("System.Runtime.Log", self._runtime_log, 1 << 15)
-        register_syscall("System.Runtime.Notify", self._runtime_notify, 1 << 15)
-        register_syscall("System.Runtime.GetNotifications", self._runtime_get_notifications, 256)
-        register_syscall("System.Runtime.GasLeft", self._runtime_gas_left, 400)
-        register_syscall("System.Runtime.BurnGas", self._runtime_burn_gas, 400)
-        register_syscall("System.Runtime.CurrentSigners", self._runtime_current_signers, 1024)
-        register_syscall("System.Runtime.GetAddressVersion", self._runtime_get_address_version, 250)
-        register_syscall("System.Runtime.LoadScript", self._runtime_load_script, 1 << 15)
+        register_syscall("System.Runtime.Platform", self._runtime_platform, 1 << 3)
+        register_syscall("System.Runtime.GetTrigger", self._runtime_get_trigger, 1 << 3)
+        register_syscall("System.Runtime.GetTime", self._runtime_get_time, 1 << 3)
+        register_syscall("System.Runtime.GetScriptContainer", self._runtime_get_script_container, 1 << 3)
+        register_syscall("System.Runtime.GetExecutingScriptHash", self._runtime_get_executing_script_hash, 1 << 4)
+        register_syscall("System.Runtime.GetCallingScriptHash", self._runtime_get_calling_script_hash, 1 << 4)
+        register_syscall("System.Runtime.GetEntryScriptHash", self._runtime_get_entry_script_hash, 1 << 4)
+        register_syscall("System.Runtime.LoadScript", self._runtime_load_script, 1 << 15, CallFlags.ALLOW_CALL)
+        register_syscall("System.Runtime.CheckWitness", self._runtime_check_witness, 1 << 10)
+        register_syscall("System.Runtime.GetInvocationCounter", self._runtime_get_invocation_counter, 1 << 4)
+        register_syscall("System.Runtime.GetNetwork", self._runtime_get_network, 1 << 3)
+        register_syscall("System.Runtime.GetRandom", self._runtime_get_random, 0)
+        register_syscall("System.Runtime.Log", self._runtime_log, 1 << 15, CallFlags.ALLOW_NOTIFY)
+        register_syscall("System.Runtime.Notify", self._runtime_notify, 1 << 15, CallFlags.ALLOW_NOTIFY)
+        register_syscall("System.Runtime.GetNotifications", self._runtime_get_notifications, 1 << 12)
+        register_syscall("System.Runtime.GasLeft", self._runtime_gas_left, 1 << 4)
+        register_syscall("System.Runtime.BurnGas", self._runtime_burn_gas, 1 << 4)
+        register_syscall("System.Runtime.CurrentSigners", self._runtime_current_signers, 1 << 4)
+        register_syscall("System.Runtime.GetAddressVersion", self._runtime_get_address_version, 1 << 3)
 
         # System.Storage syscalls
-        register_syscall("System.Storage.GetContext", self._storage_get_context, 400)
-        register_syscall("System.Storage.GetReadOnlyContext", self._storage_get_readonly_context, 400)
-        register_syscall("System.Storage.AsReadOnly", self._storage_as_readonly, 400)
-        register_syscall("System.Storage.Get", self._storage_get, 1 << 15)
-        register_syscall("System.Storage.Find", self._storage_find, 1 << 15)
-        register_syscall("System.Storage.Put", self._storage_put, 1 << 15)
-        register_syscall("System.Storage.Delete", self._storage_delete, 1 << 15)
-        
+        register_syscall("System.Storage.GetContext", self._storage_get_context, 1 << 4, CallFlags.READ_STATES)
+        register_syscall("System.Storage.GetReadOnlyContext", self._storage_get_readonly_context, 1 << 4, CallFlags.READ_STATES)
+        register_syscall("System.Storage.AsReadOnly", self._storage_as_readonly, 1 << 4, CallFlags.READ_STATES)
+        register_syscall("System.Storage.Get", self._storage_get, 1 << 15, CallFlags.READ_STATES)
+        register_syscall("System.Storage.Find", self._storage_find, 1 << 15, CallFlags.READ_STATES)
+        register_syscall("System.Storage.Put", self._storage_put, 1 << 15, CallFlags.WRITE_STATES)
+        register_syscall("System.Storage.Delete", self._storage_delete, 1 << 15, CallFlags.WRITE_STATES)
+        register_syscall("System.Storage.Local.Get", self._storage_local_get, 1 << 15, CallFlags.READ_STATES, Hardfork.HF_FAUN)
+        register_syscall("System.Storage.Local.Find", self._storage_local_find, 1 << 15, CallFlags.READ_STATES, Hardfork.HF_FAUN)
+        register_syscall("System.Storage.Local.Put", self._storage_local_put, 1 << 15, CallFlags.WRITE_STATES, Hardfork.HF_FAUN)
+        register_syscall("System.Storage.Local.Delete", self._storage_local_delete, 1 << 15, CallFlags.WRITE_STATES, Hardfork.HF_FAUN)
+
         # System.Contract syscalls
-        register_syscall("System.Contract.Call", self._contract_call, 1 << 15)
+        register_syscall("System.Contract.Call", self._contract_call, 1 << 15, CallFlags.READ_STATES | CallFlags.ALLOW_CALL)
         register_syscall("System.Contract.CallNative", self._contract_call_native, 0)
-        register_syscall("System.Contract.GetCallFlags", self._contract_get_call_flags, 1024)
-        register_syscall("System.Contract.CreateStandardAccount", self._contract_create_standard_account, 1 << 8)
-        register_syscall("System.Contract.CreateMultisigAccount", self._contract_create_multisig_account, 1 << 8)
-        register_syscall("System.Contract.NativeOnPersist", self._contract_native_on_persist, 0)
-        register_syscall("System.Contract.NativePostPersist", self._contract_native_post_persist, 0)
-        
+        register_syscall("System.Contract.GetCallFlags", self._contract_get_call_flags, 1 << 10)
+        register_syscall("System.Contract.CreateStandardAccount", self._contract_create_standard_account, 0)
+        register_syscall("System.Contract.CreateMultisigAccount", self._contract_create_multisig_account, 0)
+        register_syscall("System.Contract.NativeOnPersist", self._contract_native_on_persist, 0, CallFlags.STATES)
+        register_syscall("System.Contract.NativePostPersist", self._contract_native_post_persist, 0, CallFlags.STATES)
+
         # System.Crypto syscalls
         register_syscall("System.Crypto.CheckSig", self._crypto_check_sig, 1 << 15)
         register_syscall("System.Crypto.CheckMultisig", self._crypto_check_multisig, 0)
-        
+
         # System.Iterator syscalls
         register_syscall("System.Iterator.Next", self._iterator_next, 1 << 15)
         register_syscall("System.Iterator.Value", self._iterator_value, 1 << 4)
@@ -651,6 +656,62 @@ class ApplicationEngine(ExecutionEngine):
         
         # Delete from snapshot
         self.snapshot.delete(full_key)
+
+    def _storage_local_get(self, engine: "ApplicationEngine") -> None:
+        """Get value from current contract storage (HF_Faun)."""
+        from neo.vm.types import InteropInterface
+        from neo.smartcontract.storage_context import StorageContext
+
+        key = self.pop()
+        ctx = StorageContext(self.current_script_hash, is_read_only=True)
+
+        # Reuse System.Storage.Get stack contract: [context, key]
+        self.push(key)
+        self.push(InteropInterface(ctx))
+        self._storage_get(engine)
+
+    def _storage_local_find(self, engine: "ApplicationEngine") -> None:
+        """Find values in current contract storage (HF_Faun)."""
+        from neo.vm.types import InteropInterface
+        from neo.smartcontract.storage_context import StorageContext
+
+        options = self.pop()
+        prefix = self.pop()
+        ctx = StorageContext(self.current_script_hash, is_read_only=True)
+
+        # Reuse System.Storage.Find stack contract: [context, prefix, options]
+        self.push(options)
+        self.push(prefix)
+        self.push(InteropInterface(ctx))
+        self._storage_find(engine)
+
+    def _storage_local_put(self, engine: "ApplicationEngine") -> None:
+        """Put value into current contract storage (HF_Faun)."""
+        from neo.vm.types import InteropInterface
+        from neo.smartcontract.storage_context import StorageContext
+
+        value = self.pop()
+        key = self.pop()
+        ctx = StorageContext(self.current_script_hash, is_read_only=False)
+
+        # Reuse System.Storage.Put stack contract: [context, key, value]
+        self.push(value)
+        self.push(key)
+        self.push(InteropInterface(ctx))
+        self._storage_put(engine)
+
+    def _storage_local_delete(self, engine: "ApplicationEngine") -> None:
+        """Delete value from current contract storage (HF_Faun)."""
+        from neo.vm.types import InteropInterface
+        from neo.smartcontract.storage_context import StorageContext
+
+        key = self.pop()
+        ctx = StorageContext(self.current_script_hash, is_read_only=False)
+
+        # Reuse System.Storage.Delete stack contract: [context, key]
+        self.push(key)
+        self.push(InteropInterface(ctx))
+        self._storage_delete(engine)
     
     def _build_storage_key(self, ctx, key: bytes) -> bytes:
         """Build full storage key from context and user key.

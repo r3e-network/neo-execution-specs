@@ -111,3 +111,34 @@ def test_default_constructor_stays_mainnet_compatible():
     assert settings.network == 860833102
     assert settings.validators_count == 7
     assert settings.committee_members_count == 21
+
+
+def test_testnet_protocol_defaults_match_neo_v391() -> None:
+    """Testnet defaults should align with Neo v3.9.1 protocol configuration."""
+    settings = ProtocolSettings.testnet()
+
+    assert settings.network == 894710606
+    assert settings.address_version == 53
+    assert settings.validators_count == 7
+    assert settings.committee_members_count == 21
+    assert settings.milliseconds_per_block == 3000
+    assert settings.max_transactions_per_block == 5000
+    assert settings.max_valid_until_block_increment == 5760
+    assert settings.memory_pool_max_transactions == 50000
+    assert settings.max_traceable_blocks == 2102400
+    assert settings.initial_gas_distribution == 52_000_000 * 100_000_000
+
+    assert settings.hardforks[Hardfork.HF_ASPIDOCHELONE] == 210000
+    assert settings.hardforks[Hardfork.HF_BASILISK] == 2680000
+    assert settings.hardforks[Hardfork.HF_COCKATRICE] == 3967000
+    assert settings.hardforks[Hardfork.HF_DOMOVOI] == 4144000
+    assert settings.hardforks[Hardfork.HF_ECHIDNA] == 5870000
+    assert settings.hardforks[Hardfork.HF_FAUN] == 12960000
+
+    assert settings.seed_list == [
+        "seed1t5.neo.org:20333",
+        "seed2t5.neo.org:20333",
+        "seed3t5.neo.org:20333",
+        "seed4t5.neo.org:20333",
+        "seed5t5.neo.org:20333",
+    ]

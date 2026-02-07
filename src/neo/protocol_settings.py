@@ -168,7 +168,7 @@ class ProtocolSettings:
             network=894710606,
             address_version=53,
             validators_count=7,
-            milliseconds_per_block=15000,
+            milliseconds_per_block=3000,
             max_valid_until_block_increment=86400000 // 15000,
             max_transactions_per_block=5000,
             memory_pool_max_transactions=50000,
