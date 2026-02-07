@@ -85,6 +85,11 @@ neo-diff --vectors tests/vectors/vm/ --python-only
 
 # Compare with C# neo-cli
 neo-diff --vectors tests/vectors/ --csharp-rpc http://localhost:10332
+
+# Compare C# vs NeoGo compatibility (strict)
+neo-compat --vectors tests/vectors/ \
+           --csharp-rpc http://seed1.neo.org:10332 \
+           --neogo-rpc http://rpc3.n3.nspcc.ru:10332
 ```
 
 ### neo-t8n - State Transition

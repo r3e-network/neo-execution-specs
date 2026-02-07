@@ -234,6 +234,11 @@ neo-diff --vectors tests/vectors/vm/ --csharp-rpc http://localhost:10332
 
 # Generate JSON report
 neo-diff --vectors tests/vectors/ --output report.json --verbose
+
+# Compare C# vs NeoGo endpoints using shared vectors
+neo-compat --vectors tests/vectors/ \
+           --csharp-rpc http://seed1.neo.org:10332 \
+           --neogo-rpc http://rpc3.n3.nspcc.ru:10332
 ```
 
 ### CLI Options

@@ -52,6 +52,7 @@ target-version = "py311"
 
 [project.scripts]
 neo-diff = "neo.tools.diff.cli:main"
+neo-compat = "neo.tools.diff.compat:main"
 neo-t8n = "neo.tools.t8n.cli:main"
 
 [tool.hatch.build.targets.wheel]

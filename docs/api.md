@@ -354,6 +354,16 @@ neo-diff -v tests/vectors/vm/ -p
 neo-diff -v tests/vectors/ -r http://localhost:10332 -o report.json
 ```
 
+### neo-compat
+
+Run `neo-diff` against C# and NeoGo RPC endpoints, then compare reports.
+
+```bash
+neo-compat --vectors tests/vectors/ \
+           --csharp-rpc http://seed1.neo.org:10332 \
+           --neogo-rpc http://rpc3.n3.nspcc.ru:10332
+```
+
 ### neo-t8n
 
 State transition tool (Ethereum-style).
