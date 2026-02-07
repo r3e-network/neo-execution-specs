@@ -209,13 +209,38 @@ jobs:
           PY
 
       - name: Run strict compatibility vectors (C# vs NeoGo)
+        env:
+          NEOGO_CANDIDATES: ${{ matrix.neogo_candidates }}
         run: |
-          neo-compat \
-            --vectors tests/vectors/ \
-            --csharp-rpc "$CSHARP_RPC" \
-            --neogo-rpc "$NEOGO_RPC" \
-            --output-dir reports \
-            --prefix "compat-${{ matrix.network }}"
+          set -euo pipefail
+
+          candidates="$NEOGO_RPC"
+          for candidate in ${NEOGO_CANDIDATES}; do
+            if [ "$candidate" != "$NEOGO_RPC" ]; then
+              candidates="$candidates $candidate"
+            fi
+          done
+
+          success=0
+          for candidate in ${candidates}; do
+            echo "Running neo-compat with NeoGo endpoint: ${candidate}"
+            if timeout 45m neo-compat \
+              --vectors tests/vectors/ \
+              --csharp-rpc "$CSHARP_RPC" \
+              --neogo-rpc "$candidate" \
+              --output-dir reports \
+              --prefix "compat-${{ matrix.network }}"; then
+              echo "NEOGO_RPC=${candidate}" >> "$GITHUB_ENV"
+              success=1
+              break
+            fi
+            echo "neo-compat failed for ${candidate}, trying next endpoint" >&2
+          done
+
+          if [ "$success" -ne 1 ]; then
+            echo "All NeoGo endpoint attempts failed for ${{ matrix.network }}" >&2
+            exit 1
+          fi
 
       - name: Upload compatibility reports
         uses: actions/upload-artifact@v4
@@ -233,12 +258,12 @@ jobs:
         if: always()
         env:
           SELECTED_CSHARP_RPC: ${{ steps.select-rpc.outputs.csharp_rpc }}
-          SELECTED_NEOGO_RPC: ${{ steps.select-rpc.outputs.neogo_rpc }}
+          ACTIVE_NEOGO_RPC: ${{ env.NEOGO_RPC }}
         run: |
           if [ -f "reports/compat-${{ matrix.network }}-csharp.json" ] && [ -f "reports/compat-${{ matrix.network }}-neogo.json" ]; then
             echo "## Compatibility Results (${{ matrix.network }})" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "C# endpoint: ${SELECTED_CSHARP_RPC}" >> "$GITHUB_STEP_SUMMARY"
-            echo "NeoGo endpoint: ${SELECTED_NEOGO_RPC}" >> "$GITHUB_STEP_SUMMARY"
+            echo "NeoGo endpoint: ${ACTIVE_NEOGO_RPC}" >> "$GITHUB_STEP_SUMMARY"
             python -c "import json; c=json.load(open('reports/compat-${{ matrix.network }}-csharp.json')); n=json.load(open('reports/compat-${{ matrix.network }}-neogo.json')); cs=c.get('summary', {}); ns=n.get('summary', {}); print('| Metric | C# | NeoGo |'); print('|--------|----|-------|'); print(f\"| Total Tests | {cs.get('total', 0)} | {ns.get('total', 0)} |\"); print(f\"| Passed | {cs.get('passed', 0)} | {ns.get('passed', 0)} |\"); print(f\"| Failed | {cs.get('failed', 0)} | {ns.get('failed', 0)} |\"); print(f\"| Errors | {cs.get('errors', 0)} | {ns.get('errors', 0)} |\")" >> "$GITHUB_STEP_SUMMARY"
           fi
