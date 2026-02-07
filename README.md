@@ -86,10 +86,18 @@ neo-diff --vectors tests/vectors/vm/ --python-only
 # Compare with C# neo-cli
 neo-diff --vectors tests/vectors/ --csharp-rpc http://localhost:10332
 
-# Compare C# vs NeoGo compatibility (strict)
+# Compare C# vs NeoGo compatibility (strict, MainNet)
 neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
+
+# Compare C# vs NeoGo compatibility (strict, TestNet)
+neo-compat --vectors tests/vectors/ \
+           --csharp-rpc http://seed1t5.neo.org:20332 \
+           --neogo-rpc http://rpc.t5.n3.nspcc.ru:20332
+
+# CI matrix parity gate lives in .github/workflows/diff.yml
+# (validates protocol fields + vector compatibility for MainNet/TestNet)
 
 # Enforce Ethereum-style checklist coverage gates
 neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \

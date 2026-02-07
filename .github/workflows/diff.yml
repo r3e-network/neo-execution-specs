@@ -1,4 +1,4 @@
-name: Diff Testing
+name: Diff Compatibility Testing
 
 on:
   push:
@@ -7,14 +7,51 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      csharp_rpc:
-        description: "Optional Neo v3.9.1 RPC endpoint"
+      target_network:
+        description: "Network(s) to validate"
+        required: false
+        type: choice
+        options:
+          - all
+          - mainnet
+          - testnet
+        default: all
+      mainnet_csharp_rpc:
+        description: "Optional override for MainNet Neo v3.9.1 RPC endpoint"
+        required: false
+        default: ""
+      mainnet_neogo_rpc:
+        description: "Optional override for MainNet NeoGo RPC endpoint"
+        required: false
+        default: ""
+      testnet_csharp_rpc:
+        description: "Optional override for TestNet Neo v3.9.1 RPC endpoint"
+        required: false
+        default: ""
+      testnet_neogo_rpc:
+        description: "Optional override for TestNet NeoGo RPC endpoint"
         required: false
         default: ""
 
 jobs:
-  diff-test:
+  compatibility-matrix:
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.target_network == 'all' || github.event.inputs.target_network == matrix.network
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - network: mainnet
+            csharp_candidates: "http://seed1.neo.org:10332 http://seed2.neo.org:10332 http://seed3.neo.org:10332 http://seed4.neo.org:10332 http://seed5.neo.org:10332"
+            neogo_candidates: "http://rpc3.n3.nspcc.ru:10332 http://rpc2.n3.nspcc.ru:10332 http://rpc1.n3.nspcc.ru:10332"
+            expected_network: "860833102"
+            expected_msperblock: "15000"
+          - network: testnet
+            csharp_candidates: "http://seed1t5.neo.org:20332 http://seed2t5.neo.org:20332 http://seed3t5.neo.org:20332 http://seed4t5.neo.org:20332 http://seed5t5.neo.org:20332"
+            neogo_candidates: "http://rpc.t5.n3.nspcc.ru:20332 http://rpc1.t5.n3.nspcc.ru:20332 http://rpc2.t5.n3.nspcc.ru:20332 http://rpc3.t5.n3.nspcc.ru:20332"
+            expected_network: "894710606"
+            expected_msperblock: "3000"
     runs-on: ubuntu-latest
+    name: ${{ matrix.network }} compatibility
 
     steps:
       - uses: actions/checkout@v4
@@ -29,67 +66,179 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[all]"
 
-      - name: Select Neo v3.9.1 RPC endpoint
+      - name: Select healthy reference RPC endpoints
         id: select-rpc
         env:
-          INPUT_CSHARP_RPC: ${{ github.event.inputs.csharp_rpc }}
+          INPUT_MAINNET_CSHARP_RPC: ${{ github.event.inputs.mainnet_csharp_rpc }}
+          INPUT_MAINNET_NEOGO_RPC: ${{ github.event.inputs.mainnet_neogo_rpc }}
+          INPUT_TESTNET_CSHARP_RPC: ${{ github.event.inputs.testnet_csharp_rpc }}
+          INPUT_TESTNET_NEOGO_RPC: ${{ github.event.inputs.testnet_neogo_rpc }}
+          CSHARP_CANDIDATES: ${{ matrix.csharp_candidates }}
+          NEOGO_CANDIDATES: ${{ matrix.neogo_candidates }}
+          EXPECTED_NETWORK: ${{ matrix.expected_network }}
+          EXPECTED_MSPERBLOCK: ${{ matrix.expected_msperblock }}
+          MATRIX_NETWORK: ${{ matrix.network }}
         run: |
           set -euo pipefail
 
-          if [ -n "${INPUT_CSHARP_RPC}" ]; then
-            candidates="${INPUT_CSHARP_RPC}"
+          if [ "${MATRIX_NETWORK}" = "mainnet" ]; then
+            csharp_override="${INPUT_MAINNET_CSHARP_RPC}"
+            neogo_override="${INPUT_MAINNET_NEOGO_RPC}"
           else
-            candidates="http://seed1.neo.org:10332 http://seed2.neo.org:10332 http://seed3.neo.org:10332 http://seed4.neo.org:10332 http://seed5.neo.org:10332"
+            csharp_override="${INPUT_TESTNET_CSHARP_RPC}"
+            neogo_override="${INPUT_TESTNET_NEOGO_RPC}"
           fi
 
-          selected=""
+          if [ -n "${csharp_override}" ]; then
+            csharp_candidates="${csharp_override}"
+          else
+            csharp_candidates="${CSHARP_CANDIDATES}"
+          fi
+
+          if [ -n "${neogo_override}" ]; then
+            neogo_candidates="${neogo_override}"
+          else
+            neogo_candidates="${NEOGO_CANDIDATES}"
+          fi
+
           payload='{"jsonrpc":"2.0","id":1,"method":"getversion","params":[]}'
 
-          for rpc in ${candidates}; do
-            echo "Checking ${rpc}"
-            response="$(curl -sS --max-time 12 -H 'Content-Type: application/json' -d "$payload" "$rpc" || true)"
-            if [ -z "$response" ]; then
-              continue
+          select_rpc() {
+            label="$1"
+            ua_token="$2"
+            candidates="$3"
+
+            selected=""
+
+            for rpc in ${candidates}; do
+              echo "Checking ${label}: ${rpc}" >&2
+              response="$(curl -sS --max-time 12 -H 'Content-Type: application/json' -d "$payload" "$rpc" || true)"
+              if [ -z "$response" ]; then
+                continue
+              fi
+
+              if RESPONSE="$response" UA_TOKEN="$ua_token" EXPECTED_NETWORK="$EXPECTED_NETWORK" EXPECTED_MSPERBLOCK="$EXPECTED_MSPERBLOCK" python -c "import json, os, sys; data=json.loads(os.environ.get('RESPONSE','{}')); result=data.get('result', {}); protocol=result.get('protocol', {}); ua=result.get('useragent', ''); network=protocol.get('network'); msperblock=protocol.get('msperblock'); sys.exit(0 if os.environ['UA_TOKEN'] in ua and str(network) == os.environ['EXPECTED_NETWORK'] and str(msperblock) == os.environ['EXPECTED_MSPERBLOCK'] else 1)"; then
+                selected="$rpc"
+                break
+              fi
+            done
+
+            if [ -z "$selected" ]; then
+              echo "No healthy ${label} RPC endpoint found for ${MATRIX_NETWORK}" >&2
+              exit 1
             fi
 
-            if RESPONSE="$response" python -c "import json, os, sys; data=json.loads(os.environ.get('RESPONSE','{}')); ua=data.get('result',{}).get('useragent',''); sys.exit(0 if 'Neo:3.9.1' in ua else 1)"; then
-              selected="$rpc"
-              break
-            fi
-          done
+            printf '%s' "$selected"
+          }
 
-          if [ -z "$selected" ]; then
-            echo "No healthy Neo v3.9.1 RPC endpoint found" >&2
-            exit 1
-          fi
+          csharp_rpc="$(select_rpc "Neo v3.9.1" "Neo:3.9.1" "${csharp_candidates}")"
+          neogo_rpc="$(select_rpc "NeoGo" "NEO-GO" "${neogo_candidates}")"
 
-          echo "Using ${selected}"
-          echo "CSHARP_RPC=${selected}" >> "$GITHUB_ENV"
-          echo "csharp_rpc=${selected}" >> "$GITHUB_OUTPUT"
+          echo "Using C#: ${csharp_rpc}"
+          echo "Using NeoGo: ${neogo_rpc}"
+          echo "CSHARP_RPC=${csharp_rpc}" >> "$GITHUB_ENV"
+          echo "NEOGO_RPC=${neogo_rpc}" >> "$GITHUB_ENV"
+          echo "csharp_rpc=${csharp_rpc}" >> "$GITHUB_OUTPUT"
+          echo "neogo_rpc=${neogo_rpc}" >> "$GITHUB_OUTPUT"
 
-      - name: Run diff tests
+      - name: Verify protocol parity between C# and NeoGo
+        env:
+          EXPECTED_NETWORK: ${{ matrix.expected_network }}
+          EXPECTED_MSPERBLOCK: ${{ matrix.expected_msperblock }}
         run: |
-          neo-diff \
+          set -euo pipefail
+
+          payload='{"jsonrpc":"2.0","id":1,"method":"getversion","params":[]}'
+          curl --compressed -sS --max-time 12 -H 'Content-Type: application/json' -d "$payload" "$CSHARP_RPC" > csharp-getversion.json
+          curl --compressed -sS --max-time 12 -H 'Content-Type: application/json' -d "$payload" "$NEOGO_RPC" > neogo-getversion.json
+
+          python - <<'PY'
+          import json
+          import os
+
+          with open("csharp-getversion.json", "r", encoding="utf-8") as f:
+              csharp = json.load(f)
+          with open("neogo-getversion.json", "r", encoding="utf-8") as f:
+              neogo = json.load(f)
+
+          def protocol_subset(payload: dict) -> dict:
+              result = payload.get("result", {})
+              protocol = result.get("protocol", {})
+
+              hardforks = protocol.get("hardforks", [])
+              if isinstance(hardforks, list):
+                  normalized_hardforks = sorted(
+                      [h for h in hardforks if isinstance(h, dict)],
+                      key=lambda item: (item.get("name", ""), item.get("blockheight", 0)),
+                  )
+              else:
+                  normalized_hardforks = []
+
+              return {
+                  "network": protocol.get("network"),
+                  "msperblock": protocol.get("msperblock"),
+                  "maxtraceableblocks": protocol.get("maxtraceableblocks"),
+                  "maxtransactionsperblock": protocol.get("maxtransactionsperblock"),
+                  "memorypoolmaxtransactions": protocol.get("memorypoolmaxtransactions"),
+                  "validatorscount": protocol.get("validatorscount"),
+                  "initialgasdistribution": protocol.get("initialgasdistribution"),
+                  "hardforks": normalized_hardforks,
+              }
+
+          csharp_protocol = protocol_subset(csharp)
+          neogo_protocol = protocol_subset(neogo)
+
+          if csharp_protocol != neogo_protocol:
+              raise SystemExit(
+                  "C# and NeoGo protocol mismatch:\n"
+                  + json.dumps({"csharp": csharp_protocol, "neogo": neogo_protocol}, indent=2)
+              )
+
+          expected_network = int(os.environ["EXPECTED_NETWORK"])
+          expected_msperblock = int(os.environ["EXPECTED_MSPERBLOCK"])
+
+          if csharp_protocol["network"] != expected_network:
+              raise SystemExit(f"Unexpected network magic: {csharp_protocol['network']} != {expected_network}")
+
+          if csharp_protocol["msperblock"] != expected_msperblock:
+              raise SystemExit(f"Unexpected msperblock: {csharp_protocol['msperblock']} != {expected_msperblock}")
+
+          hardfork_names = {entry.get("name") for entry in csharp_protocol["hardforks"] if isinstance(entry, dict)}
+          if "Faun" not in hardfork_names:
+              raise SystemExit("Faun hardfork missing in protocol.hardforks")
+          PY
+
+      - name: Run strict compatibility vectors (C# vs NeoGo)
+        run: |
+          neo-compat \
             --vectors tests/vectors/ \
             --csharp-rpc "$CSHARP_RPC" \
-            --output diff-report.json
+            --neogo-rpc "$NEOGO_RPC" \
+            --output-dir reports \
+            --prefix "compat-${{ matrix.network }}"
 
-      - name: Upload diff report
+      - name: Upload compatibility reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: diff-report
-          path: diff-report.json
+          name: compatibility-report-${{ matrix.network }}
+          path: |
+            reports/compat-${{ matrix.network }}-csharp.json
+            reports/compat-${{ matrix.network }}-neogo.json
+            csharp-getversion.json
+            neogo-getversion.json
           retention-days: 30
 
       - name: Generate summary
         if: always()
         env:
           SELECTED_CSHARP_RPC: ${{ steps.select-rpc.outputs.csharp_rpc }}
+          SELECTED_NEOGO_RPC: ${{ steps.select-rpc.outputs.neogo_rpc }}
         run: |
-          if [ -f diff-report.json ]; then
-            echo "## Diff Test Results" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "reports/compat-${{ matrix.network }}-csharp.json" ] && [ -f "reports/compat-${{ matrix.network }}-neogo.json" ]; then
+            echo "## Compatibility Results (${{ matrix.network }})" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "RPC endpoint: ${SELECTED_CSHARP_RPC}" >> "$GITHUB_STEP_SUMMARY"
-            python -c "import json; data=json.load(open('diff-report.json')); s=data.get('summary', {}); print('| Metric | Value |'); print('|--------|-------|'); print(f\"| Total Tests | {s.get('total', 0)} |\"); print(f\"| Passed | {s.get('passed', 0)} |\"); print(f\"| Failed | {s.get('failed', 0)} |\"); print(f\"| Errors | {s.get('errors', 0)} |\"); print(f\"| Pass Rate | {s.get('pass_rate', '0.00%')} |\")" >> "$GITHUB_STEP_SUMMARY"
+            echo "C# endpoint: ${SELECTED_CSHARP_RPC}" >> "$GITHUB_STEP_SUMMARY"
+            echo "NeoGo endpoint: ${SELECTED_NEOGO_RPC}" >> "$GITHUB_STEP_SUMMARY"
+            python -c "import json; c=json.load(open('reports/compat-${{ matrix.network }}-csharp.json')); n=json.load(open('reports/compat-${{ matrix.network }}-neogo.json')); cs=c.get('summary', {}); ns=n.get('summary', {}); print('| Metric | C# | NeoGo |'); print('|--------|----|-------|'); print(f\"| Total Tests | {cs.get('total', 0)} | {ns.get('total', 0)} |\"); print(f\"| Passed | {cs.get('passed', 0)} | {ns.get('passed', 0)} |\"); print(f\"| Failed | {cs.get('failed', 0)} | {ns.get('failed', 0)} |\"); print(f\"| Errors | {cs.get('errors', 0)} | {ns.get('errors', 0)} |\")" >> "$GITHUB_STEP_SUMMARY"
           fi
