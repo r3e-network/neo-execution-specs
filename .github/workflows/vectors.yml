@@ -4,12 +4,15 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/vectors.yml'
       - 'tests/vectors/**'
       - 'src/neo/**'
   pull_request:
     branches: [main]
     paths:
+      - '.github/workflows/vectors.yml'
       - 'tests/vectors/**'
+      - 'src/neo/**'
   workflow_dispatch:
 
 jobs:
