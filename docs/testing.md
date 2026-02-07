@@ -132,6 +132,8 @@ Fields:
 
 ### Vector Locations
 
+As of February 7, 2026, the suite contains `242` raw vectors (`236` runnable by `neo-diff`).
+
 ```
 tests/vectors/
 ├── vm/                    # VM instruction vectors
@@ -140,13 +142,16 @@ tests/vectors/
 │   ├── bitwise.json
 │   ├── comparison.json
 │   ├── boolean.json
-│   └── compound.json
+│   ├── compound.json
+│   └── protocol_extended.json
 ├── crypto/                # Crypto vectors
 │   ├── hash.json
+│   ├── hash_extended.json
 │   └── bls12_381.json
 ├── native/                # Native contract vectors
 │   ├── neo_token.json
-│   └── gas_token.json
+│   ├── gas_token.json
+│   └── native_extended.json
 └── state/                 # State transition vectors
 ```
 

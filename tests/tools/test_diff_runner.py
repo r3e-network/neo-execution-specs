@@ -4,9 +4,10 @@ import base64
 import io
 import json
 import urllib.error
+from pathlib import Path
 
 from neo.tools.diff.models import TestVector
-from neo.tools.diff.runner import CSharpExecutor, PythonExecutor
+from neo.tools.diff.runner import CSharpExecutor, PythonExecutor, VectorLoader
 import neo.tools.diff.runner as diff_runner
 
 
@@ -96,10 +97,6 @@ def test_python_executor_tracks_opcode_gas_for_vm_vectors():
 
     assert result.state == "HALT"
     assert result.gas_consumed == 10
-
-from pathlib import Path
-
-from neo.tools.diff.runner import VectorLoader
 
 
 def test_vector_loader_supports_non_vm_collection_formats():
@@ -197,3 +194,26 @@ def test_python_executor_policy_vectors_follow_mainnet_v391_values():
 
     assert storage_result.state == "HALT"
     assert storage_result.stack[0].value == 1000
+
+def test_python_executor_stdlib_atoi_hex_matches_neo_signed_semantics():
+    """StdLib.atoi(base=16) should use signed interpretation consistent with Neo nodes."""
+    executor = PythonExecutor()
+
+    neg_vector = TestVector(
+        name="StdLib_atoi_hex_signed",
+        script=b"",
+        metadata={"category": "native", "contract": "StdLib", "method": "atoi", "args": ["ff", 16]},
+    )
+    pos_vector = TestVector(
+        name="StdLib_atoi_hex_positive",
+        script=b"",
+        metadata={"category": "native", "contract": "StdLib", "method": "atoi", "args": ["0100", 16]},
+    )
+
+    neg_result = executor.execute(neg_vector)
+    pos_result = executor.execute(pos_vector)
+
+    assert neg_result.state == "HALT"
+    assert neg_result.stack[0].value == -1
+    assert pos_result.state == "HALT"
+    assert pos_result.stack[0].value == 256

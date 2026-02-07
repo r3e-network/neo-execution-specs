@@ -388,9 +388,9 @@ class PythonExecutor:
                 base = int(args[1]) if len(args) > 1 else 10
                 return self._stdlib_itoa(value, base)
             if method_l == "atoi":
-                value = str(args[0])
+                text_value = str(args[0])
                 base = int(args[1]) if len(args) > 1 else 10
-                return int(value, base)
+                return self._stdlib_atoi(text_value, base)
             if method_l == "base64encode":
                 data = args[0]
                 raw = data.encode("utf-8") if isinstance(data, str) else bytes(data)
@@ -460,6 +460,27 @@ class PythonExecutor:
             if text and text[0] in "89abcdef":
                 return f"0{text}"
             return text
+
+        raise ValueError(f"Invalid base: {base}")
+
+    @staticmethod
+    def _stdlib_atoi(value: str, base: int) -> int:
+        if base == 10:
+            return int(value, 10)
+
+        if base == 16:
+            if value.startswith(("-", "+")):
+                return int(value, 16)
+
+            normalized = value.lower().removeprefix("0x")
+            if not normalized:
+                return 0
+
+            unsigned = int(normalized, 16)
+            bits = len(normalized) * 4
+            if normalized[0] in "89abcdef":
+                return unsigned - (1 << bits)
+            return unsigned
 
         raise ValueError(f"Invalid base: {base}")
 

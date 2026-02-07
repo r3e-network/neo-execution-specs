@@ -1,0 +1,159 @@
+{
+  "name": "native_extended",
+  "description": "Extended native contract vectors for StdLib and CryptoLib",
+  "category": "native",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "CryptoLib_sha256_hello",
+      "description": "SHA256 hash of 'hello' bytes",
+      "contract": "CryptoLib",
+      "method": "sha256",
+      "args": [
+        "0x68656c6c6f"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    },
+    {
+      "name": "CryptoLib_sha256_long",
+      "description": "SHA256 hash of 32-byte sequence",
+      "contract": "CryptoLib",
+      "method": "sha256",
+      "args": [
+        "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd"
+    },
+    {
+      "name": "CryptoLib_ripemd160_hello",
+      "description": "RIPEMD160 hash of 'hello' bytes",
+      "contract": "CryptoLib",
+      "method": "ripemd160",
+      "args": [
+        "0x68656c6c6f"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "108f07b8382412612c048d07d13f814118445acd"
+    },
+    {
+      "name": "CryptoLib_murmur32_seed1",
+      "description": "Murmur32 hash of 'hello' with seed 1",
+      "contract": "CryptoLib",
+      "method": "murmur32",
+      "args": [
+        "0x68656c6c6f",
+        1
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 3142237357
+    },
+    {
+      "name": "CryptoLib_murmur32_seed42",
+      "description": "Murmur32 hash of 0x01020304 with seed 42",
+      "contract": "CryptoLib",
+      "method": "murmur32",
+      "args": [
+        "0x01020304",
+        42
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 4292485494
+    },
+    {
+      "name": "StdLib_itoa_negative_decimal",
+      "description": "Convert negative integer to decimal string",
+      "contract": "StdLib",
+      "method": "itoa",
+      "args": [
+        -123,
+        10
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "-123"
+    },
+    {
+      "name": "StdLib_atoi_hex",
+      "description": "Convert hex string to integer",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "ff",
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 255
+    },
+    {
+      "name": "StdLib_atoi_negative_decimal",
+      "description": "Convert negative decimal string to integer",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "-42",
+        10
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": -42
+    },
+    {
+      "name": "StdLib_base64Encode_empty",
+      "description": "Base64 encode empty byte array",
+      "contract": "StdLib",
+      "method": "base64Encode",
+      "args": [
+        "0x"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": ""
+    },
+    {
+      "name": "StdLib_base64Encode_raw_bytes",
+      "description": "Base64 encode raw bytes 0x0102",
+      "contract": "StdLib",
+      "method": "base64Encode",
+      "args": [
+        "0x0102"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "AQI="
+    },
+    {
+      "name": "StdLib_memoryCompare_greater",
+      "description": "Compare byte arrays (first > second)",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": [
+        "0x0103",
+        "0x0102"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 1
+    },
+    {
+      "name": "StdLib_memoryCompare_prefix_less",
+      "description": "Compare byte arrays where first is shorter prefix",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": [
+        "0x01",
+        "0x0100"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": -1
+    }
+  ]
+}

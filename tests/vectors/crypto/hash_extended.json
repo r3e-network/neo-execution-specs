@@ -1,0 +1,228 @@
+{
+  "name": "hash_extended",
+  "description": "Extended hash vectors across multiple representative byte inputs",
+  "category": "crypto",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "SHA256_empty_ext",
+      "description": "SHA256 of empty",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x"
+      },
+      "output": {
+        "hash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "RIPEMD160_empty_ext",
+      "description": "RIPEMD160 of empty",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x"
+      },
+      "output": {
+        "hash": "0x9c1185a5c5e9fc54612808977ee8f548b2258d31"
+      }
+    },
+    {
+      "name": "Hash160_empty_ext",
+      "description": "HASH160 of empty",
+      "operation": "HASH160",
+      "input": {
+        "data": "0x"
+      },
+      "output": {
+        "hash": "0xb472a266d0bd89c13706a4132ccfb16f7c3b9fcb"
+      }
+    },
+    {
+      "name": "Hash256_empty_ext",
+      "description": "HASH256 of empty",
+      "operation": "HASH256",
+      "input": {
+        "data": "0x"
+      },
+      "output": {
+        "hash": "0x5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456"
+      }
+    },
+    {
+      "name": "SHA256_hello_ext",
+      "description": "SHA256 of hello",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x68656c6c6f"
+      },
+      "output": {
+        "hash": "0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+      }
+    },
+    {
+      "name": "RIPEMD160_hello_ext",
+      "description": "RIPEMD160 of hello",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x68656c6c6f"
+      },
+      "output": {
+        "hash": "0x108f07b8382412612c048d07d13f814118445acd"
+      }
+    },
+    {
+      "name": "Hash160_hello_ext",
+      "description": "HASH160 of hello",
+      "operation": "HASH160",
+      "input": {
+        "data": "0x68656c6c6f"
+      },
+      "output": {
+        "hash": "0xb6a9c8c230722b7c748331a8b450f05566dc7d0f"
+      }
+    },
+    {
+      "name": "Hash256_hello_ext",
+      "description": "HASH256 of hello",
+      "operation": "HASH256",
+      "input": {
+        "data": "0x68656c6c6f"
+      },
+      "output": {
+        "hash": "0x9595c9df90075148eb06860365df33584b75bff782a510c6cd4883a419833d50"
+      }
+    },
+    {
+      "name": "SHA256_neo_ext",
+      "description": "SHA256 of neo",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x6e656f"
+      },
+      "output": {
+        "hash": "0x73ef176d9f12809e64363b2b5f4553abecca7aae157327f190323cfa0e42c815"
+      }
+    },
+    {
+      "name": "RIPEMD160_neo_ext",
+      "description": "RIPEMD160 of neo",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x6e656f"
+      },
+      "output": {
+        "hash": "0x098e87d8477d2279ff1cf6927a628c0f180e04ef"
+      }
+    },
+    {
+      "name": "Hash160_neo_ext",
+      "description": "HASH160 of neo",
+      "operation": "HASH160",
+      "input": {
+        "data": "0x6e656f"
+      },
+      "output": {
+        "hash": "0xbc4c6b377b94ef3be6af81f9c45c31753ef2dbd8"
+      }
+    },
+    {
+      "name": "Hash256_neo_ext",
+      "description": "HASH256 of neo",
+      "operation": "HASH256",
+      "input": {
+        "data": "0x6e656f"
+      },
+      "output": {
+        "hash": "0xe346843ef8cfbe36447fac84d851c36af13ee07e43fa511d85dafa8e9abdfd40"
+      }
+    },
+    {
+      "name": "SHA256_bytes_01020304_ext",
+      "description": "SHA256 of bytes_01020304",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x01020304"
+      },
+      "output": {
+        "hash": "0x9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a"
+      }
+    },
+    {
+      "name": "RIPEMD160_bytes_01020304_ext",
+      "description": "RIPEMD160 of bytes_01020304",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x01020304"
+      },
+      "output": {
+        "hash": "0x179bb366e5e224b8bf4ce302cefc5744961839c5"
+      }
+    },
+    {
+      "name": "Hash160_bytes_01020304_ext",
+      "description": "HASH160 of bytes_01020304",
+      "operation": "HASH160",
+      "input": {
+        "data": "0x01020304"
+      },
+      "output": {
+        "hash": "0xecd2cbd8262d2c361b93bf89c4f0a78d76a16e70"
+      }
+    },
+    {
+      "name": "Hash256_bytes_01020304_ext",
+      "description": "HASH256 of bytes_01020304",
+      "operation": "HASH256",
+      "input": {
+        "data": "0x01020304"
+      },
+      "output": {
+        "hash": "0x8de472e2399610baaa7f84840547cd409434e31f5d3bd71e4d947f283874f9c0"
+      }
+    },
+    {
+      "name": "SHA256_range_16_ext",
+      "description": "SHA256 of range_16",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x000102030405060708090a0b0c0d0e0f"
+      },
+      "output": {
+        "hash": "0xbe45cb2605bf36bebde684841a28f0fd43c69850a3dce5fedba69928ee3a8991"
+      }
+    },
+    {
+      "name": "RIPEMD160_range_16_ext",
+      "description": "RIPEMD160 of range_16",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x000102030405060708090a0b0c0d0e0f"
+      },
+      "output": {
+        "hash": "0x696c7528a3545e25bec296e0d39b5f898bec97f7"
+      }
+    },
+    {
+      "name": "Hash160_range_16_ext",
+      "description": "HASH160 of range_16",
+      "operation": "HASH160",
+      "input": {
+        "data": "0x000102030405060708090a0b0c0d0e0f"
+      },
+      "output": {
+        "hash": "0x7a91e1b6ef1be3631b154ac8763a017eb03dc1b0"
+      }
+    },
+    {
+      "name": "Hash256_range_16_ext",
+      "description": "HASH256 of range_16",
+      "operation": "HASH256",
+      "input": {
+        "data": "0x000102030405060708090a0b0c0d0e0f"
+      },
+      "output": {
+        "hash": "0xfc793c641b354b10b9a264ad4f541f6efe8445a0d05fe39336a126252b166e8b"
+      }
+    }
+  ]
+}

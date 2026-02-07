@@ -12,13 +12,16 @@ tests/vectors/
 │   ├── bitwise.json       # AND, OR, XOR, SHL, SHR
 │   ├── comparison.json    # LT, LE, GT, GE, MIN, MAX
 │   ├── boolean.json       # NOT, BOOLAND, BOOLOR, NZ
-│   └── compound.json      # Arrays, Maps, Structs
+│   ├── compound.json      # Arrays, Maps, Structs
+│   └── protocol_extended.json # Extended constants/data/map edge cases
 ├── crypto/                # Cryptographic operation vectors
-│   ├── hash.json          # SHA256, RIPEMD160, Hash160, Hash256
+│   ├── hash.json          # Core SHA256, RIPEMD160, Hash160, Hash256
+│   ├── hash_extended.json # Extended hash coverage across inputs
 │   └── bls12_381.json     # BLS12-381 curve operations
 ├── native/                # Native contract vectors
 │   ├── neo_token.json     # NeoToken contract
-│   └── gas_token.json     # GasToken contract
+│   ├── gas_token.json     # GasToken contract
+│   └── native_extended.json # Extended StdLib/CryptoLib coverage
 └── state/                 # State transition vectors
     └── state_transitions.json
 ```
@@ -48,6 +51,14 @@ tests/vectors/
   "output": { "hash": "0x2cf24dba..." }
 }
 ```
+
+## Current Coverage
+
+- Raw vectors on disk: `242`
+- Runnable by `neo-diff`: `236` (BLS + state placeholder vectors are intentionally skipped)
+- VM vectors: `182`
+- Native vectors: `29`
+- Crypto hash vectors: `25`
 
 ## Usage
 

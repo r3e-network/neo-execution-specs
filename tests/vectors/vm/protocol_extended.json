@@ -1,0 +1,912 @@
+{
+  "name": "protocol_extended",
+  "description": "Extended protocol coverage vectors for constants, arithmetic edge-cases, map operations, and data opcodes",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "PUSHT_true",
+      "description": "Push true constant",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x08",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "PUSHF_false",
+      "description": "Push false constant",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x09",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "PUSHNULL_isnull",
+      "description": "Push null then check ISNULL",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0bd8",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "PUSHDATA1_len3_size",
+      "description": "PUSHDATA1 then SIZE",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c03010203ca",
+      "post": {
+        "stack": [
+          3
+        ]
+      }
+    },
+    {
+      "name": "PUSHDATA2_len3_size",
+      "description": "PUSHDATA2 then SIZE",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0d0300010203ca",
+      "post": {
+        "stack": [
+          3
+        ]
+      }
+    },
+    {
+      "name": "PUSHDATA4_len3_size",
+      "description": "PUSHDATA4 then SIZE",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0e03000000010203ca",
+      "post": {
+        "stack": [
+          3
+        ]
+      }
+    },
+    {
+      "name": "PUSHDATA_cat",
+      "description": "Concatenate PUSHDATA buffers",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0201020c0203048b",
+      "post": {
+        "stack": [
+          {
+            "type": "Buffer",
+            "value": "01020304"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PUSHDATA_substr",
+      "description": "Substring over PUSHDATA buffer",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c040102030411128c",
+      "post": {
+        "stack": [
+          {
+            "type": "Buffer",
+            "value": "0203"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PUSHDATA_left",
+      "description": "LEFT over PUSHDATA buffer",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0401020304128d",
+      "post": {
+        "stack": [
+          {
+            "type": "Buffer",
+            "value": "0102"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PUSHDATA_right",
+      "description": "RIGHT over PUSHDATA buffer",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0401020304128e",
+      "post": {
+        "stack": [
+          {
+            "type": "Buffer",
+            "value": "0304"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ADD_neg_neg",
+      "description": "Add two negative integers",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00fb00f99e",
+      "post": {
+        "stack": [
+          -12
+        ]
+      }
+    },
+    {
+      "name": "ADD_large",
+      "description": "Add larger PUSHINT32 values",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x02ff7f0000119e",
+      "post": {
+        "stack": [
+          32768
+        ]
+      }
+    },
+    {
+      "name": "SUB_to_zero",
+      "description": "Subtract equal values to zero",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x19199f",
+      "post": {
+        "stack": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "SUB_neg_minus_pos",
+      "description": "Subtract positive from negative",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00fb139f",
+      "post": {
+        "stack": [
+          -8
+        ]
+      }
+    },
+    {
+      "name": "MUL_neg_neg",
+      "description": "Multiply two negatives",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00fd00fca0",
+      "post": {
+        "stack": [
+          12
+        ]
+      }
+    },
+    {
+      "name": "DIV_negative",
+      "description": "Divide negative by positive",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00f912a1",
+      "post": {
+        "stack": [
+          -3
+        ]
+      }
+    },
+    {
+      "name": "DIV_negative_denominator",
+      "description": "Divide positive by negative",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1700fea1",
+      "post": {
+        "stack": [
+          -3
+        ]
+      }
+    },
+    {
+      "name": "MOD_negative_dividend",
+      "description": "Modulo with negative dividend",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00f913a2",
+      "post": {
+        "stack": [
+          -1
+        ]
+      }
+    },
+    {
+      "name": "MOD_negative_divisor",
+      "description": "Modulo with negative divisor",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1700fda2",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "POW_zero_zero",
+      "description": "Power zero to zero",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1010a3",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "POW_one_large",
+      "description": "Power one to larger exponent",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1120a3",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "SQRT_zero",
+      "description": "Square root of zero",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x10a4",
+      "post": {
+        "stack": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "MODPOW_zero_exp",
+      "description": "Modular power with zero exponent",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x151017a6",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "INC_negative",
+      "description": "Increment negative integer",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00fb9c",
+      "post": {
+        "stack": [
+          -4
+        ]
+      }
+    },
+    {
+      "name": "AND_negative",
+      "description": "Bitwise AND with negative",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0f1f91",
+      "post": {
+        "stack": [
+          15
+        ]
+      }
+    },
+    {
+      "name": "OR_negative",
+      "description": "Bitwise OR with negative",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00f01392",
+      "post": {
+        "stack": [
+          -13
+        ]
+      }
+    },
+    {
+      "name": "XOR_negative",
+      "description": "Bitwise XOR with negative",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0f1193",
+      "post": {
+        "stack": [
+          -2
+        ]
+      }
+    },
+    {
+      "name": "SHL_large_shift",
+      "description": "Shift left by larger amount",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1118a8",
+      "post": {
+        "stack": [
+          256
+        ]
+      }
+    },
+    {
+      "name": "SHR_negative",
+      "description": "Arithmetic shift right for negative",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00f811a9",
+      "post": {
+        "stack": [
+          -4
+        ]
+      }
+    },
+    {
+      "name": "EQUAL_buffers_false",
+      "description": "EQUAL over different byte buffers",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0201020c02010397",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "NOTEQUAL_buffers_true",
+      "description": "NOTEQUAL over different byte buffers",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0201020c02010398",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "NUMEQUAL_negative",
+      "description": "NUMEQUAL over equal negatives",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00fb00fbb3",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "NUMNOTEQUAL_negative",
+      "description": "NUMNOTEQUAL over different negatives",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x00fb00fab4",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "WITHIN_upper_exclusive",
+      "description": "WITHIN upper bound is exclusive",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x171317bb",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "WITHIN_lower_inclusive",
+      "description": "WITHIN lower bound is inclusive",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x131317bb",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "NZ_negative",
+      "description": "NZ over negative integer",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0fb1",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "NOT_nonzero_int",
+      "description": "NOT over non-zero integer",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x12aa",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "BOOLAND_nonzero_zero",
+      "description": "BOOLAND over non-zero and zero",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1210ab",
+      "post": {
+        "stack": [
+          {
+            "type": "Boolean",
+            "value": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "SETITEM_array_index0",
+      "description": "SETITEM on array index 0",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111212c04a1019d04a10ce",
+      "post": {
+        "stack": [
+          {
+            "type": "Array",
+            "value": [
+              9,
+              1
+            ]
+          },
+          9
+        ]
+      }
+    },
+    {
+      "name": "SETITEM_array_index1",
+      "description": "SETITEM on array index 1",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111212c04a1119d04a11ce",
+      "post": {
+        "stack": [
+          {
+            "type": "Array",
+            "value": [
+              2,
+              9
+            ]
+          },
+          9
+        ]
+      }
+    },
+    {
+      "name": "SETITEM_map_pick",
+      "description": "SETITEM on map then PICKITEM",
+      "pre": {
+        "stack": []
+      },
+      "script": "0xc84a1112d04a11ce",
+      "post": {
+        "stack": [
+          {
+            "type": "Map",
+            "value": {
+              "1": 2
+            }
+          },
+          2
+        ]
+      }
+    },
+    {
+      "name": "REMOVE_map_key",
+      "description": "REMOVE key from map",
+      "pre": {
+        "stack": []
+      },
+      "script": "0xc84a1112d04a11d24a11cb",
+      "post": {
+        "stack": [
+          {
+            "type": "Map",
+            "value": {}
+          },
+          {
+            "type": "Boolean",
+            "value": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "CLEARITEMS_array",
+      "description": "CLEARITEMS over array",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111212c04ad34aca",
+      "post": {
+        "stack": [
+          {
+            "type": "Array",
+            "value": []
+          },
+          0
+        ]
+      }
+    },
+    {
+      "name": "CLEARITEMS_map",
+      "description": "CLEARITEMS over map",
+      "pre": {
+        "stack": []
+      },
+      "script": "0xc84a1112d04ad34aca",
+      "post": {
+        "stack": [
+          {
+            "type": "Map",
+            "value": {}
+          },
+          0
+        ]
+      }
+    },
+    {
+      "name": "POPITEM_array",
+      "description": "POPITEM from array",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11121313c04ad4",
+      "post": {
+        "stack": [
+          {
+            "type": "Array",
+            "value": [
+              3,
+              2
+            ]
+          },
+          1
+        ]
+      }
+    },
+    {
+      "name": "KEYS_map_size",
+      "description": "KEYS count from map",
+      "pre": {
+        "stack": []
+      },
+      "script": "0xc84a1112d04a1314d04accca",
+      "post": {
+        "stack": [
+          {
+            "type": "Map",
+            "value": {
+              "1": 2,
+              "3": 4
+            }
+          },
+          2
+        ]
+      }
+    },
+    {
+      "name": "VALUES_map_size",
+      "description": "VALUES count from map",
+      "pre": {
+        "stack": []
+      },
+      "script": "0xc84a1112d04a1314d04acdca",
+      "post": {
+        "stack": [
+          {
+            "type": "Map",
+            "value": {
+              "1": 2,
+              "3": 4
+            }
+          },
+          2
+        ]
+      }
+    },
+    {
+      "name": "REVERSEITEMS_array_pick0",
+      "description": "REVERSEITEMS then PICKITEM",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11121313c04ad14a10ce",
+      "post": {
+        "stack": [
+          {
+            "type": "Array",
+            "value": [
+              1,
+              2,
+              3
+            ]
+          },
+          1
+        ]
+      }
+    },
+    {
+      "name": "APPEND_twice",
+      "description": "APPEND two items to array",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1111c04a12cf4a13cf4aca",
+      "post": {
+        "stack": [
+          {
+            "type": "Array",
+            "value": [
+              1,
+              2,
+              3
+            ]
+          },
+          3
+        ]
+      }
+    },
+    {
+      "name": "HASKEY_map_true",
+      "description": "HASKEY true on map",
+      "pre": {
+        "stack": []
+      },
+      "script": "0xc84a1112d04a11cb",
+      "post": {
+        "stack": [
+          {
+            "type": "Map",
+            "value": {
+              "1": 2
+            }
+          },
+          {
+            "type": "Boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "HASKEY_map_false",
+      "description": "HASKEY false on map",
+      "pre": {
+        "stack": []
+      },
+      "script": "0xc84a1112d04a15cb",
+      "post": {
+        "stack": [
+          {
+            "type": "Map",
+            "value": {
+              "1": 2
+            }
+          },
+          {
+            "type": "Boolean",
+            "value": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "PICKITEM_map",
+      "description": "PICKITEM from map",
+      "pre": {
+        "stack": []
+      },
+      "script": "0xc84a1719d04a17ce",
+      "post": {
+        "stack": [
+          {
+            "type": "Map",
+            "value": {
+              "7": 9
+            }
+          },
+          9
+        ]
+      }
+    },
+    {
+      "name": "PACKMAP_size2",
+      "description": "PACKMAP then SIZE",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1112131412be4aca",
+      "post": {
+        "stack": [
+          {
+            "type": "Map",
+            "value": {
+              "4": 3,
+              "2": 1
+            }
+          },
+          2
+        ]
+      }
+    },
+    {
+      "name": "CAT_empty_prefix",
+      "description": "CAT with empty left operand",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c000c0201028b",
+      "post": {
+        "stack": [
+          {
+            "type": "Buffer",
+            "value": "0102"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SUBSTR_zero_len",
+      "description": "SUBSTR with zero length",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c040102030411108c",
+      "post": {
+        "stack": [
+          {
+            "type": "Buffer",
+            "value": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "LEFT_full",
+      "description": "LEFT with full length",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c03010203138d",
+      "post": {
+        "stack": [
+          {
+            "type": "Buffer",
+            "value": "010203"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RIGHT_full",
+      "description": "RIGHT with full length",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c03010203138e",
+      "post": {
+        "stack": [
+          {
+            "type": "Buffer",
+            "value": "010203"
+          }
+        ]
+      }
+    }
+  ]
+}
