@@ -221,6 +221,7 @@ OPCODE_PRICE_TABLE_V391: dict[int, int] = {
 
 
 _NON_VM_CATEGORIES = {"native", "crypto", "state"}
+_NON_VECTOR_JSON_FILES = {"checklist_coverage.json"}
 _CRYPTO_HEX_METHODS = {"sha256", "ripemd160"}
 
 
@@ -972,6 +973,8 @@ class VectorLoader:
     def load_directory(path: Path) -> Iterator[TestVector]:
         """Load all vectors from a directory."""
         for file_path in sorted(path.glob("**/*.json")):
+            if file_path.name in _NON_VECTOR_JSON_FILES:
+                continue
             try:
                 for vector in VectorLoader.load_file(file_path):
                     yield vector

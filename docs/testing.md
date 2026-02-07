@@ -257,6 +257,22 @@ neo-compat --vectors tests/vectors/ \
 | `--gas-tolerance, -g` | Allowed gas difference |
 | `--verbose` | Show detailed output |
 
+### Checklist Coverage (Ethereum-style)
+
+Following the `ethereum/execution-spec-tests` model, this repository tracks protocol verification items through a checklist template and enforces 100% item coverage in CI.
+
+```bash
+neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \
+             --coverage-manifest tests/vectors/checklist_coverage.json \
+             --vectors-root tests/vectors/
+```
+
+The command fails if:
+- checklist template IDs drift from Python checklist IDs,
+- manifest entries drift from checklist IDs,
+- manifest references unknown vectors, or
+- any checklist item lacks vector/evidence coverage.
+
 ### Programmatic Usage
 
 ```python

@@ -217,3 +217,36 @@ def test_python_executor_stdlib_atoi_hex_matches_neo_signed_semantics():
     assert neg_result.stack[0].value == -1
     assert pos_result.state == "HALT"
     assert pos_result.stack[0].value == 256
+
+
+def test_vector_loader_ignores_non_vector_metadata_files(tmp_path: Path, capsys):
+    """Coverage manifest files should be ignored instead of producing load warnings."""
+    metadata_path = tmp_path / "checklist_coverage.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "example/check": {
+                    "vectors": ["ADD_basic"],
+                    "evidence": ["manual"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    vm_vector_path = tmp_path / "simple.json"
+    vm_vector_path.write_text(
+        json.dumps([
+            {
+                "name": "VM_simple",
+                "script": "00",
+                "description": "simple vector",
+            }
+        ]),
+        encoding="utf-8",
+    )
+
+    vectors = list(VectorLoader.load_directory(tmp_path))
+
+    assert [vector.name for vector in vectors] == ["VM_simple"]
+    assert "Warning: Failed to load" not in capsys.readouterr().out

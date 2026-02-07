@@ -6,13 +6,17 @@ on:
     paths:
       - '.github/workflows/vectors.yml'
       - 'tests/vectors/**'
+      - 'docs/verification/**'
       - 'src/neo/**'
+      - 'pyproject.toml'
   pull_request:
     branches: [main]
     paths:
       - '.github/workflows/vectors.yml'
       - 'tests/vectors/**'
+      - 'docs/verification/**'
       - 'src/neo/**'
+      - 'pyproject.toml'
   workflow_dispatch:
 
 jobs:
@@ -34,3 +38,9 @@ jobs:
       - name: Validate committed vectors
         run: |
           cd tests/vectors && python validate.py
+
+      - name: Enforce protocol checklist coverage
+        run: |
+          neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \
+                       --coverage-manifest tests/vectors/checklist_coverage.json \
+                       --vectors-root tests/vectors/

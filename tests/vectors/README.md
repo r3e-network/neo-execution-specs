@@ -62,6 +62,13 @@ tests/vectors/
 
 ## Usage
 
+### Protocol Checklist Coverage
+```bash
+neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \
+             --coverage-manifest tests/vectors/checklist_coverage.json \
+             --vectors-root tests/vectors/
+```
+
 ### Generate Vectors
 ```bash
 python tests/vectors/generate_all.py --verify
@@ -96,3 +103,4 @@ python tests/vectors/validate.py
 | `bls_generator.py` | BLS12-381 vectors |
 | `native_generator.py` | Native contract vectors |
 | `state_generator.py` | State transition vectors |
+| `checklist_coverage.json` | Checklist ID -> vector/evidence mapping |

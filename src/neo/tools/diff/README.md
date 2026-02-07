@@ -28,6 +28,11 @@ neo-diff --vectors tests/vectors/ -r http://localhost:10332 -o report.json
 neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
+
+# Enforce protocol checklist coverage
+neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \
+             --coverage-manifest tests/vectors/checklist_coverage.json \
+             --vectors-root tests/vectors/
 ```
 
 ## CLI Options

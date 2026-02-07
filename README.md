@@ -90,6 +90,11 @@ neo-diff --vectors tests/vectors/ --csharp-rpc http://localhost:10332
 neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
+
+# Enforce Ethereum-style checklist coverage gates
+neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \
+             --coverage-manifest tests/vectors/checklist_coverage.json \
+             --vectors-root tests/vectors/
 ```
 
 ### neo-t8n - State Transition

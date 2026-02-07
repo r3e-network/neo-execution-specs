@@ -364,6 +364,16 @@ neo-compat --vectors tests/vectors/ \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
 ```
 
+### neo-coverage
+
+Validate protocol checklist coverage mappings against vector fixtures.
+
+```bash
+neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \
+             --coverage-manifest tests/vectors/checklist_coverage.json \
+             --vectors-root tests/vectors/
+```
+
 ### neo-t8n
 
 State transition tool (Ethereum-style).

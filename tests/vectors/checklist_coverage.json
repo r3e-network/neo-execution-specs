@@ -1,0 +1,238 @@
+{
+  "general/line_coverage/python_spec": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/ --cov=neo"
+    ]
+  },
+  "general/test_coverage/vector_suite": {
+    "vectors": [
+      "ADD_basic",
+      "PUSHDATA4_len3_size",
+      "SETITEM_map_pick",
+      "CryptoLib_sha256_hello",
+      "Hash256_range_16_ext"
+    ],
+    "evidence": []
+  },
+  "general/fixture_integrity/vector_hashes": {
+    "vectors": [],
+    "evidence": [
+      "git-tracked JSON fixture review under tests/vectors/"
+    ]
+  },
+  "general/diff/csharp_rpc": {
+    "vectors": [],
+    "evidence": [
+      "neo-diff --vectors tests/vectors/ --csharp-rpc http://seed1.neo.org:10332"
+    ]
+  },
+  "general/diff/neogo_rpc": {
+    "vectors": [],
+    "evidence": [
+      "neo-diff --vectors tests/vectors/ --csharp-rpc http://rpc3.n3.nspcc.ru:10332"
+    ]
+  },
+  "vm/constants/push_variants": {
+    "vectors": [
+      "PUSH0",
+      "PUSH1",
+      "PUSH16",
+      "PUSHM1",
+      "PUSHT_true",
+      "PUSHF_false",
+      "PUSHNULL_isnull"
+    ],
+    "evidence": []
+  },
+  "vm/constants/pushdata_encodings": {
+    "vectors": [
+      "PUSHDATA1_len3_size",
+      "PUSHDATA2_len3_size",
+      "PUSHDATA4_len3_size"
+    ],
+    "evidence": []
+  },
+  "vm/arithmetic/signed_edges": {
+    "vectors": [
+      "ADD_neg_neg",
+      "SUB_neg_minus_pos",
+      "MUL_neg_neg",
+      "DIV_negative",
+      "MOD_negative_dividend",
+      "MOD_negative_divisor",
+      "INC_negative"
+    ],
+    "evidence": []
+  },
+  "vm/bitwise/signed_behavior": {
+    "vectors": [
+      "AND_negative",
+      "OR_negative",
+      "XOR_negative",
+      "SHR_negative"
+    ],
+    "evidence": []
+  },
+  "vm/comparison/boundary_semantics": {
+    "vectors": [
+      "WITHIN_lower_inclusive",
+      "WITHIN_upper_exclusive",
+      "NUMEQUAL_negative",
+      "NUMNOTEQUAL_negative",
+      "LT_equal",
+      "GE_equal"
+    ],
+    "evidence": []
+  },
+  "vm/control_flow/branch_paths": {
+    "vectors": [
+      "JMP_forward",
+      "JMPIF_true",
+      "JMPIF_false",
+      "JMPIFNOT_true",
+      "JMPIFNOT_false",
+      "RET_basic",
+      "NOP_basic"
+    ],
+    "evidence": []
+  },
+  "vm/slot/local_and_arg_access": {
+    "vectors": [
+      "INITSLOT_STLOC_LDLOC",
+      "STLOC0_LDLOC0",
+      "STLOC1_LDLOC1",
+      "multiple_locals"
+    ],
+    "evidence": []
+  },
+  "vm/splice/buffer_edges": {
+    "vectors": [
+      "CAT_empty_prefix",
+      "SUBSTR_zero_len",
+      "LEFT_full",
+      "RIGHT_full",
+      "NEWBUFFER_basic"
+    ],
+    "evidence": []
+  },
+  "vm/types/conversion_and_typechecks": {
+    "vectors": [
+      "ISNULL_true",
+      "ISNULL_false",
+      "ISTYPE_integer",
+      "ISTYPE_wrong",
+      "CONVERT_to_boolean",
+      "CONVERT_to_integer"
+    ],
+    "evidence": []
+  },
+  "vm/compound/array_map_mutation": {
+    "vectors": [
+      "SETITEM_array_index0",
+      "SETITEM_array_index1",
+      "SETITEM_map_pick",
+      "REMOVE_map_key",
+      "CLEARITEMS_array",
+      "CLEARITEMS_map",
+      "POPITEM_array",
+      "APPEND_twice",
+      "REVERSEITEMS_array_pick0"
+    ],
+    "evidence": []
+  },
+  "vm/compound/map_introspection": {
+    "vectors": [
+      "KEYS_map_size",
+      "VALUES_map_size",
+      "HASKEY_map_true",
+      "HASKEY_map_false",
+      "PICKITEM_map",
+      "PACKMAP_size2"
+    ],
+    "evidence": []
+  },
+  "native/neotoken/read_methods": {
+    "vectors": [
+      "NEO_totalSupply",
+      "NEO_symbol",
+      "NEO_decimals"
+    ],
+    "evidence": []
+  },
+  "native/gastoken/read_methods": {
+    "vectors": [
+      "GAS_symbol",
+      "GAS_decimals"
+    ],
+    "evidence": []
+  },
+  "native/policy/mainnet_v391_values": {
+    "vectors": [
+      "Policy_getFeePerByte",
+      "Policy_getExecFeeFactor",
+      "Policy_getStoragePrice"
+    ],
+    "evidence": []
+  },
+  "native/stdlib/string_and_memory_methods": {
+    "vectors": [
+      "StdLib_itoa_decimal",
+      "StdLib_itoa_hex",
+      "StdLib_itoa_negative_decimal",
+      "StdLib_atoi_decimal",
+      "StdLib_atoi_hex",
+      "StdLib_atoi_negative_decimal",
+      "StdLib_memoryCompare_equal",
+      "StdLib_memoryCompare_less",
+      "StdLib_memoryCompare_greater"
+    ],
+    "evidence": []
+  },
+  "native/cryptolib/hash_and_murmur": {
+    "vectors": [
+      "CryptoLib_sha256",
+      "CryptoLib_ripemd160",
+      "CryptoLib_murmur32",
+      "CryptoLib_sha256_hello",
+      "CryptoLib_ripemd160_hello",
+      "CryptoLib_murmur32_seed1"
+    ],
+    "evidence": []
+  },
+  "crypto/hash/sha256": {
+    "vectors": [
+      "SHA256_hello",
+      "SHA256_empty_ext",
+      "SHA256_range_16_ext"
+    ],
+    "evidence": []
+  },
+  "crypto/hash/ripemd160": {
+    "vectors": [
+      "RIPEMD160_hello",
+      "RIPEMD160_empty_ext"
+    ],
+    "evidence": []
+  },
+  "crypto/hash/hash160": {
+    "vectors": [
+      "Hash160_hello",
+      "Hash160_neo_ext"
+    ],
+    "evidence": []
+  },
+  "crypto/hash/hash256": {
+    "vectors": [
+      "Hash256_hello",
+      "Hash256_range_16_ext"
+    ],
+    "evidence": []
+  },
+  "cross_client/report_delta_zero": {
+    "vectors": [],
+    "evidence": [
+      "neo-compat --vectors tests/vectors/ --csharp-rpc http://seed1.neo.org:10332 --neogo-rpc http://rpc3.n3.nspcc.ru:10332"
+    ]
+  }
+}
