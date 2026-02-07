@@ -7,25 +7,14 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      neo_cli_version:
-        description: 'Neo CLI Docker image version'
+      csharp_rpc:
+        description: "Optional Neo v3.9.1 RPC endpoint"
         required: false
-        default: 'latest'
+        default: ""
 
 jobs:
   diff-test:
     runs-on: ubuntu-latest
-    services:
-      neo-cli:
-        image: cityofzion/neo-cli:${{ github.event.inputs.neo_cli_version || 'latest' }}
-        ports:
-          - 10332:10332
-          - 10333:10333
-        options: >-
-          --health-cmd "curl -f http://localhost:10332 || exit 1"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -40,23 +29,49 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[all]"
 
-      - name: Wait for neo-cli
+      - name: Select Neo v3.9.1 RPC endpoint
+        id: select-rpc
+        env:
+          INPUT_CSHARP_RPC: ${{ github.event.inputs.csharp_rpc }}
         run: |
-          echo "Waiting for neo-cli to be ready..."
-          for i in {1..30}; do
-            if curl -s http://localhost:10332 > /dev/null 2>&1; then
-              echo "neo-cli is ready!"
+          set -euo pipefail
+
+          if [ -n "${INPUT_CSHARP_RPC}" ]; then
+            candidates="${INPUT_CSHARP_RPC}"
+          else
+            candidates="http://seed1.neo.org:10332 http://seed2.neo.org:10332 http://seed3.neo.org:10332 http://seed4.neo.org:10332 http://seed5.neo.org:10332"
+          fi
+
+          selected=""
+          payload='{"jsonrpc":"2.0","id":1,"method":"getversion","params":[]}'
+
+          for rpc in ${candidates}; do
+            echo "Checking ${rpc}"
+            response="$(curl -sS --max-time 12 -H 'Content-Type: application/json' -d "$payload" "$rpc" || true)"
+            if [ -z "$response" ]; then
+              continue
+            fi
+
+            if RESPONSE="$response" python -c "import json, os, sys; data=json.loads(os.environ.get('RESPONSE','{}')); ua=data.get('result',{}).get('useragent',''); sys.exit(0 if 'Neo:3.9.1' in ua else 1)"; then
+              selected="$rpc"
               break
             fi
-            echo "Attempt $i/30..."
-            sleep 5
           done
+
+          if [ -z "$selected" ]; then
+            echo "No healthy Neo v3.9.1 RPC endpoint found" >&2
+            exit 1
+          fi
+
+          echo "Using ${selected}"
+          echo "CSHARP_RPC=${selected}" >> "$GITHUB_ENV"
+          echo "csharp_rpc=${selected}" >> "$GITHUB_OUTPUT"
 
       - name: Run diff tests
         run: |
           neo-diff \
             --vectors tests/vectors/ \
-            --csharp-rpc http://localhost:10332 \
+            --csharp-rpc "$CSHARP_RPC" \
             --output diff-report.json
 
       - name: Upload diff report
@@ -69,20 +84,12 @@ jobs:
 
       - name: Generate summary
         if: always()
+        env:
+          SELECTED_CSHARP_RPC: ${{ steps.select-rpc.outputs.csharp_rpc }}
         run: |
           if [ -f diff-report.json ]; then
-            echo "## Diff Test Results" >> $GITHUB_STEP_SUMMARY
-            python -c "
-          import json
-          with open('diff-report.json') as f:
-              data = json.load(f)
-          total = data.get('total', 0)
-          passed = data.get('passed', 0)
-          failed = data.get('failed', 0)
-          print(f'| Metric | Value |')
-          print(f'|--------|-------|')
-          print(f'| Total Tests | {total} |')
-          print(f'| Passed | {passed} |')
-          print(f'| Failed | {failed} |')
-          " >> $GITHUB_STEP_SUMMARY
+            echo "## Diff Test Results" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "RPC endpoint: ${SELECTED_CSHARP_RPC}" >> "$GITHUB_STEP_SUMMARY"
+            python -c "import json; data=json.load(open('diff-report.json')); s=data.get('summary', {}); print('| Metric | Value |'); print('|--------|-------|'); print(f\"| Total Tests | {s.get('total', 0)} |\"); print(f\"| Passed | {s.get('passed', 0)} |\"); print(f\"| Failed | {s.get('failed', 0)} |\"); print(f\"| Errors | {s.get('errors', 0)} |\"); print(f\"| Pass Rate | {s.get('pass_rate', '0.00%')} |\")" >> "$GITHUB_STEP_SUMMARY"
           fi
