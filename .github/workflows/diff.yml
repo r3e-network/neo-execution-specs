@@ -39,7 +39,6 @@ on:
 
 jobs:
   compatibility-matrix:
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.target_network == 'all' || github.event.inputs.target_network == matrix.network
     strategy:
       fail-fast: false
       matrix:
