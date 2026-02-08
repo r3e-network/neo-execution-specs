@@ -17,7 +17,11 @@
       "PUSHDATA4_len3_size",
       "SETITEM_map_pick",
       "CryptoLib_sha256_hello",
-      "Hash256_range_16_ext"
+      "Hash256_range_16_ext",
+      "STACK_DROP_empty_fault",
+      "CryptoLib_murmur32_seed2147483647_deep",
+      "SHA256_utf8_neo_rocket_deep",
+      "STATE_exec_add_small"
     ],
     "evidence": [
       "cd tests/vectors && python validate.py"
@@ -63,6 +67,42 @@
     "vectors": [],
     "evidence": [
       "neo-diff --vectors tests/vectors/ --csharp-rpc http://127.0.0.1:40332"
+    ]
+  },
+  "general/vector_corpus/deep_thresholds": {
+    "vectors": [
+      "CALLA_pointer_subroutine",
+      "MEMCPY_basic",
+      "SHA256_onebyte_ff_matrix",
+      "StdLib_memoryCompare_ff_greater_matrix"
+    ],
+    "evidence": [
+      "pytest tests/tools/test_vector_coverage.py -q"
+    ]
+  },
+  "general/vector_corpus/opcode_surface_floor_deep": {
+    "vectors": [
+      "CALLA_pointer_subroutine",
+      "TRY_L_no_exception",
+      "MEMCPY_basic",
+      "SHA256_onebyte_ff_matrix",
+      "StdLib_memoryCompare_ff_greater_matrix"
+    ],
+    "evidence": [
+      "pytest tests/tools/test_vector_coverage.py -q"
+    ]
+  },
+  "general/vector_quality/non_vm_expected_results": {
+    "vectors": [
+      "StdLib_atoi_hex",
+      "StdLib_itoa_hex",
+      "SHA256_utf8_neo_rocket_deep",
+      "SHA256_onebyte_00_matrix",
+      "StdLib_atoi_hex_0ff_matrix",
+      "CryptoLib_murmur32_seed42_matrix"
+    ],
+    "evidence": [
+      "pytest tests/tools/test_non_vm_vector_expectations.py -q"
     ]
   },
   "vm/constants/push_variants": {
@@ -149,12 +189,56 @@
     ],
     "evidence": []
   },
+  "vm/control_flow/abort_assert_throw_faults": {
+    "vectors": [
+      "CONTROL_ABORT_fault",
+      "CONTROL_ASSERT_false_fault",
+      "CONTROL_THROW_fault"
+    ],
+    "evidence": []
+  },
+  "vm/control_flow/long_and_relational_jump_variants": {
+    "vectors": [
+      "JMP_L_forward",
+      "JMPIF_L_true",
+      "JMPIFNOT_L_false",
+      "JMPEQ_L_true",
+      "JMPNE_L_true",
+      "JMPGT_L_true",
+      "JMPGE_L_equal",
+      "JMPLT_L_true",
+      "JMPLE_L_equal"
+    ],
+    "evidence": []
+  },
+  "vm/control_flow/call_and_pointer_variants": {
+    "vectors": [
+      "CALL_short_subroutine",
+      "CALL_L_subroutine",
+      "CALLA_pointer_subroutine",
+      "PUSHA_bad_pointer_fault"
+    ],
+    "evidence": []
+  },
   "vm/slot/local_and_arg_access": {
     "vectors": [
       "INITSLOT_STLOC_LDLOC",
       "STLOC0_LDLOC0",
       "STLOC1_LDLOC1",
       "multiple_locals"
+    ],
+    "evidence": []
+  },
+  "vm/slot/static_argument_slot_fault_paths": {
+    "vectors": [
+      "INITSSLOT_STSFLD0_LDSFLD0",
+      "INITSSLOT_double_init_fault",
+      "INITSLOT_STARG0_roundtrip",
+      "INITSLOT_double_init_fault",
+      "LDARG0_without_initslot_fault",
+      "STARG0_without_initslot_fault",
+      "LDSFLD0_without_initsslot_fault",
+      "STSFLD0_without_initsslot_fault"
     ],
     "evidence": []
   },
@@ -168,6 +252,18 @@
     ],
     "evidence": []
   },
+  "vm/splice/memcpy_success_and_boundaries": {
+    "vectors": [
+      "MEMCPY_basic",
+      "MEMCPY_source_oob_fault",
+      "MEMCPY_dest_oob_fault",
+      "MEMCPY_negative_count_fault",
+      "MEMCPY_negative_source_index_fault",
+      "MEMCPY_negative_dest_index_fault",
+      "MEMCPY_non_buffer_dest_fault"
+    ],
+    "evidence": []
+  },
   "vm/types/conversion_and_typechecks": {
     "vectors": [
       "ISNULL_true",
@@ -176,6 +272,14 @@
       "ISTYPE_wrong",
       "CONVERT_to_boolean",
       "CONVERT_to_integer"
+    ],
+    "evidence": []
+  },
+  "vm/types/abortmsg_assertmsg_paths": {
+    "vectors": [
+      "ABORTMSG_fault",
+      "ASSERTMSG_false_fault",
+      "ASSERTMSG_true"
     ],
     "evidence": []
   },
@@ -204,6 +308,20 @@
     ],
     "evidence": []
   },
+  "vm/compound/typed_array_pack_unpack_variants": {
+    "vectors": [
+      "NEWARRAY_T_integer_pick0",
+      "NEWARRAY_T_boolean_pick0",
+      "NEWARRAY_T_invalid_type_fault",
+      "NEWSTRUCT_size3",
+      "NEWSTRUCT_negative_size_fault",
+      "PACK_UNPACK_roundtrip",
+      "PACKSTRUCT_size2",
+      "PACK_size2",
+      "PACK_negative_size_fault"
+    ],
+    "evidence": []
+  },
   "vm/runtime/callt_tokens": {
     "vectors": [],
     "evidence": [
@@ -226,11 +344,54 @@
       "pytest tests/vm/test_exception_handling.py -q"
     ]
   },
+  "vm/runtime/try_catch_finally_long_offsets": {
+    "vectors": [
+      "TRY_no_exception",
+      "TRY_with_throw_catch",
+      "TRY_L_no_exception",
+      "TRY_finally_no_exception",
+      "TRY_ENDTRY_without_try_fault",
+      "ENDTRY_L_without_try_fault",
+      "ENDFINALLY_without_try_fault"
+    ],
+    "evidence": []
+  },
   "vm/runtime/reference_counter_and_limits": {
     "vectors": [],
     "evidence": [
       "pytest tests/vm/test_reference_counter_extended.py tests/vm/test_limits.py tests/vm/test_integer_limits.py -q"
     ]
+  },
+  "vm/faults/divide_and_mod_zero": {
+    "vectors": [
+      "ARITH_DIV_zero_fault",
+      "ARITH_MOD_zero_fault"
+    ],
+    "evidence": []
+  },
+  "vm/faults/stack_index_and_underflow": {
+    "vectors": [
+      "STACK_DROP_empty_fault",
+      "STACK_XDROP_empty_fault",
+      "STACK_PICK_out_of_range_fault",
+      "STACK_ROLL_out_of_range_fault",
+      "STACK_REVERSEN_negative_fault"
+    ],
+    "evidence": []
+  },
+  "vm/faults/splice_and_compound_invalid_args": {
+    "vectors": [
+      "SPLICE_NEWBUFFER_negative_size_fault",
+      "SPLICE_SUBSTR_negative_index_fault",
+      "SPLICE_SUBSTR_negative_length_fault",
+      "SPLICE_LEFT_negative_length_fault",
+      "SPLICE_RIGHT_negative_length_fault",
+      "COMPOUND_PICKITEM_negative_index_fault",
+      "COMPOUND_SETITEM_out_of_range_fault",
+      "COMPOUND_CLEARITEMS_non_collection_fault",
+      "COMPOUND_HASKEY_non_collection_fault"
+    ],
+    "evidence": []
   },
   "crypto/hash/sha256": {
     "vectors": [
@@ -261,6 +422,24 @@
       "Hash256_hello",
       "Hash256_range_16_ext",
       "Hash256_bytes_01020304_ext"
+    ],
+    "evidence": []
+  },
+  "crypto/hash/extended_input_classes": {
+    "vectors": [
+      "SHA256_ff32_deep",
+      "RIPEMD160_zero64_deep",
+      "HASH160_utf8_neo_rocket_deep",
+      "HASH256_range32_deep"
+    ],
+    "evidence": []
+  },
+  "crypto/hash/payload_matrix": {
+    "vectors": [
+      "SHA256_onebyte_00_matrix",
+      "RIPEMD160_onebyte_ff_matrix",
+      "HASH160_a5x31_matrix",
+      "HASH256_a5x33_matrix"
     ],
     "evidence": []
   },
@@ -394,6 +573,51 @@
       "pytest tests/native/test_policy_contract.py tests/native/test_policy.py -q"
     ]
   },
+  "native/stdlib/radix_and_encoding_edges": {
+    "vectors": [
+      "StdLib_itoa_128_hex_deep",
+      "StdLib_atoi_hex_ff_deep",
+      "StdLib_atoi_hex_80_deep",
+      "StdLib_atoi_hex_0100_deep",
+      "StdLib_base64Encode_bin_deep"
+    ],
+    "evidence": []
+  },
+  "native/stdlib/memory_compare_binary_edges": {
+    "vectors": [
+      "StdLib_memoryCompare_equal_bin_deep",
+      "StdLib_memoryCompare_greater_prefix_deep",
+      "StdLib_memoryCompare_binary_less_deep"
+    ],
+    "evidence": []
+  },
+  "native/stdlib/base64_and_memory_matrix": {
+    "vectors": [
+      "StdLib_base64Encode_empty_matrix",
+      "StdLib_base64Encode_unicode_matrix",
+      "StdLib_memoryCompare_empty_equal_matrix",
+      "StdLib_memoryCompare_empty_less_matrix",
+      "StdLib_memoryCompare_ff_greater_matrix",
+      "StdLib_memoryCompare_text_prefix_matrix"
+    ],
+    "evidence": []
+  },
+  "native/cryptolib/hash_and_seed_edges": {
+    "vectors": [
+      "CryptoLib_sha256_empty_deep",
+      "CryptoLib_ripemd160_bin_deep",
+      "CryptoLib_murmur32_seed0_deep",
+      "CryptoLib_murmur32_seed2147483647_deep"
+    ],
+    "evidence": []
+  },
+  "native/cryptolib/murmur_seed_matrix": {
+    "vectors": [
+      "CryptoLib_murmur32_seed1_matrix",
+      "CryptoLib_murmur32_seed42_matrix"
+    ],
+    "evidence": []
+  },
   "native/contractmanagement/lifecycle": {
     "vectors": [],
     "evidence": [
@@ -519,6 +743,24 @@
       "pytest tests/types/test_ecpoint.py tests/types/test_uint160_extended.py -q"
     ]
   },
+  "state/transaction_script_execution_vectors": {
+    "vectors": [
+      "STATE_exec_push1",
+      "STATE_exec_add_small",
+      "STATE_exec_concat_payload"
+    ],
+    "evidence": []
+  },
+  "state/transaction_script_execution_deep_vectors": {
+    "vectors": [
+      "STATE_exec_call_short",
+      "STATE_exec_try_l_no_exception",
+      "STATE_exec_memcpy_basic",
+      "STATE_exec_newarray_t_integer",
+      "STATE_exec_abortmsg_fault"
+    ],
+    "evidence": []
+  },
   "cross_client/report_delta_zero_csharp_neogo": {
     "vectors": [],
     "evidence": [
@@ -541,6 +783,18 @@
     "vectors": [],
     "evidence": [
       "Compare getversion.protocol fields across Neo v3.9.1 C#, NeoGo, and neo-rs endpoints"
+    ]
+  },
+  "cross_client/triplet/mainnet_strict": {
+    "vectors": [],
+    "evidence": [
+      "neo-multicompat --vectors tests/vectors/ --csharp-rpc http://seed1.neo.org:10332 --neogo-rpc http://rpc3.n3.nspcc.ru:10332 --neo-rs-rpc http://127.0.0.1:40332"
+    ]
+  },
+  "cross_client/triplet/testnet_strict": {
+    "vectors": [],
+    "evidence": [
+      "neo-multicompat --vectors tests/vectors/ --csharp-rpc http://seed1t5.neo.org:20332 --neogo-rpc http://rpc.t5.n3.nspcc.ru:20332 --neo-rs-rpc http://127.0.0.1:41332"
     ]
   }
 }

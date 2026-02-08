@@ -1,7 +1,7 @@
 # Neo N3 Execution Specs
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1037%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1100%2B%20passing-brightgreen.svg)](tests/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A Python reference implementation of the Neo N3 protocol, prioritizing **readability** over performance.
@@ -24,7 +24,7 @@ This project provides an **executable specification** for Neo N3, similar to Eth
 | Native Contracts (10) | ✅ Complete | 200+ |
 | Storage Layer | ✅ Complete | 100+ |
 | Network Types | ✅ Complete | 150+ |
-| **Total** | **Production Ready** | **1037** |
+| **Total** | **Production Ready** | **1100+** |
 
 ## Installation
 
@@ -109,6 +109,9 @@ neo-multicompat --vectors tests/vectors/ \
 neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \
              --coverage-manifest tests/vectors/checklist_coverage.json \
              --vectors-root tests/vectors/
+
+# Validate non-VM declared expected outputs
+pytest tests/tools/test_non_vm_vector_expectations.py -q
 ```
 
 ### neo-t8n - State Transition

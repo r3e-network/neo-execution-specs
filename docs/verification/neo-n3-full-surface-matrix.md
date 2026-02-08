@@ -5,12 +5,14 @@ This matrix expands Neo execution-spec verification from VM-heavy coverage to fu
 ## Scope
 
 - Protocol settings and hardfork activation gates.
-- NeoVM opcode semantics, gas accounting, limits, and exception behavior.
+- NeoVM opcode semantics, gas accounting, limits, exception behavior, and explicit fault-path assertions.
+- Deep control-flow semantics (short/long jump families, call variants including pointer dispatch, TRY/ENDTRY long-offset paths).
+- Deep splice/slot/compound semantics (MEMCPY bounds, static/arg slot lifecycle faults, typed arrays, pack/unpack variants).
 - Smart contract engine, interop syscall metadata, and serialization.
 - Native contracts (NEO/GAS/Policy/ContractManagement/Ledger/Oracle/Role/StdLib/CryptoLib/Notary).
-- Cryptography stack (hashing, ECC, ECDSA, Ed25519, BLS, Merkle, Bloom/Murmur).
+- Cryptography stack (hashing, ECC, ECDSA, Ed25519, BLS, Merkle, Bloom/Murmur) with payload-matrix vectors.
 - Network payload serialization and binary I/O compatibility.
-- Persistence, ledger validation paths, wallets, and core types.
+- Persistence, ledger validation paths, wallets, core types, and script-backed state vector execution.
 - Cross-client differential checks across Neo v3.9.1 C#, NeoGo, and neo-rs.
 
 ## Enforcement Model
@@ -24,4 +26,10 @@ This matrix expands Neo execution-spec verification from VM-heavy coverage to fu
 
 - Pairwise C# vs NeoGo: `neo-compat`.
 - Three-way C# vs NeoGo vs neo-rs: `neo-multicompat`.
-- The three cross-client checklist IDs remain required coverage gates.
+- The cross-client checklist IDs remain required coverage gates.
+
+## Depth Gates
+
+- Vector depth gates are enforced in `tests/tools/test_vector_coverage.py` (total corpus + per-domain minimums + advanced opcode floor).
+- Non-VM expected output integrity is enforced in `tests/tools/test_non_vm_vector_expectations.py`.
+- VM deep suites are validated by `tests/vectors/validate.py` and consumed by diff tooling under `tests/vectors/vm/control_flow_deep.json` and `tests/vectors/vm/memory_slot_compound_deep.json`.

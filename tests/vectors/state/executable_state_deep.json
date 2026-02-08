@@ -1,0 +1,123 @@
+{
+  "name": "executable_state_deep",
+  "description": "Additional executable state vectors for call, exception, and memory semantics",
+  "category": "state",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "STATE_exec_call_short",
+      "description": "Script-backed state vector: CALL short-form subroutine",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x340711220521211540",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_try_l_no_exception",
+      "description": "Script-backed state vector: TRY_L/ENDTRY_L no-exception path",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x3c1000000000000000002a3e0b000000103e05000000",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_memcpy_basic",
+      "description": "Script-backed state vector: MEMCPY basic path",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x13884a100c036162631112894aca",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_newarray_t_integer",
+      "description": "Script-backed state vector: NEWARRAY_T integer path",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x13c4214a10ce",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_abortmsg_fault",
+      "description": "Script-backed state vector: ABORTMSG fault path",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x0c04626f6f6de0",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    }
+  ]
+}

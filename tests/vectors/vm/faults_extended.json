@@ -1,0 +1,260 @@
+{
+  "name": "faults_extended",
+  "description": "Extended VM fault-path vectors for boundary and invalid-argument behavior",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "STACK_DROP_empty_fault",
+      "description": "DROP on empty stack should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x45",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "STACK_XDROP_empty_fault",
+      "description": "XDROP on empty stack should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1048",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "STACK_PICK_out_of_range_fault",
+      "description": "PICK with out-of-range index should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111a4d",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "STACK_ROLL_out_of_range_fault",
+      "description": "ROLL with out-of-range index should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111a52",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "STACK_REVERSEN_negative_fault",
+      "description": "REVERSEN with negative count should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11120f55",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "ARITH_DIV_zero_fault",
+      "description": "DIV by zero should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c016410a1",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "ARITH_MOD_zero_fault",
+      "description": "MOD by zero should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c016410a2",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "BITWISE_SHL_negative_shift_fault",
+      "description": "SHL with negative shift should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c01640fa8",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "BITWISE_SHR_negative_shift_fault",
+      "description": "SHR with negative shift should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c01640fa9",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "SPLICE_NEWBUFFER_negative_size_fault",
+      "description": "NEWBUFFER with negative size should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0f88",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "SPLICE_SUBSTR_negative_index_fault",
+      "description": "SUBSTR with negative index should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0568656c6c6f0f128c",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "SPLICE_SUBSTR_negative_length_fault",
+      "description": "SUBSTR with negative length should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0568656c6c6f110c01fe8c",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "SPLICE_LEFT_negative_length_fault",
+      "description": "LEFT with negative length should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0568656c6c6f0f8d",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "SPLICE_RIGHT_negative_length_fault",
+      "description": "RIGHT with negative length should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0568656c6c6f0f8e",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "COMPOUND_PICKITEM_negative_index_fault",
+      "description": "PICKITEM with negative array index should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x10c30fce",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "COMPOUND_SETITEM_out_of_range_fault",
+      "description": "SETITEM out-of-range array index should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11c31a0c012ad0",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "COMPOUND_CLEARITEMS_non_collection_fault",
+      "description": "CLEARITEMS on non-collection should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11d3",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "COMPOUND_HASKEY_non_collection_fault",
+      "description": "HASKEY on non-collection should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1110cb",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "CONTROL_ABORT_fault",
+      "description": "ABORT should fault immediately",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x38",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "CONTROL_ASSERT_false_fault",
+      "description": "ASSERT false should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0939",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "CONTROL_THROW_fault",
+      "description": "THROW should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x3a",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    }
+  ]
+}

@@ -1,0 +1,184 @@
+{
+  "name": "hash_deep",
+  "description": "Deep hash vectors for binary classes (all-ff, all-zero, UTF-8, and ranged bytes)",
+  "category": "crypto",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "SHA256_ff32_deep",
+      "description": "SHA256 over ff32 payload",
+      "operation": "SHA256",
+      "input": {
+        "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "output": {
+        "hash": "0xaf9613760f72635fbdb44a5a0a63c39f12af30f950a6ee5c971be188e89c4051"
+      }
+    },
+    {
+      "name": "RIPEMD160_ff32_deep",
+      "description": "RIPEMD160 over ff32 payload",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "output": {
+        "hash": "0x1cf4e77f5966e13e109703cd8a0df7ceda7f3dc3"
+      }
+    },
+    {
+      "name": "HASH160_ff32_deep",
+      "description": "HASH160 over ff32 payload",
+      "operation": "HASH160",
+      "input": {
+        "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "output": {
+        "hash": "0x54c4e063db298729e792f272db89297593e27115"
+      }
+    },
+    {
+      "name": "HASH256_ff32_deep",
+      "description": "HASH256 over ff32 payload",
+      "operation": "HASH256",
+      "input": {
+        "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "output": {
+        "hash": "0x71ca5049661b67d2babaf306cd9bc8090a93324c2d4ff1bb12a371a02cc23eb8"
+      }
+    },
+    {
+      "name": "SHA256_zero64_deep",
+      "description": "SHA256 over zero64 payload",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "output": {
+        "hash": "0xf5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b"
+      }
+    },
+    {
+      "name": "RIPEMD160_zero64_deep",
+      "description": "RIPEMD160 over zero64 payload",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "output": {
+        "hash": "0x9b8ccc2f374ae313a914763cc9cdfb47bfe1c229"
+      }
+    },
+    {
+      "name": "HASH160_zero64_deep",
+      "description": "HASH160 over zero64 payload",
+      "operation": "HASH160",
+      "input": {
+        "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "output": {
+        "hash": "0xffeef705d0367847737447c6283ff98578e21d6d"
+      }
+    },
+    {
+      "name": "HASH256_zero64_deep",
+      "description": "HASH256 over zero64 payload",
+      "operation": "HASH256",
+      "input": {
+        "data": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "output": {
+        "hash": "0xe2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf9"
+      }
+    },
+    {
+      "name": "SHA256_utf8_neo_rocket_deep",
+      "description": "SHA256 over utf8_neo_rocket payload",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x4e656ff09f9a80"
+      },
+      "output": {
+        "hash": "0xd567c31059aa492c2446f979f768d288604237153b09f5fbe76d3f4a25493bc7"
+      }
+    },
+    {
+      "name": "RIPEMD160_utf8_neo_rocket_deep",
+      "description": "RIPEMD160 over utf8_neo_rocket payload",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x4e656ff09f9a80"
+      },
+      "output": {
+        "hash": "0xf5845a3da6d1474fc59f3c0b5ce5512d22b9b4fa"
+      }
+    },
+    {
+      "name": "HASH160_utf8_neo_rocket_deep",
+      "description": "HASH160 over utf8_neo_rocket payload",
+      "operation": "HASH160",
+      "input": {
+        "data": "0x4e656ff09f9a80"
+      },
+      "output": {
+        "hash": "0x44c31df27cfd759bbc04e0353e024661eadb4083"
+      }
+    },
+    {
+      "name": "HASH256_utf8_neo_rocket_deep",
+      "description": "HASH256 over utf8_neo_rocket payload",
+      "operation": "HASH256",
+      "input": {
+        "data": "0x4e656ff09f9a80"
+      },
+      "output": {
+        "hash": "0x51c2899ba4858163d2d855217797a23873a29f032ca856bad89ac2edef1a7a43"
+      }
+    },
+    {
+      "name": "SHA256_range32_deep",
+      "description": "SHA256 over range32 payload",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      },
+      "output": {
+        "hash": "0x630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd"
+      }
+    },
+    {
+      "name": "RIPEMD160_range32_deep",
+      "description": "RIPEMD160 over range32 payload",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      },
+      "output": {
+        "hash": "0xe6babb9619d7a81272711fc546a16b211dd93957"
+      }
+    },
+    {
+      "name": "HASH160_range32_deep",
+      "description": "HASH160 over range32 payload",
+      "operation": "HASH160",
+      "input": {
+        "data": "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      },
+      "output": {
+        "hash": "0xea4beb47def8492389a1e16634795441e1b87245"
+      }
+    },
+    {
+      "name": "HASH256_range32_deep",
+      "description": "HASH256 over range32 payload",
+      "operation": "HASH256",
+      "input": {
+        "data": "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      },
+      "output": {
+        "hash": "0x2f287b4d3d4910f6cada9e1bd1b4648099e8c52c81aa4a6aebfa6fc86f19834e"
+      }
+    }
+  ]
+}

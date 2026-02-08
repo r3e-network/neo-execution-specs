@@ -1,0 +1,184 @@
+{
+  "name": "hash_matrix",
+  "description": "Hash matrix vectors across payload-length boundaries and entropy classes",
+  "category": "crypto",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "SHA256_onebyte_00_matrix",
+      "description": "SHA256 over onebyte_00 payload",
+      "operation": "SHA256",
+      "input": {
+        "data": "0x00"
+      },
+      "output": {
+        "hash": "0x6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d"
+      }
+    },
+    {
+      "name": "RIPEMD160_onebyte_00_matrix",
+      "description": "RIPEMD160 over onebyte_00 payload",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0x00"
+      },
+      "output": {
+        "hash": "0xc81b94933420221a7ac004a90242d8b1d3e5070d"
+      }
+    },
+    {
+      "name": "HASH160_onebyte_00_matrix",
+      "description": "HASH160 over onebyte_00 payload",
+      "operation": "HASH160",
+      "input": {
+        "data": "0x00"
+      },
+      "output": {
+        "hash": "0x9f7fd096d37ed2c0e3f7f0cfc924beef4ffceb68"
+      }
+    },
+    {
+      "name": "HASH256_onebyte_00_matrix",
+      "description": "HASH256 over onebyte_00 payload",
+      "operation": "HASH256",
+      "input": {
+        "data": "0x00"
+      },
+      "output": {
+        "hash": "0x1406e05881e299367766d313e26c05564ec91bf721d31726bd6e46e60689539a"
+      }
+    },
+    {
+      "name": "SHA256_onebyte_ff_matrix",
+      "description": "SHA256 over onebyte_ff payload",
+      "operation": "SHA256",
+      "input": {
+        "data": "0xff"
+      },
+      "output": {
+        "hash": "0xa8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89"
+      }
+    },
+    {
+      "name": "RIPEMD160_onebyte_ff_matrix",
+      "description": "RIPEMD160 over onebyte_ff payload",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0xff"
+      },
+      "output": {
+        "hash": "0x2c0c45d3ecab80fe060e5f1d7057cd2f8de5e557"
+      }
+    },
+    {
+      "name": "HASH160_onebyte_ff_matrix",
+      "description": "HASH160 over onebyte_ff payload",
+      "operation": "HASH160",
+      "input": {
+        "data": "0xff"
+      },
+      "output": {
+        "hash": "0x8296da5ca015c76181754a475b0677012cf63960"
+      }
+    },
+    {
+      "name": "HASH256_onebyte_ff_matrix",
+      "description": "HASH256 over onebyte_ff payload",
+      "operation": "HASH256",
+      "input": {
+        "data": "0xff"
+      },
+      "output": {
+        "hash": "0xc0b057f584795eff8b06d5e420e71d747587d20de836f501921fd1b5741f1283"
+      }
+    },
+    {
+      "name": "SHA256_a5x31_matrix",
+      "description": "SHA256 over a5x31 payload",
+      "operation": "SHA256",
+      "input": {
+        "data": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      },
+      "output": {
+        "hash": "0xc4c119c5722e2fc985cefd5e55e7d5a2bd0c8d6c9e0d34649a6244e181fc4d04"
+      }
+    },
+    {
+      "name": "RIPEMD160_a5x31_matrix",
+      "description": "RIPEMD160 over a5x31 payload",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      },
+      "output": {
+        "hash": "0x269b1fdae7101dea1ba1446e7b9ff91fffb698a4"
+      }
+    },
+    {
+      "name": "HASH160_a5x31_matrix",
+      "description": "HASH160 over a5x31 payload",
+      "operation": "HASH160",
+      "input": {
+        "data": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      },
+      "output": {
+        "hash": "0x16732e4976ede9eeadb9b9827c8e994ad79d34cf"
+      }
+    },
+    {
+      "name": "HASH256_a5x31_matrix",
+      "description": "HASH256 over a5x31 payload",
+      "operation": "HASH256",
+      "input": {
+        "data": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      },
+      "output": {
+        "hash": "0x24f0cae8a2c5362b2b806008686baf3d886f1c442450bd6da481ddd90d8771ee"
+      }
+    },
+    {
+      "name": "SHA256_a5x33_matrix",
+      "description": "SHA256 over a5x33 payload",
+      "operation": "SHA256",
+      "input": {
+        "data": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      },
+      "output": {
+        "hash": "0x325e8142d0cad37019603eefdbe16925a869d9c01dc74719052e2deef319a42f"
+      }
+    },
+    {
+      "name": "RIPEMD160_a5x33_matrix",
+      "description": "RIPEMD160 over a5x33 payload",
+      "operation": "RIPEMD160",
+      "input": {
+        "data": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      },
+      "output": {
+        "hash": "0x91302143bdbe13b3ac1642ef04d7b28909094047"
+      }
+    },
+    {
+      "name": "HASH160_a5x33_matrix",
+      "description": "HASH160 over a5x33 payload",
+      "operation": "HASH160",
+      "input": {
+        "data": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      },
+      "output": {
+        "hash": "0x08a08570e31d6fe7ed953170a8fae8d66a1e71a0"
+      }
+    },
+    {
+      "name": "HASH256_a5x33_matrix",
+      "description": "HASH256 over a5x33 payload",
+      "operation": "HASH256",
+      "input": {
+        "data": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      },
+      "output": {
+        "hash": "0x7bc4dbe3fc282ecf273a779f77a1087a4f9939d9abcf28b859db2bd1195d0eab"
+      }
+    }
+  ]
+}

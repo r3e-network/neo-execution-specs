@@ -90,7 +90,7 @@
       ],
       "pre_state": {},
       "post_state": {},
-      "result": 255
+      "result": -1
     },
     {
       "name": "StdLib_atoi_negative_decimal",

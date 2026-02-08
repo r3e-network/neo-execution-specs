@@ -1,0 +1,380 @@
+{
+  "name": "memory_slot_compound_deep",
+  "description": "Deep VM vectors for slot lifecycle, typed collections, packing, and memcpy edge paths",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "INITSSLOT_STSFLD0_LDSFLD0",
+      "description": "Initialize static slot, store field0, and read it back",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x5601176058",
+      "post": {
+        "stack": [
+          7
+        ]
+      }
+    },
+    {
+      "name": "INITSSLOT_double_init_fault",
+      "description": "INITSSLOT cannot execute twice",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x56015601",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "INITSLOT_ARG_roundtrip",
+      "description": "INITSLOT with one argument and LDARG0 roundtrip",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11570001128078",
+      "post": {
+        "stack": [
+          2
+        ]
+      }
+    },
+    {
+      "name": "INITSLOT_STARG0_roundtrip",
+      "description": "STARG0 updates argument slot and LDARG0 reads updated value",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11570001138078",
+      "post": {
+        "stack": [
+          3
+        ]
+      }
+    },
+    {
+      "name": "INITSLOT_double_init_fault",
+      "description": "INITSLOT cannot execute twice",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1157000111570001",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "LDARG0_without_initslot_fault",
+      "description": "LDARG0 without INITSLOT should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x78",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "STARG0_without_initslot_fault",
+      "description": "STARG0 without INITSLOT should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1180",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "LDSFLD0_without_initsslot_fault",
+      "description": "LDSFLD0 without INITSSLOT should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x58",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "STSFLD0_without_initsslot_fault",
+      "description": "STSFLD0 without INITSSLOT should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1160",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "NEWARRAY_T_integer_pick0",
+      "description": "NEWARRAY_T integer default elements",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x13c4214a10ce",
+      "post": {
+        "stack": [
+          {
+            "type": "Array",
+            "value": [
+              0,
+              0,
+              0
+            ]
+          },
+          0
+        ]
+      }
+    },
+    {
+      "name": "NEWARRAY_T_boolean_pick0",
+      "description": "NEWARRAY_T boolean default elements",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x12c4204a10ce",
+      "post": {
+        "stack": [
+          {
+            "type": "Array",
+            "value": [
+              {
+                "type": "Boolean",
+                "value": false
+              },
+              {
+                "type": "Boolean",
+                "value": false
+              }
+            ]
+          },
+          {
+            "type": "Boolean",
+            "value": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "NEWARRAY_T_invalid_type_fault",
+      "description": "NEWARRAY_T with invalid type should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11c402",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "NEWSTRUCT_size3",
+      "description": "NEWSTRUCT with null-initialized slots",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x13c64aca",
+      "post": {
+        "stack": [
+          {
+            "type": "Struct",
+            "value": [
+              {
+                "type": "Null",
+                "value": null
+              },
+              {
+                "type": "Null",
+                "value": null
+              },
+              {
+                "type": "Null",
+                "value": null
+              }
+            ]
+          },
+          3
+        ]
+      }
+    },
+    {
+      "name": "NEWSTRUCT_negative_size_fault",
+      "description": "NEWSTRUCT with negative size should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0fc6",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "PACK_UNPACK_roundtrip",
+      "description": "PACK and UNPACK preserve elements and size",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11121313c0c1",
+      "post": {
+        "stack": [
+          1,
+          2,
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "name": "PACKSTRUCT_size2",
+      "description": "PACKSTRUCT produces struct and reports size",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111212bf4aca",
+      "post": {
+        "stack": [
+          {
+            "type": "Struct",
+            "value": [
+              2,
+              1
+            ]
+          },
+          2
+        ]
+      }
+    },
+    {
+      "name": "PACK_size2",
+      "description": "PACK produces array and reports size",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x111212c04aca",
+      "post": {
+        "stack": [
+          {
+            "type": "Array",
+            "value": [
+              2,
+              1
+            ]
+          },
+          2
+        ]
+      }
+    },
+    {
+      "name": "PACK_negative_size_fault",
+      "description": "PACK with negative size should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0fc0",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "MEMCPY_basic",
+      "description": "MEMCPY copies selected source bytes into destination buffer",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x13884a100c036162631112894aca",
+      "post": {
+        "stack": [
+          {
+            "type": "Buffer",
+            "value": "626300"
+          },
+          3
+        ]
+      }
+    },
+    {
+      "name": "MEMCPY_source_oob_fault",
+      "description": "MEMCPY with source range overflow should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x12884a100c0161101289",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "MEMCPY_dest_oob_fault",
+      "description": "MEMCPY with destination range overflow should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x12884a120c026162101189",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "MEMCPY_negative_count_fault",
+      "description": "MEMCPY with negative count should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11884a100c0161100f89",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "MEMCPY_negative_source_index_fault",
+      "description": "MEMCPY with negative source index should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11884a100c01610f1189",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "MEMCPY_negative_dest_index_fault",
+      "description": "MEMCPY with negative destination index should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x11884a0f0c0161101189",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "MEMCPY_non_buffer_dest_fault",
+      "description": "MEMCPY destination must be a Buffer",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c0161100c026162101189",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    }
+  ]
+}

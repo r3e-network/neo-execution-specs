@@ -43,7 +43,7 @@ def memcpy(engine: ExecutionEngine, instruction: Instruction) -> None:
     dst = engine.pop()
     if not isinstance(dst, Buffer):
         raise Exception("Destination must be a Buffer")
-    if di + count > dst.size:
+    if di + count > len(dst):
         raise Exception(f"Destination range out of bounds")
     dst.inner_buffer[di:di+count] = src[si:si+count]
 

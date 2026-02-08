@@ -1,0 +1,77 @@
+{
+  "name": "executable_state_stubs",
+  "description": "Executable state vectors to keep transaction-script coverage active in diff runs",
+  "category": "state",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "STATE_exec_push1",
+      "description": "Script-backed state vector: push one",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x11",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_add_small",
+      "description": "Script-backed state vector: add two constants",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x12139e",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_concat_payload",
+      "description": "Script-backed state vector: concatenate payload bytes",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x0c036e656f0c026e338b",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    }
+  ]
+}

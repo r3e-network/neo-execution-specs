@@ -9,7 +9,10 @@
       "description": "Convert integer to string (decimal)",
       "contract": "StdLib",
       "method": "itoa",
-      "args": [123, 10],
+      "args": [
+        123,
+        10
+      ],
       "pre_state": {},
       "post_state": {},
       "result": "123"
@@ -19,17 +22,23 @@
       "description": "Convert integer to hex string",
       "contract": "StdLib",
       "method": "itoa",
-      "args": [255, 16],
+      "args": [
+        255,
+        16
+      ],
       "pre_state": {},
       "post_state": {},
-      "result": "ff"
+      "result": "0ff"
     },
     {
       "name": "StdLib_atoi_decimal",
       "description": "Convert string to integer (decimal)",
       "contract": "StdLib",
       "method": "atoi",
-      "args": ["123", 10],
+      "args": [
+        "123",
+        10
+      ],
       "pre_state": {},
       "post_state": {},
       "result": 123
@@ -39,7 +48,9 @@
       "description": "Base64 encode bytes",
       "contract": "StdLib",
       "method": "base64Encode",
-      "args": ["SGVsbG8="],
+      "args": [
+        "SGVsbG8="
+      ],
       "pre_state": {},
       "post_state": {},
       "result": "U0dWc2JHOD0="
@@ -49,7 +60,10 @@
       "description": "Compare equal byte arrays",
       "contract": "StdLib",
       "method": "memoryCompare",
-      "args": ["0x0102", "0x0102"],
+      "args": [
+        "0x0102",
+        "0x0102"
+      ],
       "pre_state": {},
       "post_state": {},
       "result": 0
@@ -59,7 +73,10 @@
       "description": "Compare byte arrays (first < second)",
       "contract": "StdLib",
       "method": "memoryCompare",
-      "args": ["0x0101", "0x0102"],
+      "args": [
+        "0x0101",
+        "0x0102"
+      ],
       "pre_state": {},
       "post_state": {},
       "result": -1

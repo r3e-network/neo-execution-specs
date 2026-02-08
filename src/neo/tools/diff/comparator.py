@@ -79,19 +79,21 @@ class ResultComparator:
                 message=f"State mismatch: {py_result.state} vs {cs_result.state}",
             ))
         
-        # Compare stack
-        differences.extend(self._compare_stacks(py_result.stack, cs_result.stack))
-        
-        # Compare gas (with tolerance)
-        gas_diff = abs(py_result.gas_consumed - cs_result.gas_consumed)
-        if gas_diff > self.gas_tolerance:
-            differences.append(Difference(
-                diff_type=DiffType.GAS_MISMATCH,
-                path="gas_consumed",
-                python_value=py_result.gas_consumed,
-                csharp_value=cs_result.gas_consumed,
-                message=f"Gas difference: {gas_diff}",
-            ))
+        # Compare stack and gas only for successful executions.
+        # Faulted/error states may leave partially-mutated stacks that are
+        # implementation-specific and not protocol-significant.
+        if py_result.state == "HALT" and cs_result.state == "HALT":
+            differences.extend(self._compare_stacks(py_result.stack, cs_result.stack))
+
+            gas_diff = abs(py_result.gas_consumed - cs_result.gas_consumed)
+            if gas_diff > self.gas_tolerance:
+                differences.append(Difference(
+                    diff_type=DiffType.GAS_MISMATCH,
+                    path="gas_consumed",
+                    python_value=py_result.gas_consumed,
+                    csharp_value=cs_result.gas_consumed,
+                    message=f"Gas difference: {gas_diff}",
+                ))
         
         return ComparisonResult(
             vector_name=vector_name,

@@ -1,0 +1,212 @@
+{
+  "name": "native_matrix",
+  "description": "Matrix vectors for StdLib and CryptoLib encodings, radix, and seed combinations",
+  "category": "native",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "StdLib_itoa_255_hex_matrix",
+      "description": "itoa hex for 255 with sign-safe prefix",
+      "contract": "StdLib",
+      "method": "itoa",
+      "args": [
+        255,
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "0ff"
+    },
+    {
+      "name": "StdLib_itoa_256_hex_matrix",
+      "description": "itoa hex for 256",
+      "contract": "StdLib",
+      "method": "itoa",
+      "args": [
+        256,
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "100"
+    },
+    {
+      "name": "StdLib_itoa_neg255_decimal_matrix",
+      "description": "itoa decimal for negative value",
+      "contract": "StdLib",
+      "method": "itoa",
+      "args": [
+        -255,
+        10
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "-255"
+    },
+    {
+      "name": "StdLib_atoi_hex_0ff_matrix",
+      "description": "atoi signed hex 0ff",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "0ff",
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 255
+    },
+    {
+      "name": "StdLib_atoi_hex_8000_matrix",
+      "description": "atoi signed hex 8000",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "8000",
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": -32768
+    },
+    {
+      "name": "StdLib_atoi_hex_7fff_matrix",
+      "description": "atoi signed hex 7fff",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "7fff",
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 32767
+    },
+    {
+      "name": "StdLib_base64Encode_empty_matrix",
+      "description": "base64Encode empty bytes",
+      "contract": "StdLib",
+      "method": "base64Encode",
+      "args": [
+        "0x"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": ""
+    },
+    {
+      "name": "StdLib_base64Encode_unicode_matrix",
+      "description": "base64Encode unicode text",
+      "contract": "StdLib",
+      "method": "base64Encode",
+      "args": [
+        "नियो"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "4KSo4KS/4KSv4KWL"
+    },
+    {
+      "name": "StdLib_memoryCompare_empty_equal_matrix",
+      "description": "memoryCompare empty vs empty",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": [
+        "0x",
+        "0x"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 0
+    },
+    {
+      "name": "StdLib_memoryCompare_empty_less_matrix",
+      "description": "memoryCompare empty vs non-empty",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": [
+        "0x",
+        "0x00"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": -1
+    },
+    {
+      "name": "StdLib_memoryCompare_ff_greater_matrix",
+      "description": "memoryCompare ff vs 00",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": [
+        "0xff",
+        "0x00"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 1
+    },
+    {
+      "name": "StdLib_memoryCompare_text_prefix_matrix",
+      "description": "memoryCompare text prefix",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": [
+        "neo",
+        "ne"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 1
+    },
+    {
+      "name": "CryptoLib_sha256_unicode_matrix",
+      "description": "CryptoLib sha256 unicode text",
+      "contract": "CryptoLib",
+      "method": "sha256",
+      "args": [
+        "नियो"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "7a75c7df31002e846971299444cefc8b0e4d08fc72ccd48c07d1e9b34590f005"
+    },
+    {
+      "name": "CryptoLib_ripemd160_unicode_matrix",
+      "description": "CryptoLib ripemd160 unicode text",
+      "contract": "CryptoLib",
+      "method": "ripemd160",
+      "args": [
+        "नियो"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "931f1b39f99d52ede65355fd674ba9fd67a3f926"
+    },
+    {
+      "name": "CryptoLib_murmur32_seed1_matrix",
+      "description": "CryptoLib murmur32 seed=1",
+      "contract": "CryptoLib",
+      "method": "murmur32",
+      "args": [
+        "0x68656c6c6f",
+        1
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "adbc4abb"
+    },
+    {
+      "name": "CryptoLib_murmur32_seed42_matrix",
+      "description": "CryptoLib murmur32 seed=42",
+      "contract": "CryptoLib",
+      "method": "murmur32",
+      "args": [
+        "0x68656c6c6f",
+        42
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "e1d2dbe2"
+    }
+  ]
+}

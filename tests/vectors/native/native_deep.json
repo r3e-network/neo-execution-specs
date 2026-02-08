@@ -1,0 +1,274 @@
+{
+  "name": "native_deep",
+  "description": "Deeper native contract vectors for StdLib and CryptoLib edge classes",
+  "category": "native",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "CryptoLib_sha256_empty_deep",
+      "description": "SHA256 of empty payload",
+      "contract": "CryptoLib",
+      "method": "sha256",
+      "args": [
+        "0x"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "CryptoLib_sha256_ff00_deep",
+      "description": "SHA256 of ff00 binary payload",
+      "contract": "CryptoLib",
+      "method": "sha256",
+      "args": [
+        "0xff00"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "ea5dbf9596d187e9500f23e9a680109475341cf4e81f7e043f7d97152c10772f"
+    },
+    {
+      "name": "CryptoLib_sha256_text_neon3_deep",
+      "description": "SHA256 of UTF-8 text input",
+      "contract": "CryptoLib",
+      "method": "sha256",
+      "args": [
+        "NeoN3"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "879d9689ea5311e29ee8cf67210e7b0708c64d5bbb7e8739626087b1a6073ee5"
+    },
+    {
+      "name": "CryptoLib_ripemd160_empty_deep",
+      "description": "RIPEMD160 of empty payload",
+      "contract": "CryptoLib",
+      "method": "ripemd160",
+      "args": [
+        "0x"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "9c1185a5c5e9fc54612808977ee8f548b2258d31"
+    },
+    {
+      "name": "CryptoLib_ripemd160_bin_deep",
+      "description": "RIPEMD160 of mixed binary payload",
+      "contract": "CryptoLib",
+      "method": "ripemd160",
+      "args": [
+        "0x000102ff"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "ea081363ff1934d0243cc3bdfe51ff9678dc0723"
+    },
+    {
+      "name": "CryptoLib_murmur32_seed0_deep",
+      "description": "Murmur32 with seed 0",
+      "contract": "CryptoLib",
+      "method": "murmur32",
+      "args": [
+        "0x68656c6c6f",
+        0
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 613153351
+    },
+    {
+      "name": "CryptoLib_murmur32_seed256_deep",
+      "description": "Murmur32 with seed 256",
+      "contract": "CryptoLib",
+      "method": "murmur32",
+      "args": [
+        "0x68656c6c6f",
+        256
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 484540689
+    },
+    {
+      "name": "CryptoLib_murmur32_seed2147483647_deep",
+      "description": "Murmur32 with large positive seed",
+      "contract": "CryptoLib",
+      "method": "murmur32",
+      "args": [
+        "0x68656c6c6f",
+        2147483647
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 2932207495
+    },
+    {
+      "name": "StdLib_itoa_zero_decimal_deep",
+      "description": "itoa decimal zero",
+      "contract": "StdLib",
+      "method": "itoa",
+      "args": [
+        0,
+        10
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "0"
+    },
+    {
+      "name": "StdLib_itoa_127_hex_deep",
+      "description": "itoa hex for 127",
+      "contract": "StdLib",
+      "method": "itoa",
+      "args": [
+        127,
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "7f"
+    },
+    {
+      "name": "StdLib_itoa_128_hex_deep",
+      "description": "itoa hex for 128 with sign-safe prefix",
+      "contract": "StdLib",
+      "method": "itoa",
+      "args": [
+        128,
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "080"
+    },
+    {
+      "name": "StdLib_atoi_zero_decimal_deep",
+      "description": "atoi decimal zero",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "0",
+        10
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 0
+    },
+    {
+      "name": "StdLib_atoi_hex_ff_deep",
+      "description": "atoi signed hex ff",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "ff",
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": -1
+    },
+    {
+      "name": "StdLib_atoi_hex_7f_deep",
+      "description": "atoi signed hex 7f",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "7f",
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 127
+    },
+    {
+      "name": "StdLib_atoi_hex_80_deep",
+      "description": "atoi signed hex 80",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "80",
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": -128
+    },
+    {
+      "name": "StdLib_atoi_hex_0100_deep",
+      "description": "atoi signed hex 0100",
+      "contract": "StdLib",
+      "method": "atoi",
+      "args": [
+        "0100",
+        16
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 256
+    },
+    {
+      "name": "StdLib_base64Encode_text_deep",
+      "description": "base64Encode UTF-8 text",
+      "contract": "StdLib",
+      "method": "base64Encode",
+      "args": [
+        "NeoN3"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "TmVvTjM="
+    },
+    {
+      "name": "StdLib_base64Encode_bin_deep",
+      "description": "base64Encode binary payload",
+      "contract": "StdLib",
+      "method": "base64Encode",
+      "args": [
+        "0x000102ff"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": "AAEC/w=="
+    },
+    {
+      "name": "StdLib_memoryCompare_equal_bin_deep",
+      "description": "memoryCompare equal binary payloads",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": [
+        "0x0102",
+        "0x0102"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 0
+    },
+    {
+      "name": "StdLib_memoryCompare_greater_prefix_deep",
+      "description": "memoryCompare where left extends right prefix",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": [
+        "0x0100",
+        "0x01"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": 1
+    },
+    {
+      "name": "StdLib_memoryCompare_binary_less_deep",
+      "description": "memoryCompare binary lexicographic less-than",
+      "contract": "StdLib",
+      "method": "memoryCompare",
+      "args": [
+        "0x00ff",
+        "0x0100"
+      ],
+      "pre_state": {},
+      "post_state": {},
+      "result": -1
+    }
+  ]
+}

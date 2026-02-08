@@ -13,7 +13,7 @@ from neo.tools.diff.checklist import NEO_V391_CHECKLIST_IDS
 from neo.tools.diff.runner import VectorLoader
 
 _CHECKLIST_ID_PATTERN = re.compile(r"\|\s*`([^`]+)`\s*\|")
-_ALLOWED_CRYPTO_VECTOR_FILES = {"hash.json", "hash_extended.json"}
+_ALLOWED_CRYPTO_VECTOR_FILES = {"hash.json", "hash_extended.json", "hash_deep.json", "hash_matrix.json"}
 
 
 @dataclass
@@ -77,7 +77,7 @@ def _iter_supported_vector_files(vectors_root: Path) -> list[Path]:
             continue
 
         top_level = relative.parts[0]
-        if top_level in {"vm", "native"}:
+        if top_level in {"vm", "native", "state"}:
             vector_files.append(file_path)
             continue
 

@@ -1,0 +1,456 @@
+{
+  "name": "control_flow_deep",
+  "description": "Deep VM control-flow vectors covering long jumps, call variants, pointer calls, and exception flow",
+  "category": "vm",
+  "version": "1.0.0",
+  "vectors": [
+    {
+      "name": "CALL_short_subroutine",
+      "description": "CALL executes short-offset subroutine and resumes caller",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x340711220521211540",
+      "post": {
+        "stack": [
+          5,
+          1
+        ]
+      }
+    },
+    {
+      "name": "CALL_L_subroutine",
+      "description": "CALL_L executes long-offset subroutine and resumes caller",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x3508000000112204154040",
+      "post": {
+        "stack": [
+          5,
+          1
+        ]
+      }
+    },
+    {
+      "name": "CALLA_pointer_subroutine",
+      "description": "PUSHA + CALLA executes pointer-targeted subroutine",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0a09000000361122031540",
+      "post": {
+        "stack": [
+          5,
+          1
+        ]
+      }
+    },
+    {
+      "name": "PUSHA_bad_pointer_fault",
+      "description": "PUSHA with invalid negative target should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0affffffff",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "JMP_L_forward",
+      "description": "JMP_L forward jump",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x1123060000001312",
+      "post": {
+        "stack": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "JMPIF_L_true",
+      "description": "JMPIF_L when condition true",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x131125060000001412",
+      "post": {
+        "stack": [
+          3,
+          2
+        ]
+      }
+    },
+    {
+      "name": "JMPIF_L_false",
+      "description": "JMPIF_L when condition false",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x131025060000001412",
+      "post": {
+        "stack": [
+          3,
+          4,
+          2
+        ]
+      }
+    },
+    {
+      "name": "JMPIFNOT_L_true",
+      "description": "JMPIFNOT_L when condition true",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x131127060000001412",
+      "post": {
+        "stack": [
+          3,
+          4,
+          2
+        ]
+      }
+    },
+    {
+      "name": "JMPIFNOT_L_false",
+      "description": "JMPIFNOT_L when condition false",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x131027060000001412",
+      "post": {
+        "stack": [
+          3,
+          2
+        ]
+      }
+    },
+    {
+      "name": "JMPEQ_true",
+      "description": "JMPEQ true branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x151528031911",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPEQ_false",
+      "description": "JMPEQ false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x151628031911",
+      "post": {
+        "stack": [
+          9,
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPEQ_L_true",
+      "description": "JMPEQ_L true branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x171729060000001812",
+      "post": {
+        "stack": [
+          2
+        ]
+      }
+    },
+    {
+      "name": "JMPNE_true",
+      "description": "JMPNE true branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x15162a031911",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPNE_false",
+      "description": "JMPNE false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x15152a031911",
+      "post": {
+        "stack": [
+          9,
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPNE_L_true",
+      "description": "JMPNE_L true branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x17182b060000001812",
+      "post": {
+        "stack": [
+          2
+        ]
+      }
+    },
+    {
+      "name": "JMPNE_L_false",
+      "description": "JMPNE_L false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x17172b060000001812",
+      "post": {
+        "stack": [
+          8,
+          2
+        ]
+      }
+    },
+    {
+      "name": "JMPGT_true",
+      "description": "JMPGT true branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x19132c031411",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPGT_L_true",
+      "description": "JMPGT_L true branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x19132d060000001411",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPGE_equal",
+      "description": "JMPGE equal branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x14142e031911",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPGE_L_equal",
+      "description": "JMPGE_L equal branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x14142f060000001911",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPLT_true",
+      "description": "JMPLT true branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x121330031411",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPLT_L_true",
+      "description": "JMPLT_L true branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x121331060000001411",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPLE_equal",
+      "description": "JMPLE equal branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x141432031911",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPLE_L_equal",
+      "description": "JMPLE_L equal branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x141433060000001911",
+      "post": {
+        "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "TRY_no_exception",
+      "description": "TRY block without exception using ENDTRY",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x3b0700002a3d05103d00",
+      "post": {
+        "stack": [
+          42
+        ]
+      }
+    },
+    {
+      "name": "TRY_with_throw_catch",
+      "description": "TRY/CATCH with THROW handling",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x3b0b000c036572723a3d074500633d02",
+      "post": {
+        "stack": [
+          99
+        ]
+      }
+    },
+    {
+      "name": "TRY_L_no_exception",
+      "description": "TRY_L without exception using ENDTRY_L",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x3c1000000000000000002a3e0b000000103e05000000",
+      "post": {
+        "stack": [
+          42
+        ]
+      }
+    },
+    {
+      "name": "TRY_finally_no_exception",
+      "description": "TRY/FINALLY executes FINALLY path and ENDFINALLY",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x3b0006113d04123f",
+      "post": {
+        "stack": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "TRY_ENDTRY_without_try_fault",
+      "description": "ENDTRY without TRY should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x3d00",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "ENDTRY_L_without_try_fault",
+      "description": "ENDTRY_L without TRY should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x3e00000000",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "ENDFINALLY_without_try_fault",
+      "description": "ENDFINALLY without TRY should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x3f",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "ABORTMSG_fault",
+      "description": "ABORTMSG should fault with provided message",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x0c04626f6f6de0",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "ASSERTMSG_false_fault",
+      "description": "ASSERTMSG false condition should fault",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x100c0462616421e1",
+      "post": {
+        "stack": []
+      },
+      "error": "FAULT"
+    },
+    {
+      "name": "ASSERTMSG_true",
+      "description": "ASSERTMSG true condition should continue",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x110c026f6be1",
+      "post": {
+        "stack": []
+      }
+    }
+  ]
+}

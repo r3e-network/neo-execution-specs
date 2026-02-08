@@ -132,27 +132,38 @@ Fields:
 
 ### Vector Locations
 
-As of February 7, 2026, the suite contains `242` raw vectors (`236` runnable by `neo-diff`).
+As of February 8, 2026, the suite contains `399` raw vectors (`393` runnable by `neo-diff`).
 
 ```
 tests/vectors/
-├── vm/                    # VM instruction vectors
+├── vm/                    # VM instruction vectors (262)
 │   ├── arithmetic.json
 │   ├── stack.json
 │   ├── bitwise.json
 │   ├── comparison.json
 │   ├── boolean.json
 │   ├── compound.json
-│   └── protocol_extended.json
-├── crypto/                # Crypto vectors
+│   ├── control_flow.json
+│   ├── control_flow_deep.json
+│   ├── protocol_extended.json
+│   ├── faults_extended.json
+│   └── memory_slot_compound_deep.json
+├── crypto/                # Crypto vectors (62 raw / 57 runnable)
 │   ├── hash.json
 │   ├── hash_extended.json
+│   ├── hash_deep.json
+│   ├── hash_matrix.json
 │   └── bls12_381.json
-├── native/                # Native contract vectors
+├── native/                # Native contract vectors (66)
 │   ├── neo_token.json
 │   ├── gas_token.json
-│   └── native_extended.json
-└── state/                 # State transition vectors
+│   ├── native_extended.json
+│   ├── native_deep.json
+│   └── native_matrix.json
+└── state/                 # State transition vectors (9 raw / 8 runnable)
+    ├── executable_state_stubs.json
+    ├── executable_state_deep.json
+    └── state_transitions.json
 ```
 
 ### Generating Vectors
@@ -278,6 +289,12 @@ The command fails if:
 - manifest entries drift from checklist IDs,
 - manifest references unknown vectors, or
 - any checklist item lacks vector/evidence coverage.
+
+Deep corpus gates:
+```bash
+pytest tests/tools/test_vector_coverage.py -q
+pytest tests/tools/test_non_vm_vector_expectations.py -q
+```
 
 ### Programmatic Usage
 
