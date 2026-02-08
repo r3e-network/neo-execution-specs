@@ -226,7 +226,7 @@ python tests/vectors/generate_all.py --verify
 
 ## Diff Testing
 
-The diff testing framework compares Python spec execution with the C# reference implementation.
+The diff testing framework compares Python spec execution with Neo node implementations (C#, NeoGo, neo-rs).
 
 ### Using neo-diff CLI
 
@@ -244,6 +244,12 @@ neo-diff --vectors tests/vectors/ --output report.json --verbose
 neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
+
+# Compare C# vs NeoGo vs neo-rs using shared vectors
+neo-multicompat --vectors tests/vectors/ \
+                --csharp-rpc http://seed1.neo.org:10332 \
+                --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
+                --neo-rs-rpc http://127.0.0.1:40332
 ```
 
 ### CLI Options
@@ -259,7 +265,7 @@ neo-compat --vectors tests/vectors/ \
 
 ### Checklist Coverage (Ethereum-style)
 
-Following the `ethereum/execution-spec-tests` model, this repository tracks protocol verification items through a checklist template and enforces 100% item coverage in CI.
+Following the `ethereum/execution-spec-tests` model, this repository tracks protocol verification items through a full-surface checklist template and enforces 100% item coverage in CI. The matrix spans VM, smart contracts, native contracts, crypto, network payloads, persistence, ledger, wallet, and cross-client validation.
 
 ```bash
 neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \
@@ -369,3 +375,6 @@ jobs:
       - run: pip install -e ".[all]"
       - run: pytest --cov=neo
 ```
+
+
+See also: `docs/verification/neo-n3-full-surface-matrix.md`.

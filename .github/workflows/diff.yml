@@ -32,6 +32,10 @@ on:
         description: "Optional override for TestNet NeoGo RPC endpoint"
         required: false
         default: ""
+      neo_rs_rpc:
+        description: "Optional neo-rs RPC endpoint for tri-client diff (workflow_dispatch only)"
+        required: false
+        default: ""
 
 jobs:
   compatibility-matrix:
@@ -242,6 +246,18 @@ jobs:
             exit 1
           fi
 
+      - name: Run strict triplet compatibility vectors (optional C#/NeoGo/neo-rs)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.neo_rs_rpc != ''
+        run: |
+          set -euo pipefail
+          timeout 60m neo-multicompat \
+            --vectors tests/vectors/ \
+            --csharp-rpc "$CSHARP_RPC" \
+            --neogo-rpc "$NEOGO_RPC" \
+            --neo-rs-rpc "${{ github.event.inputs.neo_rs_rpc }}" \
+            --output-dir reports \
+            --prefix "compat-${{ matrix.network }}-triplet"
+
       - name: Upload compatibility reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -250,6 +266,9 @@ jobs:
           path: |
             reports/compat-${{ matrix.network }}-csharp.json
             reports/compat-${{ matrix.network }}-neogo.json
+            reports/compat-${{ matrix.network }}-triplet-csharp.json
+            reports/compat-${{ matrix.network }}-triplet-neogo.json
+            reports/compat-${{ matrix.network }}-triplet-neo_rs.json
             csharp-getversion.json
             neogo-getversion.json
           retention-days: 30
@@ -259,11 +278,123 @@ jobs:
         env:
           SELECTED_CSHARP_RPC: ${{ steps.select-rpc.outputs.csharp_rpc }}
           ACTIVE_NEOGO_RPC: ${{ env.NEOGO_RPC }}
+          INPUT_NEO_RS_RPC: ${{ github.event.inputs.neo_rs_rpc }}
         run: |
           if [ -f "reports/compat-${{ matrix.network }}-csharp.json" ] && [ -f "reports/compat-${{ matrix.network }}-neogo.json" ]; then
             echo "## Compatibility Results (${{ matrix.network }})" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "C# endpoint: ${SELECTED_CSHARP_RPC}" >> "$GITHUB_STEP_SUMMARY"
             echo "NeoGo endpoint: ${ACTIVE_NEOGO_RPC}" >> "$GITHUB_STEP_SUMMARY"
-            python -c "import json; c=json.load(open('reports/compat-${{ matrix.network }}-csharp.json')); n=json.load(open('reports/compat-${{ matrix.network }}-neogo.json')); cs=c.get('summary', {}); ns=n.get('summary', {}); print('| Metric | C# | NeoGo |'); print('|--------|----|-------|'); print(f\"| Total Tests | {cs.get('total', 0)} | {ns.get('total', 0)} |\"); print(f\"| Passed | {cs.get('passed', 0)} | {ns.get('passed', 0)} |\"); print(f\"| Failed | {cs.get('failed', 0)} | {ns.get('failed', 0)} |\"); print(f\"| Errors | {cs.get('errors', 0)} | {ns.get('errors', 0)} |\")" >> "$GITHUB_STEP_SUMMARY"
+            python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          def to_int(value):
+              if isinstance(value, int):
+                  return value
+              if isinstance(value, str) and value.isdigit():
+                  return int(value)
+              return 0
+
+          def summary(path: str):
+              payload = json.loads(Path(path).read_text(encoding='utf-8'))
+              raw = payload.get('summary', {})
+              if not isinstance(raw, dict):
+                  raw = {}
+              return {
+                  'total': to_int(raw.get('total', 0)),
+                  'passed': to_int(raw.get('passed', 0)),
+                  'failed': to_int(raw.get('failed', 0)),
+                  'errors': to_int(raw.get('errors', 0)),
+              }
+
+          csharp = summary('reports/compat-${{ matrix.network }}-csharp.json')
+          neogo = summary('reports/compat-${{ matrix.network }}-neogo.json')
+
+          print('| Metric | C# | NeoGo |')
+          print('|--------|----|-------|')
+          print(f"| Total Tests | {csharp['total']} | {neogo['total']} |")
+          print(f"| Passed | {csharp['passed']} | {neogo['passed']} |")
+          print(f"| Failed | {csharp['failed']} | {neogo['failed']} |")
+          print(f"| Errors | {csharp['errors']} | {neogo['errors']} |")
+          PY
+          fi
+
+          if [ -f "reports/compat-${{ matrix.network }}-triplet-csharp.json" ] && [ -f "reports/compat-${{ matrix.network }}-triplet-neogo.json" ] && [ -f "reports/compat-${{ matrix.network }}-triplet-neo_rs.json" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Triplet Compatibility (C#/NeoGo/neo-rs)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "neo-rs endpoint: ${INPUT_NEO_RS_RPC}" >> "$GITHUB_STEP_SUMMARY"
+            python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          def to_int(value):
+              if isinstance(value, int):
+                  return value
+              if isinstance(value, str) and value.isdigit():
+                  return int(value)
+              return 0
+
+          def load(path: str):
+              return json.loads(Path(path).read_text(encoding='utf-8'))
+
+          def summary(report):
+              raw = report.get('summary', {})
+              if not isinstance(raw, dict):
+                  raw = {}
+              return {
+                  'total': to_int(raw.get('total', 0)),
+                  'passed': to_int(raw.get('passed', 0)),
+                  'failed': to_int(raw.get('failed', 0)),
+                  'errors': to_int(raw.get('errors', 0)),
+              }
+
+          def indexed(report):
+              out = {}
+              for item in report.get('results', []) if isinstance(report.get('results'), list) else []:
+                  if not isinstance(item, dict):
+                      continue
+                  vector = item.get('vector')
+                  if not isinstance(vector, str) or not vector:
+                      continue
+                  match = bool(item.get('match', False))
+                  diffs = [d for d in item.get('differences', []) if isinstance(d, dict)] if isinstance(item.get('differences'), list) else []
+                  out[vector] = (match, diffs)
+              return out
+
+          def delta_count(left, right):
+              li = indexed(left)
+              ri = indexed(right)
+              all_vectors = set(li) | set(ri)
+              count = 0
+              for vector in all_vectors:
+                  lval = li.get(vector)
+                  rval = ri.get(vector)
+                  if lval is None or rval is None or lval != rval:
+                      count += 1
+              return count
+
+          csharp_report = load('reports/compat-${{ matrix.network }}-triplet-csharp.json')
+          neogo_report = load('reports/compat-${{ matrix.network }}-triplet-neogo.json')
+          neo_rs_report = load('reports/compat-${{ matrix.network }}-triplet-neo_rs.json')
+
+          csharp = summary(csharp_report)
+          neogo = summary(neogo_report)
+          neo_rs = summary(neo_rs_report)
+
+          print('| Metric | C# | NeoGo | neo-rs |')
+          print('|--------|----|-------|--------|')
+          print(f"| Total Tests | {csharp['total']} | {neogo['total']} | {neo_rs['total']} |")
+          print(f"| Passed | {csharp['passed']} | {neogo['passed']} | {neo_rs['passed']} |")
+          print(f"| Failed | {csharp['failed']} | {neogo['failed']} | {neo_rs['failed']} |")
+          print(f"| Errors | {csharp['errors']} | {neogo['errors']} | {neo_rs['errors']} |")
+
+          print('')
+          print('| Pair | Delta Vectors |')
+          print('|------|----------------|')
+          print(f"| C# vs NeoGo | {delta_count(csharp_report, neogo_report)} |")
+          print(f"| C# vs neo-rs | {delta_count(csharp_report, neo_rs_report)} |")
+          print(f"| NeoGo vs neo-rs | {delta_count(neogo_report, neo_rs_report)} |")
+          PY
           fi

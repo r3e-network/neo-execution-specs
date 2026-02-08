@@ -279,8 +279,8 @@ def test_vector_loader_skips_unsupported_crypto_operations():
     assert vectors == []
 
 
-def test_python_executor_policy_vectors_follow_mainnet_v391_values():
-    """Policy read methods should reflect current Neo v3.9.1 mainnet values."""
+def test_python_executor_policy_vectors_follow_v391_policy_baseline():
+    """Policy read methods should match Neo v3.9.1 baseline values."""
     executor = PythonExecutor()
 
     fee_vector = TestVector(

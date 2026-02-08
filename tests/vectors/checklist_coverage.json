@@ -2,7 +2,13 @@
   "general/line_coverage/python_spec": {
     "vectors": [],
     "evidence": [
-      "pytest tests/ --cov=neo"
+      "pytest tests/ --cov=neo --cov-report=xml --cov-report=term-missing"
+    ]
+  },
+  "general/unit_suite/full_regression": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/ -q"
     ]
   },
   "general/test_coverage/vector_suite": {
@@ -13,12 +19,32 @@
       "CryptoLib_sha256_hello",
       "Hash256_range_16_ext"
     ],
-    "evidence": []
+    "evidence": [
+      "cd tests/vectors && python validate.py"
+    ]
   },
   "general/fixture_integrity/vector_hashes": {
     "vectors": [],
     "evidence": [
       "git-tracked JSON fixture review under tests/vectors/"
+    ]
+  },
+  "general/protocol_settings/mainnet_testnet_v391": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/test_protocol_settings.py -q"
+    ]
+  },
+  "general/hardfork/faun_activation": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/smartcontract/test_syscall_compatibility_v391.py::test_storage_local_syscall_hardfork_gating -q"
+    ]
+  },
+  "general/tooling/t8n_state_transition": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/tools/test_t8n.py -q"
     ]
   },
   "general/diff/csharp_rpc": {
@@ -31,6 +57,12 @@
     "vectors": [],
     "evidence": [
       "neo-diff --vectors tests/vectors/ --csharp-rpc http://rpc3.n3.nspcc.ru:10332"
+    ]
+  },
+  "general/diff/neo_rs_rpc": {
+    "vectors": [],
+    "evidence": [
+      "neo-diff --vectors tests/vectors/ --csharp-rpc http://127.0.0.1:40332"
     ]
   },
   "vm/constants/push_variants": {
@@ -53,6 +85,17 @@
     ],
     "evidence": []
   },
+  "vm/stack/stack_manipulation": {
+    "vectors": [
+      "DUP_basic",
+      "DROP_basic",
+      "SWAP_basic",
+      "OVER_basic",
+      "ROT_basic",
+      "DEPTH_empty"
+    ],
+    "evidence": []
+  },
   "vm/arithmetic/signed_edges": {
     "vectors": [
       "ADD_neg_neg",
@@ -71,6 +114,15 @@
       "OR_negative",
       "XOR_negative",
       "SHR_negative"
+    ],
+    "evidence": []
+  },
+  "vm/boolean/logic_semantics": {
+    "vectors": [
+      "NOT_true",
+      "BOOLAND_true_false",
+      "BOOLOR_false_false",
+      "NZ_nonzero"
     ],
     "evidence": []
   },
@@ -152,6 +204,159 @@
     ],
     "evidence": []
   },
+  "vm/runtime/callt_tokens": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/vm/test_callt_instruction.py -q"
+    ]
+  },
+  "vm/runtime/gas_accounting_v391": {
+    "vectors": [
+      "ADD_basic",
+      "PUSHDATA4_len3_size",
+      "PACKMAP_size2"
+    ],
+    "evidence": [
+      "pytest tests/vm/test_gas.py -q"
+    ]
+  },
+  "vm/runtime/exception_handling": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/vm/test_exception_handling.py -q"
+    ]
+  },
+  "vm/runtime/reference_counter_and_limits": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/vm/test_reference_counter_extended.py tests/vm/test_limits.py tests/vm/test_integer_limits.py -q"
+    ]
+  },
+  "crypto/hash/sha256": {
+    "vectors": [
+      "SHA256_hello",
+      "SHA256_empty_ext",
+      "SHA256_range_16_ext"
+    ],
+    "evidence": []
+  },
+  "crypto/hash/ripemd160": {
+    "vectors": [
+      "RIPEMD160_hello",
+      "RIPEMD160_empty_ext",
+      "RIPEMD160_range_16_ext"
+    ],
+    "evidence": []
+  },
+  "crypto/hash/hash160": {
+    "vectors": [
+      "Hash160_hello",
+      "Hash160_neo_ext",
+      "Hash160_range_16_ext"
+    ],
+    "evidence": []
+  },
+  "crypto/hash/hash256": {
+    "vectors": [
+      "Hash256_hello",
+      "Hash256_range_16_ext",
+      "Hash256_bytes_01020304_ext"
+    ],
+    "evidence": []
+  },
+  "crypto/ecc/secp256r1_point_ops": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/crypto/test_ecc.py tests/crypto/test_ecpoint.py -q"
+    ]
+  },
+  "crypto/ecdsa/sign_verify": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/crypto/test_ecdsa.py tests/crypto/test_ecdsa_extended.py -q"
+    ]
+  },
+  "crypto/ed25519/sign_verify": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/crypto/test_ed25519.py -q"
+    ]
+  },
+  "crypto/bls12_381/group_ops": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/crypto/test_bls.py -q"
+    ]
+  },
+  "crypto/merkle/proof_verification": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/crypto/test_merkle_tree.py tests/test_merkle.py -q"
+    ]
+  },
+  "crypto/bloom/filter_and_murmur": {
+    "vectors": [
+      "CryptoLib_murmur32",
+      "CryptoLib_murmur32_seed42"
+    ],
+    "evidence": [
+      "pytest tests/crypto/test_bloom.py tests/crypto/test_bloom_filter.py tests/crypto/test_murmur3.py -q"
+    ]
+  },
+  "contract/nef/serialization": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/contract/test_nef.py tests/contract/test_nef_extended.py -q"
+    ]
+  },
+  "contract/manifest/abi_permissions": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/contract/test_contract.py tests/smartcontract/test_abi.py -q"
+    ]
+  },
+  "smartcontract/application_engine/lifecycle": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/smartcontract/test_application_engine.py tests/smartcontract/test_app_engine.py -q"
+    ]
+  },
+  "smartcontract/interop/runtime_syscalls": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/smartcontract/test_runtime_syscalls.py -q"
+    ]
+  },
+  "smartcontract/interop/storage_syscalls": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/smartcontract/test_storage_syscalls.py tests/smartcontract/test_storage_syscalls_extended.py -q"
+    ]
+  },
+  "smartcontract/interop/contract_syscalls": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/smartcontract/test_contract_syscalls.py tests/smartcontract/test_contract_syscalls_extended.py -q"
+    ]
+  },
+  "smartcontract/interop/crypto_syscalls": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/smartcontract/test_crypto_syscalls.py tests/smartcontract/test_crypto_syscalls_extended.py -q"
+    ]
+  },
+  "smartcontract/syscalls/v391_metadata_and_flags": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/smartcontract/test_syscall_compatibility_v391.py -q"
+    ]
+  },
+  "smartcontract/serialization/binary_json": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/smartcontract/test_binary_serializer.py tests/smartcontract/test_json_serializer.py -q"
+    ]
+  },
   "native/neotoken/read_methods": {
     "vectors": [
       "NEO_totalSupply",
@@ -160,6 +365,12 @@
     ],
     "evidence": []
   },
+  "native/neotoken/stateful_behaviors": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/native/test_neo_token_full.py tests/native/test_neo_token_extended.py -q"
+    ]
+  },
   "native/gastoken/read_methods": {
     "vectors": [
       "GAS_symbol",
@@ -167,13 +378,45 @@
     ],
     "evidence": []
   },
+  "native/gastoken/stateful_behaviors": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/native/test_gas_token_full.py tests/native/test_gas_token_extended.py -q"
+    ]
+  },
   "native/policy/mainnet_v391_values": {
     "vectors": [
       "Policy_getFeePerByte",
       "Policy_getExecFeeFactor",
       "Policy_getStoragePrice"
     ],
-    "evidence": []
+    "evidence": [
+      "pytest tests/native/test_policy_contract.py tests/native/test_policy.py -q"
+    ]
+  },
+  "native/contractmanagement/lifecycle": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/native/test_contract_management.py tests/native/test_contract_mgmt.py -q"
+    ]
+  },
+  "native/ledger/query_methods": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/native/test_ledger_contract.py tests/native/test_ledger.py -q"
+    ]
+  },
+  "native/oracle/request_response": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/native/test_oracle.py tests/native/test_oracle_contract.py -q"
+    ]
+  },
+  "native/rolemanagement/designation": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/native/test_role.py tests/native/test_role_mgmt.py -q"
+    ]
   },
   "native/stdlib/string_and_memory_methods": {
     "vectors": [
@@ -187,7 +430,9 @@
       "StdLib_memoryCompare_less",
       "StdLib_memoryCompare_greater"
     ],
-    "evidence": []
+    "evidence": [
+      "pytest tests/native/test_stdlib.py tests/native/test_stdlib_full.py tests/native/test_stdlib_fixes.py -q"
+    ]
   },
   "native/cryptolib/hash_and_murmur": {
     "vectors": [
@@ -198,41 +443,104 @@
       "CryptoLib_ripemd160_hello",
       "CryptoLib_murmur32_seed1"
     ],
-    "evidence": []
+    "evidence": [
+      "pytest tests/native/test_cryptolib.py -q"
+    ]
   },
-  "crypto/hash/sha256": {
-    "vectors": [
-      "SHA256_hello",
-      "SHA256_empty_ext",
-      "SHA256_range_16_ext"
-    ],
-    "evidence": []
+  "native/notary/deposit_withdraw": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/native/test_notary_contract.py -q"
+    ]
   },
-  "crypto/hash/ripemd160": {
-    "vectors": [
-      "RIPEMD160_hello",
-      "RIPEMD160_empty_ext"
-    ],
-    "evidence": []
+  "native/fungible/common_behavior": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/native/test_fungible_token.py tests/native/test_tokens_full.py -q"
+    ]
   },
-  "crypto/hash/hash160": {
-    "vectors": [
-      "Hash160_hello",
-      "Hash160_neo_ext"
-    ],
-    "evidence": []
+  "network/payloads/block_header_serialization": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/network/test_block.py tests/network/test_header.py tests/network/test_header_serialization.py -q"
+    ]
   },
-  "crypto/hash/hash256": {
-    "vectors": [
-      "Hash256_hello",
-      "Hash256_range_16_ext"
-    ],
-    "evidence": []
+  "network/payloads/transaction_signer_witness": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/network/test_transaction.py tests/network/test_transaction_extended.py tests/network/test_signer.py tests/network/test_witness.py -q"
+    ]
   },
-  "cross_client/report_delta_zero": {
+  "network/payloads/witness_condition_scope": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/network/test_witness_condition.py tests/network/test_witness_scope.py tests/network/test_witness_scope_extended.py -q"
+    ]
+  },
+  "network/io/binary_read_write": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/network/test_binary_reader.py tests/network/test_binary_writer.py tests/io/test_binary_io.py tests/io/test_binary_extended.py -q"
+    ]
+  },
+  "persistence/datacache_snapshot_store": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/persistence/test_data_cache.py tests/persistence/test_snapshot.py tests/persistence/test_memory_store.py -q"
+    ]
+  },
+  "ledger/blockchain_and_verifiers": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/ledger/test_blockchain.py tests/ledger/test_block_verifier.py tests/ledger/test_transaction_verifier.py -q"
+    ]
+  },
+  "ledger/mempool_policies": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/ledger/test_mempool.py tests/ledger/test_mempool_extended.py -q"
+    ]
+  },
+  "wallets/keypair_and_nep6": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/wallets/test_key_pair.py tests/wallets/test_wallet.py -q"
+    ]
+  },
+  "types/uint_and_biginteger": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/types/test_uint.py tests/types/test_uint_extended.py tests/types/test_big_integer.py -q"
+    ]
+  },
+  "types/ecpoint_serialization": {
+    "vectors": [],
+    "evidence": [
+      "pytest tests/types/test_ecpoint.py tests/types/test_uint160_extended.py -q"
+    ]
+  },
+  "cross_client/report_delta_zero_csharp_neogo": {
     "vectors": [],
     "evidence": [
       "neo-compat --vectors tests/vectors/ --csharp-rpc http://seed1.neo.org:10332 --neogo-rpc http://rpc3.n3.nspcc.ru:10332"
+    ]
+  },
+  "cross_client/report_delta_zero_csharp_neo_rs": {
+    "vectors": [],
+    "evidence": [
+      "neo-multicompat --vectors tests/vectors/ --csharp-rpc http://seed1.neo.org:10332 --neogo-rpc http://rpc3.n3.nspcc.ru:10332 --neo-rs-rpc http://127.0.0.1:40332 --allow-shared-failures"
+    ]
+  },
+  "cross_client/report_delta_zero_neogo_neo_rs": {
+    "vectors": [],
+    "evidence": [
+      "neo-multicompat --vectors tests/vectors/ --csharp-rpc http://seed1.neo.org:10332 --neogo-rpc http://rpc3.n3.nspcc.ru:10332 --neo-rs-rpc http://127.0.0.1:40332 --allow-shared-failures"
+    ]
+  },
+  "cross_client/protocol_parity_getversion": {
+    "vectors": [],
+    "evidence": [
+      "Compare getversion.protocol fields across Neo v3.9.1 C#, NeoGo, and neo-rs endpoints"
     ]
   }
 }

@@ -96,6 +96,12 @@ neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1t5.neo.org:20332 \
            --neogo-rpc http://rpc.t5.n3.nspcc.ru:20332
 
+# Compare C# vs NeoGo vs neo-rs (strict triplet)
+neo-multicompat --vectors tests/vectors/ \
+                --csharp-rpc http://seed1.neo.org:10332 \
+                --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
+                --neo-rs-rpc http://127.0.0.1:40332
+
 # CI matrix parity gate lives in .github/workflows/diff.yml
 # (validates protocol fields + vector compatibility for MainNet/TestNet)
 
@@ -159,6 +165,7 @@ src/neo/
 - [Contributing](CONTRIBUTING.md) - How to contribute
 - [Changelog](CHANGELOG.md) - Version history
 - [Roadmap](ROADMAP.md) - Implementation progress
+- [Full-Surface Matrix](docs/verification/neo-n3-full-surface-matrix.md) - Ethereum-style full Neo N3 verification scope
 
 ## Optional Dependencies
 

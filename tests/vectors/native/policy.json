@@ -6,7 +6,7 @@
   "vectors": [
     {
       "name": "Policy_getFeePerByte",
-      "description": "Get fee per byte (default)",
+      "description": "Get fee per byte (Neo v3.9.1 baseline)",
       "contract": "PolicyContract",
       "method": "getFeePerByte",
       "args": [],
@@ -16,7 +16,7 @@
     },
     {
       "name": "Policy_getExecFeeFactor",
-      "description": "Get execution fee factor (default)",
+      "description": "Get execution fee factor (Neo v3.9.1 baseline)",
       "contract": "PolicyContract",
       "method": "getExecFeeFactor",
       "args": [],
@@ -26,7 +26,7 @@
     },
     {
       "name": "Policy_getStoragePrice",
-      "description": "Get storage price (default)",
+      "description": "Get storage price (Neo v3.9.1 baseline)",
       "contract": "PolicyContract",
       "method": "getStoragePrice",
       "args": [],

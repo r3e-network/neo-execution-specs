@@ -375,8 +375,7 @@ class PythonExecutor:
                 return 8
 
         if contract == "PolicyContract":
-            # Mainnet Neo v3.9.1 policy values are governance-controlled and may
-            # diverge from genesis defaults.
+            # Neo v3.9.1 PolicyContract read-method baseline values.
             if method_l == "getfeeperbyte":
                 return 20
             if method_l == "getexecfeefactor":

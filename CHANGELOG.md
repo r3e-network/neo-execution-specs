@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Full-surface protocol checklist**
+  - Expanded Ethereum-style Neo v3.9.1 checklist to cover VM, smart contracts, native contracts, crypto, network payloads, persistence, ledger, wallets, and cross-client validation.
+  - Added `docs/verification/neo-n3-full-surface-matrix.md` for verification scope governance.
+
+- **Tri-client compatibility tooling**
+  - Added `neo-multicompat` CLI for C# vs NeoGo vs neo-rs vector parity checks.
+  - Added unit tests for triplet report comparison logic.
+
+- **Workflow integration**
+  - Extended diff workflow with optional `workflow_dispatch` tri-client lane using a supplied neo-rs RPC endpoint.
+
+### Changed
+
+- Aligned PolicyContract vector defaults with observed Neo v3.9.1 baseline values (`FeePerByte=20`, `ExecFeeFactor=1`, `StoragePrice=1000`).
+
 ## [0.1.0] - 2024-02-04
 
 ### Added
