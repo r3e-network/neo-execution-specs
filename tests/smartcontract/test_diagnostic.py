@@ -1,6 +1,5 @@
 """Tests for Diagnostic."""
 
-import pytest
 from neo.smartcontract.diagnostic import Diagnostic
 
 

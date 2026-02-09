@@ -16,19 +16,25 @@ class ECPoint:
     
     @classmethod
     def decode(cls, data: bytes) -> "ECPoint":
-        """Decode from bytes."""
-        if len(data) == 33:
-            # Compressed
-            prefix = data[0]
+        """Decode from bytes (secp256r1)."""
+        from neo.crypto.ecc.curve import SECP256R1
+        from neo.crypto.ecc.point import ECPoint as CryptoPoint
+
+        if len(data) == 1 and data[0] == 0x00:
+            return cls.infinity()
+
+        if len(data) == 33 and data[0] in (0x02, 0x03):
             x = int.from_bytes(data[1:], 'big')
-            # Decompress y
-            return cls(x=x, y=0)  # Simplified
-        elif len(data) == 65:
-            # Uncompressed
+            is_odd = data[0] == 0x03
+            y = CryptoPoint._decompress_y(x, is_odd, SECP256R1)
+            return cls(x=x, y=y)
+
+        if len(data) == 65 and data[0] == 0x04:
             x = int.from_bytes(data[1:33], 'big')
             y = int.from_bytes(data[33:], 'big')
             return cls(x=x, y=y)
-        raise ValueError("Invalid point")
+
+        raise ValueError(f"Invalid EC point encoding ({len(data)} bytes)")
     
     def encode(self, compressed: bool = True) -> bytes:
         """Encode to bytes."""

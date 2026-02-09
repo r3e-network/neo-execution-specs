@@ -6,8 +6,7 @@ for the Neo VM, native contracts, cryptographic operations, and state transition
 """
 
 import json
-import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from typing import Any, Optional, List, Dict
 from pathlib import Path
 from enum import Enum

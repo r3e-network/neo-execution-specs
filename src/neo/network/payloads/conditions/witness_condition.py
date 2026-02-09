@@ -1,6 +1,5 @@
 """Neo N3 Witness Condition."""
 
-from dataclasses import dataclass
 from enum import IntEnum
 
 

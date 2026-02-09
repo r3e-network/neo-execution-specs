@@ -1,6 +1,5 @@
 """Tests for contract module."""
 
-import pytest
 from neo.contract import NefFile, ContractManifest
 
 

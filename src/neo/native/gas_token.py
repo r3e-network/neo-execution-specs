@@ -1,10 +1,10 @@
 """GAS Token native contract."""
 
 from __future__ import annotations
-from typing import Any, Optional
+from typing import Any
 
 from neo.types import UInt160
-from neo.native.fungible_token import FungibleToken, AccountState
+from neo.native.fungible_token import FungibleToken
 
 
 class GasToken(FungibleToken):

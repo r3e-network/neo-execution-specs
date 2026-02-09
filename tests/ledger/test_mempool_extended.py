@@ -1,6 +1,5 @@
 """Tests for mempool functionality."""
 
-import pytest
 from neo.ledger.mempool import MemoryPool
 from neo.ledger.verify_result import VerifyResult
 from neo.network.payloads.transaction import Transaction

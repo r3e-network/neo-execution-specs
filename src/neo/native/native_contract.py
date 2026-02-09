@@ -3,14 +3,14 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import IntEnum, auto
+from enum import IntEnum
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from neo.types import UInt160
 from neo.crypto import hash160
 
 if TYPE_CHECKING:
-    from neo.native.storage import StorageContext
+    pass
 
 
 class CallFlags(IntEnum):

@@ -4,8 +4,7 @@ Executes transactions against a pre-state and produces post-state.
 """
 
 from __future__ import annotations
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field
+from typing import Dict, List, Any
 
 from neo.tools.t8n.types import (
     Alloc,
@@ -15,7 +14,6 @@ from neo.tools.t8n.types import (
     T8NResult,
     T8NOutput,
     Receipt,
-    NotificationOutput,
 )
 from neo.persistence.snapshot import MemorySnapshot
 from neo.crypto.hash import hash256

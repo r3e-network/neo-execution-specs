@@ -1,6 +1,5 @@
 """Tests for contract types."""
 
-import pytest
 from neo.smartcontract.call_flags import CallFlags
 from neo.smartcontract.trigger import TriggerType
 from neo.smartcontract.contract_parameter_type import ContractParameterType

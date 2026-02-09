@@ -1,6 +1,5 @@
 """Tests for ECPoint."""
 
-import pytest
 from neo.types.ec_point import ECPoint
 
 

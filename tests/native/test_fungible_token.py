@@ -1,6 +1,5 @@
 """Tests for FungibleToken."""
 
-import pytest
 from neo.native.neo_token import NeoToken
 
 

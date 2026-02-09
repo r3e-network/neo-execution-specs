@@ -1,6 +1,5 @@
 """Tests for Murmur3 hash implementation."""
 
-import pytest
 from neo.crypto.murmur3 import murmur32
 
 

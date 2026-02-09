@@ -4,12 +4,12 @@ Reference: Neo.SmartContract.BinarySerializer
 """
 
 from __future__ import annotations
-from typing import Any, List, Dict, Optional, BinaryIO
+from typing import BinaryIO
 from io import BytesIO
 
 from neo.vm.types import (
     StackItem, StackItemType, Integer, Boolean, ByteString,
-    Buffer, Array, Struct, Map, Null, NULL
+    Buffer, Array, Struct, Map, NULL
 )
 
 
@@ -19,7 +19,7 @@ class BinarySerializer:
     Format follows Neo N3 specification for binary serialization.
     """
     
-    MAX_SIZE = 1024 * 1024 * 2  # 2MB max serialized size
+    MAX_SIZE = 1024 * 1024  # 1MB max (C# MaxItemSize)
     MAX_ITEMS = 2048  # Max items in compound types
     
     @classmethod
@@ -72,10 +72,11 @@ class BinarySerializer:
             if value == 0:
                 writer.write(bytes([0]))  # Zero length
             else:
-                # Convert to minimal two's complement bytes
-                byte_len = (value.bit_length() + 8) // 8
-                if value < 0:
-                    byte_len = max(byte_len, 1)
+                # Minimal two's complement byte count (matches C# BigInteger.ToByteArray)
+                if value > 0:
+                    byte_len = (value.bit_length() + 8) // 8
+                else:
+                    byte_len = ((-value - 1).bit_length() + 8) // 8
                 data = value.to_bytes(byte_len, 'little', signed=True)
                 cls._write_var_int(writer, len(data))
                 writer.write(data)
@@ -107,7 +108,7 @@ class BinarySerializer:
                 cls._serialize_item(sub_item, writer, seen)
         
         elif item_type == StackItemType.MAP:
-            entries = list(item._dict.items())
+            entries = list(item._items.items())
             if len(entries) > cls.MAX_ITEMS:
                 raise ValueError(f"Map too large: {len(entries)}")
             cls._write_var_int(writer, len(entries))

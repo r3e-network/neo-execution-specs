@@ -1,13 +1,9 @@
 """Tests for Account module."""
 
-import pytest
 from neo.wallets.account import (
-    Account,
     AccountType,
     Contract,
     ContractParameter,
-    script_hash_to_address,
-    address_to_script_hash,
 )
 
 

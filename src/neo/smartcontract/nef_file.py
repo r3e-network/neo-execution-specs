@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
 import struct
-import hashlib
 
 
 @dataclass
@@ -68,6 +67,14 @@ class NefFile:
         data.append(0)
         # Tokens
         data.extend(self._write_var_int(len(self.tokens)))
+        for token in self.tokens:
+            data.extend(token.hash)
+            method_bytes = token.method.encode('utf-8')
+            data.extend(struct.pack('<I', len(method_bytes)))
+            data.extend(method_bytes)
+            data.extend(struct.pack('<H', token.parameters_count))
+            data.append(1 if token.has_return_value else 0)
+            data.extend(struct.pack('<H', token.call_flags))
         # Reserve 2 bytes
         data.extend(b'\x00\x00')
         # Script
@@ -88,3 +95,80 @@ class NefFile:
             return b'\xFE' + struct.pack('<I', value)
         else:
             return b'\xFF' + struct.pack('<Q', value)
+
+    @staticmethod
+    def _read_var_int(data: bytes, offset: int) -> tuple:
+        """Read variable-length integer, return (value, new_offset)."""
+        fb = data[offset]
+        offset += 1
+        if fb < 0xFD:
+            return fb, offset
+        elif fb == 0xFD:
+            return struct.unpack_from('<H', data, offset)[0], offset + 2
+        elif fb == 0xFE:
+            return struct.unpack_from('<I', data, offset)[0], offset + 4
+        else:
+            return struct.unpack_from('<Q', data, offset)[0], offset + 8
+
+    @classmethod
+    def from_array(cls, data: bytes) -> "NefFile":
+        """Deserialize from byte array."""
+        if len(data) < 4:
+            raise ValueError("Data too short for NEF")
+
+        offset = 0
+
+        # Magic
+        magic = struct.unpack_from('<I', data, offset)[0]
+        if magic != cls.MAGIC:
+            raise ValueError(f"Invalid NEF magic: 0x{magic:08X}")
+        offset += 4
+
+        # Compiler (64 bytes)
+        compiler = data[offset:offset + 64].rstrip(b'\x00').decode('utf-8')
+        offset += 64
+
+        # Source (var string)
+        src_len, offset = cls._read_var_int(data, offset)
+        source = data[offset:offset + src_len].decode('utf-8')
+        offset += src_len
+
+        # Reserve byte
+        offset += 1
+
+        # Tokens
+        token_count, offset = cls._read_var_int(data, offset)
+        tokens: List[MethodToken] = []
+        for _ in range(token_count):
+            t_hash = data[offset:offset + 20]
+            offset += 20
+            m_len = struct.unpack_from('<I', data, offset)[0]
+            offset += 4
+            method = data[offset:offset + m_len].decode('utf-8')
+            offset += m_len
+            params = struct.unpack_from('<H', data, offset)[0]
+            offset += 2
+            has_rv = data[offset] != 0
+            offset += 1
+            flags = struct.unpack_from('<H', data, offset)[0]
+            offset += 2
+            tokens.append(MethodToken(t_hash, method, params, has_rv, flags))
+
+        # Reserve 2 bytes
+        offset += 2
+
+        # Script (var bytes)
+        script_len, offset = cls._read_var_int(data, offset)
+        script = data[offset:offset + script_len]
+        offset += script_len
+
+        # Checksum
+        checksum = struct.unpack_from('<I', data, offset)[0]
+
+        return cls(
+            compiler=compiler,
+            source=source,
+            tokens=tokens,
+            script=script,
+            checksum=checksum,
+        )

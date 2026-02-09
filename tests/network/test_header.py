@@ -1,9 +1,6 @@
 """Tests for Header serialization."""
 
-import pytest
 from neo.network.payloads.header import Header
-from neo.types.uint256 import UInt256
-from neo.types.uint160 import UInt160
 
 
 class TestHeader:

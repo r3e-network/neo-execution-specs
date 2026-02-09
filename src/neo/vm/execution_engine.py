@@ -3,12 +3,13 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import List, Optional, Callable, Dict, Any
+from typing import List, Optional, Callable, Dict
 
 from neo.vm.evaluation_stack import EvaluationStack
+from neo.vm.gas import get_price
 from neo.vm.limits import ExecutionEngineLimits
 from neo.vm.opcode import OpCode
-from neo.vm.execution_context import ExecutionContext, Instruction
+from neo.vm.execution_context import ExecutionContext
 from neo.vm.exception_handling import (
     ExceptionHandlingContext,
     ExceptionHandlingState,
@@ -16,7 +17,8 @@ from neo.vm.exception_handling import (
 )
 from neo.vm.slot import Slot
 from neo.vm.reference_counter import ReferenceCounter
-from neo.vm.types import StackItem, NULL
+from neo.vm.types import StackItem
+from neo.exceptions import InvalidOperationException, StackOverflowException, VMAbortException
 
 
 class VMState(IntEnum):
@@ -41,6 +43,8 @@ class ExecutionEngine:
     uncaught_exception: Optional[StackItem] = None
     is_jumping: bool = False
     reference_counter: Optional[ReferenceCounter] = None
+    gas_consumed: int = 0
+    gas_limit: int = -1  # -1 means unlimited (pure VM mode)
     syscall_handler: Optional[Callable[[ExecutionEngine, int], None]] = None
     token_handler: Optional[Callable[[ExecutionEngine, int], None]] = None
     _handlers: Dict[int, Callable] = field(default_factory=dict, repr=False)
@@ -62,7 +66,7 @@ class ExecutionEngine:
     
     def load_context(self, context: ExecutionContext) -> None:
         if len(self.invocation_stack) >= self.limits.max_invocation_stack_size:
-            raise Exception("Invocation stack overflow")
+            raise StackOverflowException("Invocation stack overflow")
         self.invocation_stack.append(context)
     
     def execute(self) -> VMState:
@@ -88,20 +92,42 @@ class ExecutionEngine:
             return
         try:
             self.is_jumping = False
+            self.add_gas(get_price(instr.opcode))
             handler = self._handlers.get(instr.opcode)
             if handler is None:
-                raise Exception(f"Unknown opcode: {instr.opcode:#04x}")
+                raise InvalidOperationException(f"Unknown opcode: {instr.opcode:#04x}")
             handler(self, instr)
             if not self.is_jumping:
                 ctx.move_next()
         except VMUnhandledException as e:
             self.uncaught_exception = e.exception
             self.state = VMState.FAULT
-        except Exception as e:
-            from neo.vm.types import ByteString
-            self.uncaught_exception = ByteString(str(e).encode('utf-8'))
+        except VMAbortException:
+            # ABORT is uncatchable — bypass VM try/catch, fault immediately.
             self.state = VMState.FAULT
+        except Exception as e:
+            # Route through VM try/catch before faulting.
+            # C# reference: ExecutionEngine.ExecuteInstruction catches
+            # exceptions and calls HandleException, which searches the
+            # try-stack for a matching catch/finally handler.
+            from neo.vm.types import ByteString
+            ex_item = ByteString(str(e).encode('utf-8'))
+            try:
+                self.execute_throw(ex_item)
+            except VMUnhandledException:
+                self.uncaught_exception = ex_item
+                self.state = VMState.FAULT
     
+    def add_gas(self, gas: int) -> None:
+        """Add gas consumed and check against limit.
+
+        Raises InvalidOperationException if gas_limit is exceeded.
+        gas_limit == -1 means unlimited (pure VM mode).
+        """
+        self.gas_consumed += gas
+        if self.gas_limit >= 0 and self.gas_consumed > self.gas_limit:
+            raise InvalidOperationException("Insufficient GAS")
+
     def push(self, item: StackItem) -> None:
         self.current_context.evaluation_stack.push(item)
     
@@ -119,7 +145,7 @@ class ExecutionEngine:
     
     def execute_jump(self, position: int) -> None:
         if position < 0 or position >= len(self.current_context.script):
-            raise Exception(f"Jump out of range: {position}")
+            raise InvalidOperationException(f"Jump out of range: {position}")
         self.current_context.ip = position
         self.is_jumping = True
     
@@ -134,7 +160,7 @@ class ExecutionEngine:
         target = self.invocation_stack[-1].evaluation_stack if self.invocation_stack else self.result_stack
         if ctx_pop.evaluation_stack is not target:
             if ctx_pop.rv_count >= 0 and len(ctx_pop.evaluation_stack) != ctx_pop.rv_count:
-                raise Exception("Return value count mismatch")
+                raise InvalidOperationException("Return value count mismatch")
             ctx_pop.evaluation_stack.copy_to(target)
         if not self.invocation_stack:
             self.state = VMState.HALT
@@ -142,12 +168,12 @@ class ExecutionEngine:
     
     def execute_try(self, catch_offset: int, finally_offset: int) -> None:
         if catch_offset == 0 and finally_offset == 0:
-            raise Exception("Both offsets can't be 0")
+            raise InvalidOperationException("Both offsets can't be 0")
         ctx = self.current_context
         if ctx.try_stack is None:
             ctx.try_stack = TryStack()
         elif len(ctx.try_stack) >= self.limits.max_try_nesting_depth:
-            raise Exception("MaxTryNestingDepth exceeded")
+            raise InvalidOperationException("MaxTryNestingDepth exceeded")
         catch_ptr = -1 if catch_offset == 0 else ctx.ip + catch_offset
         finally_ptr = -1 if finally_offset == 0 else ctx.ip + finally_offset
         ctx.try_stack.push(ExceptionHandlingContext(catch_ptr, finally_ptr))
@@ -155,10 +181,10 @@ class ExecutionEngine:
     def execute_endtry(self, end_offset: int) -> None:
         ctx = self.current_context
         if ctx.try_stack is None or len(ctx.try_stack) == 0:
-            raise Exception("No TRY block")
+            raise InvalidOperationException("No TRY block")
         current_try = ctx.try_stack.peek()
         if current_try.state == ExceptionHandlingState.FINALLY:
-            raise Exception("ENDTRY in FINALLY")
+            raise InvalidOperationException("ENDTRY in FINALLY")
         end_ptr = ctx.ip + end_offset
         if current_try.has_finally:
             current_try.state = ExceptionHandlingState.FINALLY
@@ -172,7 +198,7 @@ class ExecutionEngine:
     def execute_endfinally(self) -> None:
         ctx = self.current_context
         if ctx.try_stack is None or len(ctx.try_stack) == 0:
-            raise Exception("No TRY block")
+            raise InvalidOperationException("No TRY block")
         current_try = ctx.try_stack.pop()
         if self.uncaught_exception is None:
             ctx.ip = current_try.end_pointer

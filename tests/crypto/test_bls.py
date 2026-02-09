@@ -1,6 +1,5 @@
 """Tests for BLS12-381 cryptographic operations."""
 
-import pytest
 from neo.crypto.bls12_381 import (
     G1Affine, G1Projective,
     G2Affine, G2Projective,

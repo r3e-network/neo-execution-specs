@@ -1,6 +1,5 @@
 """Tests for Role."""
 
-import pytest
 from neo.native.role import Role
 
 

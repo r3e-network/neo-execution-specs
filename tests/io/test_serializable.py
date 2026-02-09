@@ -1,6 +1,5 @@
 """Tests for Serializable."""
 
-import pytest
 from neo.io.serializable import ISerializable
 
 

@@ -1,6 +1,5 @@
 """Tests for CryptoLib native contract."""
 
-import pytest
 from neo.native.crypto_lib import CryptoLib, NamedCurveHash
 
 

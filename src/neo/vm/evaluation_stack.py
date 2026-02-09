@@ -1,9 +1,9 @@
 """Evaluation stack for NeoVM."""
 
 from __future__ import annotations
-from typing import List, Optional
+from typing import List
 from neo.vm.types import StackItem
-from neo.exceptions import StackOverflowException
+from neo.exceptions import InvalidOperationException, StackOverflowException
 
 
 class EvaluationStack:
@@ -29,13 +29,13 @@ class EvaluationStack:
             Exception: If stack is empty (stack underflow)
         """
         if not self._items:
-            raise Exception("Stack underflow")
+            raise InvalidOperationException("Stack underflow")
         return self._items.pop()
     
     def peek(self, index: int = 0) -> StackItem:
         """Peek at item without removing."""
         if index < 0 or index >= len(self._items):
-            raise Exception(f"Peek index out of range: {index}")
+            raise InvalidOperationException(f"Peek index out of range: {index}")
         return self._items[-(index + 1)]
     
     def clear(self) -> None:
@@ -50,9 +50,9 @@ class EvaluationStack:
     def swap(self, i: int, j: int) -> None:
         """Swap items at indices i and j (from top)."""
         if i < 0 or i >= len(self._items):
-            raise Exception(f"Swap index i out of range: {i}")
+            raise InvalidOperationException(f"Swap index i out of range: {i}")
         if j < 0 or j >= len(self._items):
-            raise Exception(f"Swap index j out of range: {j}")
+            raise InvalidOperationException(f"Swap index j out of range: {j}")
         idx_i = -(i + 1)
         idx_j = -(j + 1)
         self._items[idx_i], self._items[idx_j] = self._items[idx_j], self._items[idx_i]
@@ -62,14 +62,14 @@ class EvaluationStack:
         if len(self._items) >= self._max_size:
             raise StackOverflowException("Stack overflow")
         if index < 0 or index > len(self._items):
-            raise Exception(f"Insert index out of range: {index}")
+            raise InvalidOperationException(f"Insert index out of range: {index}")
         pos = len(self._items) - index
         self._items.insert(pos, item)
     
     def remove(self, index: int) -> StackItem:
         """Remove and return item at index (from top)."""
         if index < 0 or index >= len(self._items):
-            raise Exception(f"Remove index out of range: {index}")
+            raise InvalidOperationException(f"Remove index out of range: {index}")
         pos = -(index + 1)
         return self._items.pop(pos)
     
@@ -83,9 +83,9 @@ class EvaluationStack:
             Exception: If n is invalid or exceeds stack size
         """
         if n < 0:
-            raise Exception(f"Invalid reverse count: {n}")
+            raise InvalidOperationException(f"Invalid reverse count: {n}")
         if n > len(self._items):
-            raise Exception(f"Insufficient stack items for reverse: need {n}, have {len(self._items)}")
+            raise InvalidOperationException(f"Insufficient stack items for reverse: need {n}, have {len(self._items)}")
         if n <= 1:
             return
         # Reverse top n items in place

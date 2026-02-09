@@ -1,6 +1,5 @@
 """Tests for WitnessScope enum."""
 
-import pytest
 from neo.network.payloads.witness_scope import WitnessScope
 
 

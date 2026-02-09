@@ -1,6 +1,5 @@
 """Tests for Log."""
 
-import pytest
 from neo.smartcontract.log import LogEventArgs
 
 

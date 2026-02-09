@@ -4,7 +4,6 @@ ECDSA signature operations.
 Reference: Neo.Cryptography.Crypto
 """
 
-from neo.crypto.ecc.curve import ECCurve
 from neo.crypto.ecc.point import ECPoint
 from neo.crypto.ecc.signature import verify_signature as _verify_sig
 

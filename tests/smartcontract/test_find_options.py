@@ -1,6 +1,5 @@
 """Tests for FindOptions."""
 
-import pytest
 from neo.smartcontract.storage.find_options import FindOptions
 
 

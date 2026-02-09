@@ -24,3 +24,8 @@ class OutOfGasException(VMException):
 class StackOverflowException(VMException):
     """Stack overflow."""
     pass
+
+
+class VMAbortException(VMException):
+    """Uncatchable VM abort — bypasses try/catch routing."""
+    pass

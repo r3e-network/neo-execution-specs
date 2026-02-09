@@ -1,6 +1,5 @@
 """Tests for opcode definitions."""
 
-import pytest
 from neo.vm.opcode import OpCode
 
 

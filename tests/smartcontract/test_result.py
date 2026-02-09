@@ -1,6 +1,5 @@
 """Tests for ExecutionResult."""
 
-import pytest
 from neo.smartcontract.execution_result import ExecutionResult
 
 

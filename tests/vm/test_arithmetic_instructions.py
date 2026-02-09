@@ -1,6 +1,5 @@
 """Tests for arithmetic instructions."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 

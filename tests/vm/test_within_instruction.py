@@ -1,6 +1,5 @@
 """Tests for WITHIN instruction."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 
@@ -22,7 +21,7 @@ class TestWithinInstruction:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_within_false(self):
         """Test WITHIN when value is out of range."""
@@ -37,4 +36,4 @@ class TestWithinInstruction:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == False
+        assert not engine.result_stack.peek().get_boolean()

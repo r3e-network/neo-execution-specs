@@ -1,6 +1,5 @@
 """Tests for StdLib fixes - itoa negative hex and str_len grapheme."""
 
-import pytest
 from neo.native.std_lib import StdLib
 
 

@@ -9,7 +9,7 @@ from enum import IntEnum
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from neo.types import UInt160, UInt256
-from neo.native.native_contract import NativeContract, CallFlags, StorageKey, StorageItem
+from neo.native.native_contract import NativeContract, CallFlags, StorageItem
 from neo.crypto import hash160
 
 
@@ -233,12 +233,12 @@ class OracleContract(NativeContract):
         if filter is not None:
             filter_size = len(filter.encode('utf-8'))
             if filter_size > MAX_FILTER_LENGTH:
-                raise ValueError(f"Filter exceeds max length")
+                raise ValueError("Filter exceeds max length")
         
         # Validate callback
         callback_size = len(callback.encode('utf-8'))
         if callback_size > MAX_CALLBACK_LENGTH:
-            raise ValueError(f"Callback exceeds max length")
+            raise ValueError("Callback exceeds max length")
         if callback.startswith('_'):
             raise ValueError("Callback cannot start with underscore")
         
@@ -377,11 +377,25 @@ class OracleContract(NativeContract):
     
     def verify(self, engine: Any) -> bool:
         """Verify Oracle response transaction.
-        
-        Returns True if transaction has OracleResponse attribute.
+
+        Returns True only when the script container (transaction) carries
+        an OracleResponse attribute (type 0x11).
         """
-        # In full implementation, checks for OracleResponse attribute
-        return True
+        tx = getattr(engine, 'script_container', None)
+        if tx is None:
+            return False
+
+        attrs = getattr(tx, 'attributes', None)
+        if not attrs:
+            return False
+
+        ORACLE_RESPONSE_TYPE = 0x11
+        for attr in attrs:
+            attr_type = getattr(attr, 'type', None)
+            if attr_type is not None and int(attr_type) == ORACLE_RESPONSE_TYPE:
+                return True
+
+        return False
     
     def _remove_request(self, request_id: int, url: str) -> None:
         """Remove a request after processing."""

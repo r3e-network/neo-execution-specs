@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 # Try to import py_ecc for real BLS12-381 operations
 try:
     from py_ecc.bls12_381 import pairing as _py_ecc_pairing
-    from py_ecc.bls12_381 import FQ12
+    from py_ecc.bls12_381 import FQ12  # noqa: F401 — used in pairing()
     HAS_PY_ECC = True
 except ImportError:
     HAS_PY_ECC = False
@@ -32,8 +32,8 @@ def pairing(g1: "G1Affine | G1Projective", g2: "G2Affine | G2Projective") -> "Gt
     Returns:
         Element in Gt
     """
-    from .g1 import G1Affine, G1Projective
-    from .g2 import G2Affine, G2Projective
+    from .g1 import G1Projective
+    from .g2 import G2Projective
     from .gt import Gt
     
     # Convert to affine if needed

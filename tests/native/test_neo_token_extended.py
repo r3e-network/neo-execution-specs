@@ -1,6 +1,5 @@
 """Tests for NeoToken extended."""
 
-import pytest
 from neo.native.neo_token import NeoToken
 
 

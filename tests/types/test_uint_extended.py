@@ -1,6 +1,5 @@
 """Tests for types module."""
 
-import pytest
 from neo.types.uint160 import UInt160
 from neo.types.uint256 import UInt256
 

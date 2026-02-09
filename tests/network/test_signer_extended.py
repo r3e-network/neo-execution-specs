@@ -1,6 +1,5 @@
 """Extended tests for network payloads."""
 
-import pytest
 from neo.network.payloads.signer import Signer
 from neo.network.payloads.witness_scope import WitnessScope
 from neo.types import UInt160

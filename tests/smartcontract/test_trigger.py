@@ -1,6 +1,5 @@
 """Tests for TriggerType."""
 
-import pytest
 from neo.smartcontract.trigger import TriggerType
 
 

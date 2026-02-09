@@ -1,6 +1,5 @@
 """Tests for witness scope."""
 
-import pytest
 from neo.network.payloads.witness_scope import WitnessScope
 
 

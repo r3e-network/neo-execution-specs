@@ -1,8 +1,7 @@
 """Tests for binary serializer."""
 
-import pytest
 from neo.smartcontract.binary_serializer import BinarySerializer
-from neo.vm.types import Integer, Boolean, ByteString, Array, Map, NULL
+from neo.vm.types import Integer, Boolean, ByteString, Array, NULL
 
 
 class TestBinarySerializer:

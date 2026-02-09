@@ -1,11 +1,9 @@
 """Tests for Neo t8n tool."""
 
-import pytest
 from neo.tools.t8n import T8N
 from neo.tools.t8n.types import (
     AccountState,
     Environment,
-    TransactionInput,
 )
 
 

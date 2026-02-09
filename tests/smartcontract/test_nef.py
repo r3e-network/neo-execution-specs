@@ -1,6 +1,5 @@
 """Tests for NEF file format."""
 
-import pytest
 from neo.smartcontract.nef_file import NefFile
 
 

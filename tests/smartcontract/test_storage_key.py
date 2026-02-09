@@ -1,6 +1,5 @@
 """Tests for storage module."""
 
-import pytest
 from neo.smartcontract.storage.storage_key import StorageKey
 
 

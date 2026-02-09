@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from neo.types import UInt160
-from neo.native.native_contract import NativeContract, CallFlags, StorageKey, StorageItem
+from neo.native.native_contract import NativeContract, CallFlags, StorageItem
 
 
 # Storage prefixes
@@ -133,8 +133,10 @@ class Notary(NativeContract):
                 pubkey_bytes = node.encode(compressed=True)
                 if verify_signature(message, signature, pubkey_bytes, SECP256R1):
                     return True
-        except Exception:
-            pass
+        except (ValueError, TypeError, KeyError, AttributeError):
+            # Expected failures: malformed keys, missing attributes,
+            # invalid signature encoding, missing role management data.
+            return False
 
         return False
     

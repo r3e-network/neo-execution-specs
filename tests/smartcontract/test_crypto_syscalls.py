@@ -1,8 +1,6 @@
 """Tests for crypto syscalls."""
 
-import pytest
 from neo.smartcontract.syscalls.crypto import (
-    _check_multisig_internal,
     CHECK_SIG_PRICE,
 )
 

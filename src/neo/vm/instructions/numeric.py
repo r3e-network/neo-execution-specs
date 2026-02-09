@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import math
 
+from neo.exceptions import InvalidOperationException
 from neo.vm.types import Integer, Boolean
 
 if TYPE_CHECKING:
@@ -81,7 +82,7 @@ def div(engine: ExecutionEngine, instruction: Instruction) -> None:
     x2 = engine.pop().get_integer()
     x1 = engine.pop().get_integer()
     if x2 == 0:
-        raise Exception("Division by zero")
+        raise InvalidOperationException("Division by zero")
     # Python's // does floor division, C# does truncation
     # For negative numbers, we need truncation toward zero
     if (x1 < 0) != (x2 < 0) and x1 % x2 != 0:
@@ -96,7 +97,7 @@ def mod(engine: ExecutionEngine, instruction: Instruction) -> None:
     x2 = engine.pop().get_integer()
     x1 = engine.pop().get_integer()
     if x2 == 0:
-        raise Exception("Division by zero")
+        raise InvalidOperationException("Division by zero")
     # C# remainder has same sign as dividend
     result = x1 % x2
     if result != 0 and (x1 < 0) != (x2 < 0):
@@ -116,18 +117,27 @@ def sqrt(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Integer square root."""
     x = engine.pop().get_integer()
     if x < 0:
-        raise Exception("Cannot compute square root of negative number")
+        raise InvalidOperationException("Cannot compute square root of negative number")
     engine.push(Integer(int(math.isqrt(x))))
 
 
 def modmul(engine: ExecutionEngine, instruction: Instruction) -> None:
-    """Modular multiplication: (x1 * x2) % modulus."""
+    """Modular multiplication: (x1 * x2) % modulus.
+
+    Uses C# remainder semantics where the sign of the result follows
+    the sign of the dividend (the product), not the divisor (modulus).
+    """
     modulus = engine.pop().get_integer()
     x2 = engine.pop().get_integer()
     x1 = engine.pop().get_integer()
     if modulus == 0:
-        raise Exception("Modulus cannot be zero")
-    engine.push(Integer((x1 * x2) % modulus))
+        raise InvalidOperationException("Modulus cannot be zero")
+    product = x1 * x2
+    result = product % modulus
+    # Adjust to C# remainder semantics (sign follows dividend)
+    if result != 0 and (product < 0) != (modulus < 0):
+        result -= modulus
+    engine.push(Integer(result))
 
 
 def modpow(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -136,9 +146,9 @@ def modpow(engine: ExecutionEngine, instruction: Instruction) -> None:
     exponent = engine.pop().get_integer()
     value = engine.pop().get_integer()
     if modulus == 0:
-        raise Exception("Modulus cannot be zero")
+        raise InvalidOperationException("Modulus cannot be zero")
     if exponent < -1:
-        raise Exception("Exponent must be >= -1")
+        raise InvalidOperationException("Exponent must be >= -1")
     if modulus == 1:
         engine.push(Integer(0))
         return

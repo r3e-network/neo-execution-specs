@@ -1,6 +1,5 @@
 """Tests for reference counter."""
 
-import pytest
 from neo.vm.reference_counter import ReferenceCounter
 
 

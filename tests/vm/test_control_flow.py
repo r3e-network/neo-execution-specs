@@ -1,6 +1,5 @@
 """Tests for VM control flow operations."""
 
-import pytest
 from neo.vm import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 

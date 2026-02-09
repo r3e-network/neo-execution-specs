@@ -1,12 +1,12 @@
 """NEO Token native contract."""
 
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
 from neo.types import UInt160
 from neo.native.fungible_token import FungibleToken, AccountState, PREFIX_ACCOUNT
-from neo.native.native_contract import CallFlags, StorageKey, StorageItem
+from neo.native.native_contract import CallFlags, StorageItem
 
 
 # Storage prefixes

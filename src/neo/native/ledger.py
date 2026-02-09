@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional, List
 
-from neo.types import UInt160, UInt256
+from neo.types import UInt256
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
 
 

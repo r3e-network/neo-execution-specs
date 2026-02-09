@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from neo.exceptions import InvalidOperationException
+
 
 # Execution limits
 MAX_STACK_SIZE = 2048
@@ -24,14 +26,14 @@ class ExecutionEngineLimits:
     def assert_max_item_size(self, size: int) -> None:
         """Assert that item size is within limits."""
         if size > self.max_item_size:
-            raise Exception(f"Item size {size} exceeds maximum {self.max_item_size}")
+            raise InvalidOperationException(f"Item size {size} exceeds maximum {self.max_item_size}")
     
     def assert_max_stack_size(self, size: int) -> None:
         """Assert that stack size is within limits."""
         if size > self.max_stack_size:
-            raise Exception(f"Stack size {size} exceeds maximum {self.max_stack_size}")
+            raise InvalidOperationException(f"Stack size {size} exceeds maximum {self.max_stack_size}")
     
     def assert_shift(self, shift: int) -> None:
         """Assert that shift amount is valid."""
         if shift < 0 or shift > 256:
-            raise Exception(f"Shift amount {shift} out of range")
+            raise InvalidOperationException(f"Shift amount {shift} out of range")

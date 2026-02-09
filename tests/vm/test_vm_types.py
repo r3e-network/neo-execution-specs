@@ -1,9 +1,8 @@
 """Tests for VM types."""
 
-import pytest
 from neo.vm.types import (
     Integer, ByteString, Boolean, Array, 
-    Map, Struct, Buffer, Null, StackItem
+    Map, Null
 )
 
 
@@ -51,12 +50,12 @@ class TestBoolean:
     def test_true(self):
         """Test true boolean."""
         b = Boolean(True)
-        assert b.get_boolean() == True
+        assert b.get_boolean()
     
     def test_false(self):
         """Test false boolean."""
         b = Boolean(False)
-        assert b.get_boolean() == False
+        assert not b.get_boolean()
 
 
 class TestArray:

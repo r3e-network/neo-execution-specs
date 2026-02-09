@@ -5,10 +5,9 @@ Reference: Neo.SmartContract.Native.RoleManagement
 
 from __future__ import annotations
 from enum import IntEnum
-from typing import Any, List
+from typing import Any
 
 from neo.native.native_contract import NativeContract, CallFlags
-from neo.types import UInt160
 
 
 class Role(IntEnum):

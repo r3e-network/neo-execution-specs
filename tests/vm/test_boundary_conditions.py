@@ -1,10 +1,8 @@
 """Boundary tests for VM operations."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 from neo.vm.script_builder import ScriptBuilder
-from neo.vm.types import Integer, ByteString, Array
 
 
 class TestIntegerBoundaries:

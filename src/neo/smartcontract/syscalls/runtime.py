@@ -4,7 +4,7 @@ Reference: Neo.SmartContract.ApplicationEngine.Runtime.cs
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from neo.smartcontract.application_engine import ApplicationEngine
@@ -231,7 +231,7 @@ def runtime_notify(engine: "ApplicationEngine") -> None:
     
     # Convert state to array if needed
     if not isinstance(state, Array):
-        state = Array([state])
+        state = Array(items=[state])
     
     # Add to notifications
     if not hasattr(engine, '_notifications'):
@@ -269,14 +269,14 @@ def runtime_get_notifications(engine: "ApplicationEngine") -> None:
     for notif in notifications:
         if filter_hash is None or notif['script_hash'] == filter_hash:
             # Create notification struct: [script_hash, event_name, state]
-            notif_struct = Struct([
+            notif_struct = Struct(items=[
                 ByteString(bytes(notif['script_hash'])),
                 ByteString(notif['event_name'].encode('utf-8')),
                 notif['state']
             ])
             result.append(notif_struct)
     
-    stack.push(Array(result))
+    stack.push(Array(items=result))
 
 
 def runtime_gas_left(engine: "ApplicationEngine") -> None:
@@ -400,7 +400,9 @@ def _check_witness_scope(engine, signer) -> bool:
             return True
     
     if scope & WitnessScope.CUSTOM_GROUPS:
-        # Check if current contract is in allowed groups
-        pass
+        # Delegate to engine's group check if available (ApplicationEngine)
+        if hasattr(engine, '_check_witness_groups'):
+            if engine._check_witness_groups(signer):
+                return True
     
     return False

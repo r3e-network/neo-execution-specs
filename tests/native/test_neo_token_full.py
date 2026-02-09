@@ -1,6 +1,5 @@
 """Extended tests for NeoToken native contract."""
 
-import pytest
 from neo.native.neo_token import NeoToken, NeoAccountState, CandidateState
 
 

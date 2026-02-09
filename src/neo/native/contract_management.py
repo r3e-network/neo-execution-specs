@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Optional, List
+from typing import Any, Optional
 
 from neo.types import UInt160
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
@@ -125,12 +125,36 @@ class ContractManagement(NativeContract):
         return self.get_contract(snapshot, hash)
     
     def has_method(self, snapshot: Any, hash: UInt160, method: str, pcount: int) -> bool:
-        """Check if a contract has a specific method."""
+        """Check if a contract has a specific method.
+
+        Parses the contract's manifest JSON and inspects the ABI to
+        verify that a method with the given *name* and *parameter count*
+        actually exists.
+        """
+        import json as _json
+
         contract = self.get_contract(snapshot, hash)
         if contract is None:
             return False
-        # In real impl, would parse manifest and check ABI
-        return True
+
+        # Parse manifest to inspect ABI
+        try:
+            manifest = _json.loads(contract.manifest.decode('utf-8'))
+        except (ValueError, UnicodeDecodeError, AttributeError):
+            return False
+
+        abi = manifest.get('abi')
+        if not abi:
+            return False
+
+        methods = abi.get('methods', [])
+        for m in methods:
+            if m.get('name') == method:
+                params = m.get('parameters', [])
+                if len(params) == pcount:
+                    return True
+
+        return False
     
     def deploy(self, engine: Any, nef_file: bytes, manifest: bytes, 
                data: Any = None) -> ContractState:
@@ -182,9 +206,12 @@ class ContractManagement(NativeContract):
         manifest_obj = json.loads(manifest.decode('utf-8'))
         name = manifest_obj.get('name', '')
         
-        # Calculate NEF checksum (simplified)
-        from neo.crypto import sha256
-        nef_checksum = int.from_bytes(sha256(sha256(nef))[:4], 'little')
+        # NEF checksum is the last 4 bytes of the serialized NEF
+        import struct
+        if len(nef) >= 4:
+            nef_checksum = struct.unpack_from('<I', nef, len(nef) - 4)[0]
+        else:
+            nef_checksum = 0
         
         # Build hash input
         data = sender.data

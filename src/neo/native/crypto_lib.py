@@ -5,10 +5,9 @@ Reference: Neo.SmartContract.Native.CryptoLib
 
 from __future__ import annotations
 from enum import IntEnum
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from neo.native.native_contract import NativeContract, CallFlags
-from neo.types import UInt160
 from neo.crypto import sha256, ripemd160, murmur32, ed25519_verify
 
 

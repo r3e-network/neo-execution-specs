@@ -2,12 +2,10 @@
 
 import pytest
 from neo.vm.types import (
-    Integer, Boolean, ByteString, Buffer, Array, Struct, Map,
-    StackItemType, NULL,
+    Integer, Boolean, ByteString, StackItemType, NULL,
 )
 from neo.vm.instructions.types import (
     isnull, istype, convert, abortmsg, assertmsg,
-    _convert_to,
 )
 
 

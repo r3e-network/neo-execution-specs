@@ -1,6 +1,5 @@
 """Tests for evaluation stack."""
 
-import pytest
 from neo.vm.evaluation_stack import EvaluationStack
 from neo.vm.types import Integer
 

@@ -1,6 +1,5 @@
 """Tests for storage syscalls."""
 
-import pytest
 from neo.smartcontract.syscalls import storage
 from neo.smartcontract.storage_context import StorageContext
 from neo.types.uint160 import UInt160

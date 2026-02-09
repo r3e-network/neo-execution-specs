@@ -1,6 +1,5 @@
 """Tests for Buffer type."""
 
-import pytest
 from neo.vm.types import Buffer
 
 

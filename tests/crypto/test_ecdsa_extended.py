@@ -1,7 +1,7 @@
 """Extended tests for ECDSA signature operations."""
 
 import pytest
-from neo.crypto.ecc.curve import SECP256R1, SECP256K1, ECCurve
+from neo.crypto.ecc.curve import SECP256R1, SECP256K1
 from neo.crypto.ecc.signature import verify_signature
 
 

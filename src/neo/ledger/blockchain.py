@@ -13,7 +13,6 @@ from neo.types.uint256 import UInt256
 
 if TYPE_CHECKING:
     from neo.network.payloads.block import Block
-    from neo.network.payloads.transaction import Transaction
     from neo.persistence.store import IStore
 
 

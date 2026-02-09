@@ -1,12 +1,10 @@
 """Neo N3 Key Pair implementation."""
 
 from dataclasses import dataclass
-from typing import Optional
-import hashlib
 import secrets
 
-from neo.crypto.ecc import ECPoint, ECCurve
-from neo.crypto.hash import hash160, hash256
+from neo.crypto.ecc import ECPoint
+from neo.crypto.hash import hash256
 
 
 @dataclass(frozen=True)

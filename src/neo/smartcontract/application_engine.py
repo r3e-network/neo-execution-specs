@@ -11,23 +11,22 @@ The ApplicationEngine extends the base VM ExecutionEngine with:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
-from enum import IntEnum
+from dataclasses import dataclass
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 
-from neo.vm.execution_engine import ExecutionEngine, VMState
-from neo.vm.evaluation_stack import EvaluationStack
+from neo.exceptions import InvalidOperationException, OutOfGasException
+from neo.vm.execution_engine import ExecutionEngine, VMState  # noqa: F401 (re-exported)
 from neo.vm.execution_context import ExecutionContext
-from neo.vm.reference_counter import ReferenceCounter
 from neo.vm.types import StackItem, Integer, ByteString, Array, NULL
-from neo.vm.opcode import OpCode
 from neo.smartcontract.trigger import TriggerType
 from neo.smartcontract.call_flags import CallFlags
 
 if TYPE_CHECKING:
-    from neo.types import UInt160, UInt256
+    from neo.types import UInt160
     from neo.persistence import Snapshot
-    from neo.network.payloads import Transaction
+
+# Sentinel key for storing CallFlags in ExecutionContext._shared_states.states
+_CALL_FLAGS_KEY = "call_flags"
 
 
 # Gas costs
@@ -91,7 +90,7 @@ class ApplicationEngine(ExecutionEngine):
         self._invocation_counters: Dict[bytes, int] = {}
         self._storage_contexts: Dict[int, Any] = {}
         self._loaded_tokens: Dict[int, Any] = {}
-        self._current_call_flags: CallFlags = CallFlags.ALL
+        self._default_call_flags: CallFlags = CallFlags.ALL
         
         # Native contract cache
         self._native_contracts: Dict[bytes, Any] = {}
@@ -100,7 +99,28 @@ class ApplicationEngine(ExecutionEngine):
         self.syscall_handler = self._handle_syscall
         self.token_handler = self._handle_token_call
         self._register_syscalls()
-    
+
+    @property
+    def _current_call_flags(self) -> CallFlags:
+        """Get call flags scoped to the current execution context.
+
+        Each context carries its own CallFlags in _shared_states.states.
+        Falls back to _default_call_flags when no context is loaded.
+        """
+        ctx = self.current_context
+        if ctx is not None:
+            return ctx._shared_states.states.get(_CALL_FLAGS_KEY, self._default_call_flags)
+        return self._default_call_flags
+
+    @_current_call_flags.setter
+    def _current_call_flags(self, value: CallFlags) -> None:
+        """Set call flags on the current execution context."""
+        ctx = self.current_context
+        if ctx is not None:
+            ctx._shared_states.states[_CALL_FLAGS_KEY] = value
+        else:
+            self._default_call_flags = value
+
     @property
     def notifications(self) -> List[Notification]:
         """Get all notifications."""
@@ -145,7 +165,7 @@ class ApplicationEngine(ExecutionEngine):
         """Add gas consumption and check limit."""
         self.gas_consumed += amount
         if self.gas_consumed > self.gas_limit:
-            raise Exception("Out of gas")
+            raise OutOfGasException("Out of gas")
     
     def send_notification(self, script_hash: "UInt160", event_name: str, state: StackItem) -> None:
         """Send a notification event."""
@@ -179,12 +199,12 @@ class ApplicationEngine(ExecutionEngine):
         # Get method tokens from current context
         ctx = self.current_context
         if ctx is None:
-            raise Exception("No execution context for CALLT")
+            raise InvalidOperationException("No execution context for CALLT")
         
         # Get tokens from context's NEF (stored in shared states)
         tokens = self._get_context_tokens(ctx)
         if tokens is None or token_index >= len(tokens):
-            raise Exception(f"Invalid token index: {token_index}")
+            raise InvalidOperationException(f"Invalid token index: {token_index}")
         
         token = tokens[token_index]
         
@@ -192,7 +212,7 @@ class ApplicationEngine(ExecutionEngine):
         contract_hash = UInt160(token.hash)
         method = token.method
         params_count = token.parameters_count
-        has_return = token.has_return_value
+        _has_return = token.has_return_value  # reserved for rv_count validation
         call_flags = CallFlags(token.call_flags)
         
         # Pop arguments from stack based on parameter count
@@ -204,14 +224,14 @@ class ApplicationEngine(ExecutionEngine):
         # Look up the contract
         contract = self._get_contract(contract_hash)
         if contract is None:
-            raise Exception(f"Contract not found: {contract_hash}")
+            raise InvalidOperationException(f"Contract not found: {contract_hash}")
         
         # Verify call flags
         if not self._check_call_flags(call_flags):
-            raise Exception("Call flags not allowed")
+            raise InvalidOperationException("Call flags not allowed")
         
         # Create arguments array
-        args_array = Array(args) if args else Array([])
+        args_array = Array(items=list(args)) if args else Array()
         
         # Call the contract
         self._call_contract_internal(contract, method, args_array, call_flags)
@@ -361,8 +381,6 @@ class ApplicationEngine(ExecutionEngine):
         a valid witness (signature) for the current transaction.
         """
         from neo.crypto import hash160
-        from neo.crypto.ecc.curve import SECP256R1
-        from neo.crypto.ecc.point import ECPoint
         
         hash_or_pubkey = self.pop()
         data = hash_or_pubkey.get_bytes_unsafe()
@@ -423,11 +441,62 @@ class ApplicationEngine(ExecutionEngine):
             if current_hash and current_hash in [c for c in signer.allowed_contracts]:
                 return True
         
-        # CustomGroups - would need to check contract's group
-        # WitnessRules - would need to evaluate rules
-        
+        # CustomGroups - check if current contract belongs to an allowed group
+        if scope & WitnessScope.CUSTOM_GROUPS:
+            if self._check_witness_groups(signer):
+                return True
+
         return False
-    
+
+    def _check_witness_groups(self, signer) -> bool:
+        """Check if the current contract belongs to one of the signer's allowed groups.
+
+        Looks up the current contract's manifest, then checks whether any
+        of its group public keys appear in ``signer.allowed_groups``.
+        """
+        import json as _json
+
+        current_hash = self.current_script_hash
+        if current_hash is None:
+            return False
+
+        contract = self._get_contract(current_hash)
+        if contract is None:
+            return False
+
+        # Parse manifest to extract groups
+        manifest_bytes = getattr(contract, 'manifest', None)
+        if not manifest_bytes:
+            return False
+
+        try:
+            manifest_data = _json.loads(manifest_bytes)
+            groups = manifest_data.get("groups", [])
+        except (ValueError, TypeError):
+            return False
+
+        if not groups:
+            return False
+
+        allowed = set(
+            bytes(g) if isinstance(g, (bytes, bytearray)) else g
+            for g in (signer.allowed_groups or [])
+        )
+        if not allowed:
+            return False
+
+        for group in groups:
+            pubkey_hex = group.get("pubkey", "")
+            if pubkey_hex:
+                try:
+                    pubkey = bytes.fromhex(pubkey_hex)
+                    if pubkey in allowed:
+                        return True
+                except (ValueError, TypeError):
+                    continue
+
+        return False
+
     def _runtime_get_invocation_counter(self, engine: "ApplicationEngine") -> None:
         """Get invocation counter for current script."""
         script_hash = self.current_script_hash
@@ -468,30 +537,59 @@ class ApplicationEngine(ExecutionEngine):
         self.push(Integer(value))
     
     def _runtime_log(self, engine: "ApplicationEngine") -> None:
-        """Write log message."""
+        """Write log message.
+
+        C# reference enforces a maximum message length of 1024 bytes.
+        """
         message = self.pop()
+        msg_str = message.get_string()
+        if len(msg_str.encode('utf-8')) > 1024:
+            raise InvalidOperationException("Log message exceeds 1024 bytes")
         script_hash = self.current_script_hash
         if script_hash:
-            self.write_log(script_hash, message.get_string())
+            self.write_log(script_hash, msg_str)
     
     def _runtime_notify(self, engine: "ApplicationEngine") -> None:
         """Send notification.
 
-        C# pop order: eventName (top), state.
+        C# pop order: state (top), then eventName.
         """
-        event_name = self.pop().get_string()
         state = self.pop()
+        event_name = self.pop().get_string()
         script_hash = self.current_script_hash
         if script_hash:
             self.send_notification(script_hash, event_name, state)
     
     def _runtime_get_notifications(self, engine: "ApplicationEngine") -> None:
-        """Get notifications for a contract."""
+        """Get notifications filtered by contract hash.
+
+        Pops a UInt160 hash filter from the stack.  If the hash is all-zero
+        (UInt160.Zero), all notifications are returned; otherwise only those
+        whose script_hash matches.
+
+        Each notification is returned as a Struct(script_hash, event_name, state).
+        """
+        from neo.vm.types import Struct, ByteString as BS
+
         hash_item = self.pop()
-        # Return all notifications as array
-        result = Array([])
-        self.push(result)
-    
+        filter_bytes = hash_item.get_bytes_unsafe() if not hash_item.is_null else None
+
+        # UInt160.Zero (20 zero bytes) means "no filter"
+        is_zero = filter_bytes is None or filter_bytes == b'\x00' * 20
+
+        items = []
+        for n in self._notifications:
+            if not is_zero:
+                n_hash = bytes(n.script_hash) if n.script_hash else b'\x00' * 20
+                if n_hash != filter_bytes:
+                    continue
+            entry = Struct(self.reference_counter)
+            entry.add(BS(bytes(n.script_hash) if n.script_hash else b'\x00' * 20))
+            entry.add(BS(n.event_name.encode('utf-8')))
+            entry.add(n.state)
+            items.append(entry)
+
+        self.push(Array(items=items))    
     def _runtime_gas_left(self, engine: "ApplicationEngine") -> None:
         """Get remaining gas."""
         remaining = self.gas_limit - self.gas_consumed
@@ -501,13 +599,41 @@ class ApplicationEngine(ExecutionEngine):
         """Burn specified amount of gas."""
         amount = self.pop().get_integer()
         if amount < 0:
-            raise Exception("Invalid gas amount")
+            raise InvalidOperationException("Invalid gas amount")
         self.add_gas(amount)
     
     def _runtime_current_signers(self, engine: "ApplicationEngine") -> None:
-        """Get current transaction signers."""
-        self.push(Array([]))
-    
+        """Get current transaction signers as an Array of Structs.
+
+        Each signer is returned as Struct(account, scopes, allowedContracts,
+        allowedGroups, rules).
+        """
+        from neo.vm.types import Struct, ByteString as BS
+
+        if self.script_container is None or not hasattr(self.script_container, 'signers'):
+            self.push(NULL)
+            return
+
+        signers = self.script_container.signers
+        if not signers:
+            self.push(NULL)
+            return
+
+        items = []
+        for s in signers:
+            entry = Struct(self.reference_counter)
+            account = bytes(s.account) if s.account else b'\x00' * 20
+            entry.add(BS(account))
+            entry.add(Integer(s.scopes))
+            # allowed_contracts as Array of ByteStrings
+            contracts = Array(items=[BS(bytes(c)) for c in (s.allowed_contracts or [])])
+            entry.add(contracts)
+            # allowed_groups as Array of ByteStrings
+            groups = Array(items=[BS(bytes(g)) for g in (s.allowed_groups or [])])
+            entry.add(groups)
+            items.append(entry)
+
+        self.push(Array(items=items))    
     def _runtime_get_address_version(self, engine: "ApplicationEngine") -> None:
         """Get address version."""
         self.push(Integer(53))  # Neo N3 address version
@@ -522,7 +648,7 @@ class ApplicationEngine(ExecutionEngine):
 
         call_flags = CallFlags(call_flags_int)
         if (call_flags & ~CallFlags.ALL) != 0:
-            raise Exception("Invalid call flags")
+            raise InvalidOperationException("Invalid call flags")
 
         self.load_script(script_data)
 
@@ -590,11 +716,25 @@ class ApplicationEngine(ExecutionEngine):
         C# pop order: context (top), prefix, options.
         """
         from neo.vm.types import InteropInterface
+        from neo.smartcontract.iterators import StorageIterator
+
         ctx_item = self.pop()
-        prefix = self.pop()
-        options = int(self.pop().get_integer())
-        # TODO: implement real storage iteration via snapshot.find()
-        self.push(InteropInterface(iter([])))
+        prefix_item = self.pop()
+        options_item = self.pop()
+
+        if not hasattr(ctx_item, 'value'):
+            self.push(InteropInterface(iter([])))
+            return
+
+        ctx = ctx_item.value
+        prefix_bytes = prefix_item.get_bytes_unsafe()
+        options = options_item.get_integer()
+
+        # Build full storage key prefix: STORAGE_PREFIX + script_hash + user_prefix
+        full_prefix = self._build_storage_key(ctx, prefix_bytes)
+
+        iterator = StorageIterator(self, full_prefix, options)
+        self.push(InteropInterface(iterator))
     
     def _storage_put(self, engine: "ApplicationEngine") -> None:
         """Put value to storage.
@@ -607,16 +747,16 @@ class ApplicationEngine(ExecutionEngine):
         
         # Get storage context
         if not hasattr(ctx_item, 'value'):
-            raise Exception("Invalid storage context")
+            raise InvalidOperationException("Invalid storage context")
         
         ctx = ctx_item.value
         
         # Check if context is read-only
         if ctx.is_read_only:
-            raise Exception("Cannot write to read-only storage context")
+            raise InvalidOperationException("Cannot write to read-only storage context")
         
         if self.snapshot is None:
-            raise Exception("No snapshot available for storage")
+            raise InvalidOperationException("No snapshot available for storage")
         
         # Build full storage key
         key_bytes = key.get_bytes_unsafe()
@@ -639,16 +779,16 @@ class ApplicationEngine(ExecutionEngine):
         
         # Get storage context
         if not hasattr(ctx_item, 'value'):
-            raise Exception("Invalid storage context")
+            raise InvalidOperationException("Invalid storage context")
         
         ctx = ctx_item.value
         
         # Check if context is read-only
         if ctx.is_read_only:
-            raise Exception("Cannot delete from read-only storage context")
+            raise InvalidOperationException("Cannot delete from read-only storage context")
         
         if self.snapshot is None:
-            raise Exception("No snapshot available for storage")
+            raise InvalidOperationException("No snapshot available for storage")
         
         # Build full storage key
         key_bytes = key.get_bytes_unsafe()
@@ -732,32 +872,31 @@ class ApplicationEngine(ExecutionEngine):
         and creates a new execution context for the called method.
         """
         from neo.types import UInt160
-        from neo.native.contract_management import ContractManagement, ContractState
         
-        # C# pop order: contractHash (top), method, callFlags
+        # C# pop order: callFlags (top), method, contractHash
         # No args pop — called method consumes args from the shared eval stack
-        contract_hash_item = self.pop()
-        method = self.pop().get_string()
         call_flags = CallFlags(int(self.pop().get_integer()))
+        method = self.pop().get_string()
+        contract_hash_item = self.pop()
         
         # Get contract hash
         hash_bytes = contract_hash_item.get_bytes_unsafe()
         if len(hash_bytes) != 20:
-            raise Exception(f"Invalid contract hash length: {len(hash_bytes)}")
+            raise InvalidOperationException(f"Invalid contract hash length: {len(hash_bytes)}")
         contract_hash = UInt160(hash_bytes)
         
         # Verify call flags are allowed
         if not self._check_call_flags(call_flags):
-            raise Exception("Invalid call flags")
+            raise InvalidOperationException("Invalid call flags")
         
         # Look up contract from storage
         contract = self._get_contract(contract_hash)
         if contract is None:
-            raise Exception(f"Contract not found: {contract_hash}")
+            raise InvalidOperationException(f"Contract not found: {contract_hash}")
         
         # Check if method exists and is callable
         if not self._check_method_permission(contract, method, call_flags):
-            raise Exception(f"Method not allowed: {method}")
+            raise InvalidOperationException(f"Method not allowed: {method}")
         
         # Create new execution context for the called contract
         # Args are NOT popped here — they remain on the shared eval stack
@@ -780,7 +919,7 @@ class ApplicationEngine(ExecutionEngine):
             return native
         
         # Look up in contract management storage
-        from neo.native.contract_management import ContractManagement, ContractState, PREFIX_CONTRACT
+        from neo.native.contract_management import ContractState, PREFIX_CONTRACT
         
         # Create storage key for contract
         key = bytes([PREFIX_CONTRACT]) + bytes(contract_hash)
@@ -801,62 +940,72 @@ class ApplicationEngine(ExecutionEngine):
         # In full implementation, would check manifest permissions
         return True
     
-    def _call_contract_internal(self, contract: Any, method: str, 
+    def _call_contract_internal(self, contract: Any, method: str,
                                  args: StackItem, flags: CallFlags) -> None:
-        """Execute a contract call by loading its script."""
-        from neo.vm.execution_context import ExecutionContext
-        
+        """Execute a contract call by loading its script.
+
+        Call flags are scoped per execution context: the new context
+        receives *flags* while the caller's context retains its own
+        flags.  When the called context returns (RET / end-of-script),
+        the caller's context becomes current again and its flags are
+        automatically restored via the ``_current_call_flags`` property.
+        """
         # Get the contract script (NEF)
         if hasattr(contract, 'nef'):
             script = self._extract_script_from_nef(contract.nef)
         elif hasattr(contract, 'script'):
             script = contract.script
         else:
-            raise Exception("Contract has no executable script")
-        
-        # Save current call flags and set new ones
-        old_flags = self._current_call_flags
-        self._current_call_flags = flags
-        
+            raise InvalidOperationException("Contract has no executable script")
+
         # Track invocation count
         from neo.crypto import hash160
         script_hash = hash160(script)
         self._invocation_counters[script_hash] = self._invocation_counters.get(script_hash, 0) + 1
-        
+
         # Push arguments onto stack for the called method
         if hasattr(args, '__iter__') and not isinstance(args, (bytes, str)):
             for arg in reversed(list(args)):
                 self.push(arg)
         elif args is not None and args != NULL:
             self.push(args)
-        
-        # Load the contract script
+
+        # Load the contract script — creates a NEW execution context
         self.load_script(script)
-        
-        # In a full implementation, we would:
-        # 1. Find the method entry point in the NEF/manifest
-        # 2. Jump to that entry point
-        # 3. Execute until return
-        # 4. Restore previous context
-        # For now, we execute from the beginning
-        
-        # Restore call flags after execution (would be done in return handler)
-        # self._current_call_flags = old_flags
+
+        # Set call flags on the NEW (now-current) context.
+        # The caller's context retains its own flags untouched.
+        self._current_call_flags = flags
     
     def _extract_script_from_nef(self, nef: bytes) -> bytes:
-        """Extract executable script from NEF file."""
-        if len(nef) < 64:
-            return nef  # Assume raw script if too short for NEF
-        
-        # NEF format: magic(4) + compiler(64) + source(256) + reserve(2) + 
-        #             tokens_len(var) + tokens + reserve(2) + script_len(var) + script + checksum(4)
-        # Simplified: just return the NEF as script for now
-        # In full implementation, would parse NEF structure
-        return nef
+        """Extract executable script from NEF file.
+
+        Parses the NEF3 binary format and returns the embedded script.
+        Falls back to treating the input as a raw script when the data
+        is too short to be a valid NEF or lacks the correct magic bytes.
+        """
+        from neo.contract.nef import NefFile as NefFormat, NEF_MAGIC
+        import struct
+
+        # Minimum NEF size: magic(4) + compiler(64) + source(1) + reserved(1)
+        #   + tokens(1) + reserved(2) + script(1) + checksum(4) = 78
+        if len(nef) < 78:
+            return nef  # Too short for NEF — treat as raw script
+
+        # Quick magic check before full parse
+        magic = struct.unpack_from('<I', nef, 0)[0]
+        if magic != NEF_MAGIC:
+            return nef  # Not a NEF — treat as raw script
+
+        try:
+            parsed = NefFormat.deserialize(nef)
+            return parsed.script
+        except (ValueError, struct.error):
+            return nef  # Malformed NEF — fall back to raw bytes
     
     def _contract_call_native(self, engine: "ApplicationEngine") -> None:
         """Call native contract."""
-        version = self.pop().get_integer()
+        self.pop()  # version — native dispatch not yet implemented
         # Native contract call handled separately
         self.push(NULL)
     
@@ -875,12 +1024,34 @@ class ApplicationEngine(ExecutionEngine):
         self.push(ByteString(script_hash))
     
     def _contract_create_multisig_account(self, engine: "ApplicationEngine") -> None:
-        """Create multisig account from public keys."""
+        """Create multisig account from public keys.
+
+        Pops m (threshold) and an Array of public keys, builds the
+        standard multisig verification script, and pushes its hash160.
+        """
         from neo.crypto import hash160
-        m = self.pop().get_integer()
-        pubkeys = self.pop()
-        # Simplified multisig script hash
-        self.push(ByteString(bytes(20)))
+        from neo.smartcontract.syscalls.contract import _create_multisig_redeem_script
+
+        m_item = self.pop()
+        pubkeys_item = self.pop()
+
+        m = m_item.get_integer()
+
+        # Extract public key bytes from Array or single item
+        if hasattr(pubkeys_item, '__iter__') and not isinstance(pubkeys_item, (bytes, str)):
+            pubkeys = [p.get_bytes_unsafe() for p in pubkeys_item]
+        else:
+            pubkeys = [pubkeys_item.get_bytes_unsafe()]
+
+        n = len(pubkeys)
+        if m < 1 or m > n or n > 1024:
+            raise InvalidOperationException(
+                f"Invalid multisig parameters: m={m}, n={n}"
+            )
+
+        script = _create_multisig_redeem_script(m, pubkeys)
+        script_hash = hash160(script)
+        self.push(ByteString(script_hash))
     
     def _contract_native_on_persist(self, engine: "ApplicationEngine") -> None:
         """Native contract OnPersist."""
@@ -894,13 +1065,13 @@ class ApplicationEngine(ExecutionEngine):
     def _crypto_check_sig(self, engine: "ApplicationEngine") -> None:
         """Check ECDSA signature.
 
-        C# pop order: pubkey (top), signature.
+        C# pop order: signature (top), then pubkey.
         """
         from neo.crypto.ecc.curve import SECP256R1
         from neo.crypto.ecc.signature import verify_signature
 
-        pubkey = self.pop()
         signature = self.pop()
+        pubkey = self.pop()
 
         pubkey_bytes = pubkey.get_bytes_unsafe()
         sig_bytes = signature.get_bytes_unsafe()
@@ -995,21 +1166,31 @@ class ApplicationEngine(ExecutionEngine):
     
     # Iterator syscall implementations
     def _iterator_next(self, engine: "ApplicationEngine") -> None:
-        """Move iterator to next item."""
+        """Move iterator to next item.
+
+        Pops InteropInterface(IIterator), calls next(), pushes bool.
+        """
+        from neo.smartcontract.iterators import IIterator
+
         iterator_item = self.pop()
-        if hasattr(iterator_item, 'value'):
-            try:
-                next(iterator_item.value)
-                self.push(Integer(1))
-            except StopIteration:
-                self.push(Integer(0))
+        if hasattr(iterator_item, 'value') and isinstance(iterator_item.value, IIterator):
+            result = iterator_item.value.next()
+            self.push(Integer(1 if result else 0))
         else:
             self.push(Integer(0))
-    
+
     def _iterator_value(self, engine: "ApplicationEngine") -> None:
-        """Get current iterator value."""
-        iterator_item = self.peek()
-        self.push(NULL)
+        """Get current iterator value.
+
+        Pops InteropInterface(IIterator), calls value(), pushes StackItem.
+        """
+        from neo.smartcontract.iterators import IIterator
+
+        iterator_item = self.pop()
+        if hasattr(iterator_item, 'value') and isinstance(iterator_item.value, IIterator):
+            self.push(iterator_item.value.value())
+        else:
+            self.push(NULL)
     
     @classmethod
     def run(cls, script: bytes, **kwargs) -> "ApplicationEngine":

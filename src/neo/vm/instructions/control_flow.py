@@ -13,6 +13,7 @@ This module implements all control flow opcodes (0x21-0x41):
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from neo.exceptions import InvalidOperationException, VMAbortException
 from neo.vm.types import Pointer
 
 if TYPE_CHECKING:
@@ -223,9 +224,9 @@ def calla(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Call function at pointer address from stack."""
     ptr = engine.pop()
     if not isinstance(ptr, Pointer):
-        raise Exception("Expected Pointer on stack for CALLA")
+        raise InvalidOperationException("Expected Pointer on stack for CALLA")
     if ptr.script is not engine.current_context.script:
-        raise Exception("Pointers can't be shared between scripts")
+        raise InvalidOperationException("Pointers can't be shared between scripts")
     engine.execute_call(ptr.position)
 
 
@@ -245,18 +246,18 @@ def callt(engine: ExecutionEngine, instruction: Instruction) -> None:
     if hasattr(engine, 'token_handler') and engine.token_handler is not None:
         engine.token_handler(engine, token_index)
     else:
-        raise Exception(f"CALLT requires token handler. Token index: {token_index}")
+        raise InvalidOperationException(f"CALLT requires token handler. Token index: {token_index}")
 
 
 def abort(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Abort execution immediately (cannot be caught)."""
-    raise Exception("ABORT is executed.")
+    raise VMAbortException("ABORT is executed.")
 
 
 def assert_(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Assert top of stack is true, else fault."""
     if not engine.pop().get_boolean():
-        raise Exception("ASSERT is executed with false result.")
+        raise InvalidOperationException("ASSERT is executed with false result.")
 
 
 def throw(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -311,4 +312,4 @@ def syscall(engine: ExecutionEngine, instruction: Instruction) -> None:
     if hasattr(engine, 'syscall_handler') and engine.syscall_handler is not None:
         engine.syscall_handler(engine, hash_value)
     else:
-        raise Exception(f"Syscall not found: {hash_value}")
+        raise InvalidOperationException(f"Syscall not found: {hash_value}")

@@ -51,4 +51,4 @@ def runtime_get_current_signers(engine: "ApplicationEngine") -> None:
         return
     
     signers = [InteropInterface(s) for s in container.signers]
-    stack.push(Array(signers))
+    stack.push(Array(items=signers))

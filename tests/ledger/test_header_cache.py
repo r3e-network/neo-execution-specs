@@ -1,6 +1,5 @@
 """Tests for HeaderCache."""
 
-import pytest
 from neo.ledger.header_cache import HeaderCache
 from neo.network.payloads.header import Header
 

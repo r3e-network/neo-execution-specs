@@ -1,7 +1,5 @@
 """Tests for ledger types."""
 
-import pytest
-from neo.ledger.mempool import MemoryPool
 from neo.ledger.verify_result import VerifyResult
 from neo.ledger.tx_removal_reason import TransactionRemovalReason
 

@@ -1,9 +1,8 @@
 """Tests for compound type instructions."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
-from neo.vm.types import Integer, Array, Map, Struct, ByteString
+from neo.vm.types import Array, Map, Struct
 
 
 class TestArrayOperations:
@@ -153,7 +152,7 @@ class TestMapOperations:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
 
 
 class TestStructOperations:

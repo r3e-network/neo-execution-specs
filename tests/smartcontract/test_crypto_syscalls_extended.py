@@ -1,6 +1,5 @@
 """Tests for crypto syscalls."""
 
-import pytest
 from neo.smartcontract.syscalls import crypto
 
 

@@ -5,12 +5,11 @@ Reference: Neo.SmartContract.JsonSerializer
 
 from __future__ import annotations
 import json
-from typing import Any, Dict, List, Union, Optional
-from io import StringIO
+from typing import Any
 
 from neo.vm.types import (
     StackItem, StackItemType, Integer, Boolean, ByteString,
-    Buffer, Array, Struct, Map, Null, NULL
+    Array, Map, NULL
 )
 
 
@@ -85,7 +84,7 @@ class JsonSerializer:
             return [cls._to_json(sub, seen) for sub in items]
         
         elif item_type == StackItemType.MAP:
-            entries = list(item._dict.items())
+            entries = list(item._items.items())
             if len(entries) > cls.MAX_ITEMS:
                 raise ValueError(f"Map too large: {len(entries)}")
             result = {}
@@ -144,13 +143,9 @@ class JsonSerializer:
             return Integer(value)
         
         elif isinstance(value, str):
-            # Try to decode as base64
-            import base64
-            try:
-                decoded = base64.b64decode(value)
-                return ByteString(decoded)
-            except Exception:
-                return ByteString(value.encode('utf-8'))
+            # C# reference: string → ByteString via StrictUTF8.GetBytes(value)
+            # JSON strings are NOT base64-decoded during deserialization.
+            return ByteString(value.encode('utf-8'))
         
         elif isinstance(value, list):
             if len(value) > cls.MAX_ITEMS:

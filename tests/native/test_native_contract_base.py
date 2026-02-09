@@ -1,6 +1,5 @@
 """Tests for NativeContract base."""
 
-import pytest
 from neo.native.policy import PolicyContract
 
 

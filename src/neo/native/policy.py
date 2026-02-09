@@ -1,7 +1,7 @@
 """Policy contract for network settings."""
 
 from __future__ import annotations
-from typing import Any, List, Optional
+from typing import Any
 
 from neo.types import UInt160
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem

@@ -1,13 +1,9 @@
 """Tests for block verification."""
 
-import pytest
 from neo.ledger.block_verifier import BlockVerifier
 from neo.ledger.verify_result import VerifyResult
 from neo.network.payloads.block import Block
-from neo.network.payloads.header import Header
 from neo.network.payloads.witness import Witness
-from neo.types.uint256 import UInt256
-from neo.types.uint160 import UInt160
 
 
 class TestBlockVerifier:

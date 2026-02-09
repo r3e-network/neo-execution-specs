@@ -1,6 +1,5 @@
 """Tests for VM compound operations (arrays, maps, structs)."""
 
-import pytest
 from neo.vm import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 

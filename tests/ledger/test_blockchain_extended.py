@@ -1,11 +1,9 @@
 """Tests for blockchain functionality."""
 
-import pytest
 from neo.ledger.blockchain import Blockchain, ApplicationExecuted
 from neo.network.payloads.block import Block
 from neo.network.payloads.witness import Witness
 from neo.persistence.memory_store import MemoryStore
-from neo.types.uint256 import UInt256
 
 
 class TestBlockchain:

@@ -1,6 +1,5 @@
 """Tests for CallFlags."""
 
-import pytest
 from neo.smartcontract.call_flags import CallFlags
 
 

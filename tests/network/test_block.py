@@ -1,6 +1,5 @@
 """Tests for Block serialization."""
 
-import pytest
 from neo.network.payloads.block import Block
 from neo.types.uint256 import UInt256
 from neo.types.uint160 import UInt160

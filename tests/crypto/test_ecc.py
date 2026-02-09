@@ -1,7 +1,6 @@
 """Tests for ECC module."""
 
-import pytest
-from neo.crypto.ecc import ECPoint, derive_public_key
+from neo.crypto.ecc import derive_public_key
 
 
 class TestECC:

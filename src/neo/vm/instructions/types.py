@@ -11,9 +11,9 @@ This module implements type checking and conversion opcodes (0xD8-0xE1):
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from neo.exceptions import InvalidOperationException, VMAbortException
 from neo.vm.types import (
-    Boolean, Integer, ByteString, Buffer, Array, Struct, Map,
-    StackItemType, NULL, Pointer, InteropInterface
+    Boolean, Integer, ByteString, Buffer, Array, Struct, StackItemType, NULL
 )
 
 if TYPE_CHECKING:
@@ -45,11 +45,11 @@ def istype(engine: ExecutionEngine, instruction: Instruction) -> None:
     
     # Validate type - ANY is not allowed, and type must be defined
     if item_type == StackItemType.ANY:
-        raise Exception(f"Invalid type for ISTYPE: ANY")
+        raise InvalidOperationException("Invalid type for ISTYPE: ANY")
     
     valid_types = {t.value for t in StackItemType}
     if item_type not in valid_types:
-        raise Exception(f"Invalid type for ISTYPE: {item_type}")
+        raise InvalidOperationException(f"Invalid type for ISTYPE: {item_type}")
     
     result = item.type == item_type
     engine.push(Boolean(result))
@@ -76,7 +76,7 @@ def convert(engine: ExecutionEngine, instruction: Instruction) -> None:
     # Validate target type
     valid_types = {t.value for t in StackItemType}
     if target_type not in valid_types:
-        raise Exception(f"Invalid type for CONVERT: {target_type}")
+        raise InvalidOperationException(f"Invalid type for CONVERT: {target_type}")
     
     result = _convert_to(item, target_type, engine)
     engine.push(result)
@@ -92,7 +92,7 @@ def _convert_to(item, target_type: int, engine):
     if item is NULL or item.type == StackItemType.ANY:
         if target_type == StackItemType.ANY:
             return NULL
-        raise Exception(f"Cannot convert Null to {StackItemType(target_type).name}")
+        raise InvalidOperationException(f"Cannot convert Null to {StackItemType(target_type).name}")
     
     # Convert based on target type
     if target_type == StackItemType.BOOLEAN:
@@ -108,7 +108,7 @@ def _convert_to(item, target_type: int, engine):
             # Convert integer to bytes
             value = int(item.get_integer())
             if value == 0:
-                return ByteString(b'\x00')
+                return ByteString(b'')
             # Determine byte length needed
             byte_len = (value.bit_length() + 8) // 8  # +8 for sign bit
             try:
@@ -118,9 +118,9 @@ def _convert_to(item, target_type: int, engine):
                 data = value.to_bytes(byte_len, 'little', signed=True)
             return ByteString(data)
         elif isinstance(item, Boolean):
-            return ByteString(b'\x01' if item.get_boolean() else b'\x00')
+            return ByteString(b'\x01' if item.get_boolean() else b'')
         else:
-            raise Exception(f"Cannot convert {item.type} to ByteString")
+            raise InvalidOperationException(f"Cannot convert {item.type} to ByteString")
     
     elif target_type == StackItemType.BUFFER:
         if isinstance(item, (ByteString, Buffer)):
@@ -129,7 +129,7 @@ def _convert_to(item, target_type: int, engine):
         elif isinstance(item, Integer):
             value = int(item.get_integer())
             if value == 0:
-                return Buffer(b'\x00')
+                return Buffer(b'')
             byte_len = (value.bit_length() + 8) // 8
             try:
                 data = value.to_bytes(byte_len, 'little', signed=True)
@@ -138,7 +138,7 @@ def _convert_to(item, target_type: int, engine):
                 data = value.to_bytes(byte_len, 'little', signed=True)
             return Buffer(data)
         else:
-            raise Exception(f"Cannot convert {item.type} to Buffer")
+            raise InvalidOperationException(f"Cannot convert {item.type} to Buffer")
     
     elif target_type == StackItemType.ARRAY:
         if isinstance(item, Struct):
@@ -148,7 +148,7 @@ def _convert_to(item, target_type: int, engine):
                 result.add(item[i])
             return result
         else:
-            raise Exception(f"Cannot convert {item.type} to Array")
+            raise InvalidOperationException(f"Cannot convert {item.type} to Array")
     
     elif target_type == StackItemType.STRUCT:
         if isinstance(item, Array):
@@ -158,22 +158,22 @@ def _convert_to(item, target_type: int, engine):
                 result.add(item[i])
             return result
         else:
-            raise Exception(f"Cannot convert {item.type} to Struct")
+            raise InvalidOperationException(f"Cannot convert {item.type} to Struct")
     
     elif target_type == StackItemType.MAP:
-        raise Exception(f"Cannot convert {item.type} to Map")
+        raise InvalidOperationException(f"Cannot convert {item.type} to Map")
     
     elif target_type == StackItemType.INTEROP_INTERFACE:
-        raise Exception(f"Cannot convert {item.type} to InteropInterface")
+        raise InvalidOperationException(f"Cannot convert {item.type} to InteropInterface")
     
     elif target_type == StackItemType.POINTER:
-        raise Exception(f"Cannot convert {item.type} to Pointer")
+        raise InvalidOperationException(f"Cannot convert {item.type} to Pointer")
     
     elif target_type == StackItemType.ANY:
         return NULL
     
     else:
-        raise Exception(f"Unknown target type: {target_type}")
+        raise InvalidOperationException(f"Unknown target type: {target_type}")
 
 
 def abortmsg(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -189,7 +189,7 @@ def abortmsg(engine: ExecutionEngine, instruction: Instruction) -> None:
             message = msg.get_span().decode('utf-8', errors='replace')
         except AttributeError:
             message = str(msg)
-    raise Exception(f"ABORTMSG is executed. Reason: {message}")
+    raise VMAbortException(f"ABORTMSG is executed. Reason: {message}")
 
 
 def assertmsg(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -208,4 +208,4 @@ def assertmsg(engine: ExecutionEngine, instruction: Instruction) -> None:
                 message = msg.get_span().decode('utf-8', errors='replace')
             except AttributeError:
                 message = str(msg)
-        raise Exception(f"ASSERTMSG is executed with false result. Reason: {message}")
+        raise InvalidOperationException(f"ASSERTMSG is executed with false result. Reason: {message}")

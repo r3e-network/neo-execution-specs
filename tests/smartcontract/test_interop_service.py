@@ -1,10 +1,7 @@
 """Tests for interop service."""
 
-import pytest
 from neo.smartcontract.interop_service import (
     get_interop_hash,
-    register_syscall,
-    get_syscall,
 )
 
 

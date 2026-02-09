@@ -1,7 +1,7 @@
 """Neo N3 NEF (Neo Executable Format) implementation."""
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 import struct
 
 from neo.crypto.hash import hash256
@@ -31,6 +31,23 @@ class MethodToken:
         data.append(1 if self.has_return_value else 0)
         data.extend(struct.pack('<H', self.call_flags))
         return bytes(data)
+
+    @classmethod
+    def deserialize(cls, data: bytes, offset: int) -> tuple["MethodToken", int]:
+        """Deserialize method token, return (token, new_offset)."""
+        token_hash = data[offset:offset + 20]
+        offset += 20
+        method_len = struct.unpack_from('<I', data, offset)[0]
+        offset += 4
+        method = data[offset:offset + method_len].decode('utf-8')
+        offset += method_len
+        params_count = struct.unpack_from('<H', data, offset)[0]
+        offset += 2
+        has_return = data[offset] != 0
+        offset += 1
+        call_flags = struct.unpack_from('<H', data, offset)[0]
+        offset += 2
+        return cls(token_hash, method, params_count, has_return, call_flags), offset
 
 
 @dataclass
@@ -96,6 +113,67 @@ class NefFile:
         checksum = self.compute_checksum()
         return data + struct.pack('<I', checksum)
 
+    @classmethod
+    def deserialize(cls, data: bytes) -> "NefFile":
+        """Deserialize NEF file from bytes.
+
+        Binary layout:
+          Magic        (4B LE uint32)
+          Compiler     (64B, zero-padded)
+          Source       (var_bytes)
+          Reserved     (1B)
+          Tokens       (var_int count + serialized tokens)
+          Reserved     (2B)
+          Script       (var_bytes)
+          Checksum     (4B LE uint32)
+        """
+        if len(data) < 4:
+            raise ValueError("Data too short for NEF")
+
+        offset = 0
+
+        # Magic
+        magic = struct.unpack_from('<I', data, offset)[0]
+        if magic != NEF_MAGIC:
+            raise ValueError(f"Invalid NEF magic: 0x{magic:08X}")
+        offset += 4
+
+        # Compiler (64 bytes, strip trailing NULs)
+        compiler_raw = data[offset:offset + 64]
+        compiler = compiler_raw.rstrip(b'\x00').decode('utf-8')
+        offset += 64
+
+        # Source (var_bytes)
+        source_bytes, offset = read_var_bytes(data, offset)
+        source = source_bytes.decode('utf-8')
+
+        # Reserved (1 byte)
+        offset += 1
+
+        # Tokens
+        token_count, offset = read_var_int(data, offset)
+        tokens: List[MethodToken] = []
+        for _ in range(token_count):
+            token, offset = MethodToken.deserialize(data, offset)
+            tokens.append(token)
+
+        # Reserved (2 bytes)
+        offset += 2
+
+        # Script (var_bytes)
+        script, offset = read_var_bytes(data, offset)
+
+        # Checksum
+        checksum = struct.unpack_from('<I', data, offset)[0]
+
+        return cls(
+            compiler=compiler,
+            source=source,
+            tokens=tokens,
+            script=script,
+            checksum=checksum,
+        )
+
 
 def write_var_int(value: int) -> bytes:
     """Write variable length integer."""
@@ -112,3 +190,31 @@ def write_var_int(value: int) -> bytes:
 def write_var_bytes(data: bytes) -> bytes:
     """Write variable length bytes."""
     return write_var_int(len(data)) + data
+
+
+def read_var_int(data: bytes, offset: int) -> tuple[int, int]:
+    """Read variable length integer, return (value, new_offset)."""
+    if offset >= len(data):
+        raise ValueError("Unexpected end of data reading var_int")
+    fb = data[offset]
+    offset += 1
+    if fb < 0xFD:
+        return fb, offset
+    elif fb == 0xFD:
+        value = struct.unpack_from('<H', data, offset)[0]
+        return value, offset + 2
+    elif fb == 0xFE:
+        value = struct.unpack_from('<I', data, offset)[0]
+        return value, offset + 4
+    else:
+        value = struct.unpack_from('<Q', data, offset)[0]
+        return value, offset + 8
+
+
+def read_var_bytes(data: bytes, offset: int) -> tuple[bytes, int]:
+    """Read variable length bytes, return (bytes, new_offset)."""
+    length, offset = read_var_int(data, offset)
+    result = data[offset:offset + length]
+    if len(result) != length:
+        raise ValueError(f"Expected {length} bytes, got {len(result)}")
+    return result, offset + length

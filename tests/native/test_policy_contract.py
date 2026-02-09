@@ -1,6 +1,5 @@
 """Tests for PolicyContract."""
 
-import pytest
 from neo.native.policy import (
     PolicyContract, 
     DEFAULT_FEE_PER_BYTE,

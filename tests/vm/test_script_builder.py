@@ -1,6 +1,5 @@
 """Tests for ScriptBuilder."""
 
-import pytest
 from neo.vm.script_builder import ScriptBuilder
 
 

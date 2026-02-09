@@ -46,5 +46,4 @@ class Slot:
         return self._items[index]
     
     def __setitem__(self, index: int, value: StackItem) -> None:
-        old_value = self._items[index]
         self._items[index] = value

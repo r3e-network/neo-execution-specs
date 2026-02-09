@@ -1,8 +1,7 @@
 """Tests for DataCache."""
 
-import pytest
 from neo.persistence.memory_store import MemoryStore
-from neo.persistence.data_cache import DataCache, ClonedCache, TrackState
+from neo.persistence.data_cache import DataCache, ClonedCache
 
 
 class TestDataCache:

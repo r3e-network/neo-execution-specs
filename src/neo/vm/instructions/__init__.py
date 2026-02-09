@@ -1,7 +1,11 @@
-"""OpCode instruction implementations."""
+"""OpCode instruction implementations.
 
-from .constants import *
-from .stack import *
-from .numeric import *
+The execution engine imports submodules directly (e.g. ``from neo.vm.instructions
+import constants, stack``), so this package primarily serves as a namespace.
+"""
 
-__all__ = ["execute_instruction"]
+from neo.vm.instructions import (  # noqa: F401 — re-exported submodules
+    constants,
+    stack,
+    numeric,
+)

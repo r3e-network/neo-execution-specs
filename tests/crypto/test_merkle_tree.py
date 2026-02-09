@@ -1,6 +1,5 @@
 """Tests for Merkle Tree."""
 
-import pytest
 from neo.crypto.merkle import compute_root
 from neo.crypto.hash import hash256
 

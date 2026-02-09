@@ -1,6 +1,5 @@
 """Tests for storage context."""
 
-import pytest
 from neo.smartcontract.storage_context import StorageContext
 from neo.types import UInt160
 

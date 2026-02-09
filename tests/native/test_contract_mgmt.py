@@ -1,6 +1,5 @@
 """Tests for ContractManagement."""
 
-import pytest
 from neo.native.contract_management import ContractManagement
 
 

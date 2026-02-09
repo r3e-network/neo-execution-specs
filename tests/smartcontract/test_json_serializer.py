@@ -1,8 +1,7 @@
 """Tests for JSON serializer."""
 
-import pytest
 from neo.smartcontract.json_serializer import JsonSerializer
-from neo.vm.types import Integer, Boolean, ByteString, Array, NULL
+from neo.vm.types import Integer, Boolean, Array, NULL
 
 
 class TestJsonSerializer:

@@ -1,6 +1,5 @@
 """Tests for bitwise instructions."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 
@@ -75,7 +74,7 @@ class TestBitwiseInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_equal_false(self):
         """Test EQUAL with different values."""
@@ -89,7 +88,7 @@ class TestBitwiseInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == False
+        assert not engine.result_stack.peek().get_boolean()
     
     def test_notequal(self):
         """Test NOTEQUAL."""
@@ -103,4 +102,4 @@ class TestBitwiseInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()

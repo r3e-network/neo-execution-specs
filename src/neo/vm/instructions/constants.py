@@ -12,6 +12,7 @@ This module implements all constant-pushing opcodes (0x00-0x20):
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from neo.exceptions import InvalidOperationException
 from neo.vm.types import Integer, ByteString, Boolean, NULL, Pointer
 
 if TYPE_CHECKING:
@@ -119,7 +120,7 @@ def pusha(engine: ExecutionEngine, instruction: Instruction) -> None:
     position = engine.current_context.ip + offset
     
     if position < 0 or position > len(engine.current_context.script):
-        raise Exception(f"Bad pointer address: {position}")
+        raise InvalidOperationException(f"Bad pointer address: {position}")
     
     engine.push(Pointer(engine.current_context.script, position))
 

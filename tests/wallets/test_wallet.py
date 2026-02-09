@@ -1,6 +1,5 @@
 """Tests for Wallet."""
 
-import pytest
 from neo.wallets.wallet import Wallet
 
 

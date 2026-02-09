@@ -1,7 +1,6 @@
 """Tests for Witness serialization."""
 
-import pytest
-from neo.network.payloads.witness import Witness, _get_var_size
+from neo.network.payloads.witness import Witness
 
 
 class TestWitness:

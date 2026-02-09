@@ -5,7 +5,7 @@ Reference: Neo.Persistence.DataCache
 """
 
 from enum import Enum
-from typing import Callable, Dict, Iterator, Optional, Tuple, TypeVar
+from typing import Callable, Dict, Iterator, Optional, Tuple
 from neo.persistence.store import IReadOnlyStore, IStore
 
 

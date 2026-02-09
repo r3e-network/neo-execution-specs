@@ -1,6 +1,5 @@
 """Tests for wallet types."""
 
-import pytest
 from neo.wallets.key_pair import KeyPair
 
 

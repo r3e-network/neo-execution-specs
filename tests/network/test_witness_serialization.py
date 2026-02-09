@@ -1,6 +1,5 @@
 """Tests for Witness serialization."""
 
-import pytest
 from neo.network.payloads.witness import Witness
 
 

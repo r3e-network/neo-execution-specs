@@ -1,6 +1,5 @@
 """Tests for execution context."""
 
-import pytest
 from neo.vm.execution_context import ExecutionContext
 
 

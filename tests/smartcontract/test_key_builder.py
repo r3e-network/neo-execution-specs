@@ -1,6 +1,5 @@
 """Tests for KeyBuilder."""
 
-import pytest
 from neo.smartcontract.key_builder import KeyBuilder
 
 

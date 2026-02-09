@@ -1,9 +1,6 @@
 """Tests for persistence layer."""
 
-import pytest
 from neo.persistence.memory_store import MemoryStore
-from neo.persistence.snapshot import Snapshot
-from neo.persistence.data_cache import DataCache
 from neo.persistence.seek_direction import SeekDirection
 
 

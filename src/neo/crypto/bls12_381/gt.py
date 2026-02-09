@@ -7,7 +7,6 @@ Uses py_ecc library for cryptographically correct implementation.
 """
 
 from __future__ import annotations
-from typing import Union, Optional
 
 from .scalar import Scalar, SCALAR_MODULUS
 

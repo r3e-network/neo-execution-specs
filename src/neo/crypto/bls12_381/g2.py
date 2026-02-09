@@ -6,7 +6,6 @@ Points are represented in compressed form as 96 bytes.
 """
 
 from __future__ import annotations
-from typing import Union, Tuple
 
 from .scalar import Scalar, SCALAR_MODULUS
 
@@ -182,11 +181,68 @@ def _fp2_is_odd(x: Fp2) -> bool:
     return x.c0 & 1 == 1
 
 
+def _fp_sqrt(a: int) -> int | None:
+    """Square root in Fp. For p ≡ 3 (mod 4), sqrt(a) = a^((p+1)/4)."""
+    if a == 0:
+        return 0
+    if pow(a, (P - 1) // 2, P) != 1:
+        return None  # Not a quadratic residue
+    return pow(a, (P + 1) // 4, P)
+
+
 def _fp2_sqrt(x: Fp2) -> Fp2 | None:
-    """Square root in Fp2 (simplified)."""
+    """Square root in Fp2 = Fp[u]/(u^2 + 1).
+
+    Uses the algorithm: for a = a0 + a1·u,
+    1. Compute norm t = sqrt(a0² + a1²) in Fp
+    2. Compute x0 = sqrt((a0 + t) / 2) in Fp
+    3. x1 = a1 / (2·x0)
+    4. Return x0 + x1·u
+    """
     if x.is_zero():
         return Fp2.zero()
-    return None  # Placeholder
+
+    a0, a1 = x.c0, x.c1
+
+    # Special case: purely real
+    if a1 == 0:
+        s = _fp_sqrt(a0)
+        if s is not None:
+            return Fp2(s, 0)
+        # a0 is not a QR, so -a0 must be; return sqrt(-a0)·u
+        s = _fp_sqrt((P - a0) % P)
+        if s is None:
+            return None
+        return Fp2(0, s)
+
+    # General case
+    # norm = a0² + a1² (the field norm N(a) for Fp2 with u²=-1)
+    norm = (a0 * a0 + a1 * a1) % P
+    t = _fp_sqrt(norm)
+    if t is None:
+        return None
+
+    # inv2 = modular inverse of 2
+    inv2 = (P + 1) // 2
+
+    # Try x0 = sqrt((a0 + t) / 2)
+    half = ((a0 + t) * inv2) % P
+    x0 = _fp_sqrt(half)
+    if x0 is None:
+        # Use -t instead
+        half = ((a0 - t + P) * inv2) % P
+        x0 = _fp_sqrt(half)
+        if x0 is None:
+            return None
+
+    # x1 = a1 / (2·x0)
+    x1 = (a1 * pow(2 * x0, -1, P)) % P
+
+    result = Fp2(x0, x1)
+    # Verify
+    if result * result == x:
+        return result
+    return None
 
 
 class G2Projective:
@@ -230,8 +286,13 @@ class G2Projective:
                 return True
             if self.z.is_zero() or other.z.is_zero():
                 return False
-            return (self.x * other.z) == (other.x * self.z) and \
-                   (self.y * other.z) == (other.y * self.z)
+            # Jacobian: affine x = X/Z², y = Y/Z³
+            z1_sq = self.z * self.z
+            z2_sq = other.z * other.z
+            z1_cu = z1_sq * self.z
+            z2_cu = z2_sq * other.z
+            return (self.x * z2_sq) == (other.x * z1_sq) and \
+                   (self.y * z2_cu) == (other.y * z1_cu)
         return False
     
     def __neg__(self) -> G2Projective:

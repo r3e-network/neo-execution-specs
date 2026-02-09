@@ -1,6 +1,5 @@
 """Tests for BinaryWriter."""
 
-import pytest
 from neo.io.binary_writer import BinaryWriter
 
 

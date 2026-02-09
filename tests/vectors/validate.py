@@ -10,10 +10,16 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.types import (
-    StackItem, StackItemType, Integer, Boolean, ByteString,
+    StackItem, Integer, Boolean, ByteString,
     Array, Struct, Map, Null, Buffer
 )
-from generator import hex_to_script
+
+
+def hex_to_script(hex_str: str) -> bytes:
+    """Convert hex string to script bytes."""
+    if hex_str.startswith("0x"):
+        hex_str = hex_str[2:]
+    return bytes.fromhex(hex_str)
 
 
 def stack_item_to_python(item: StackItem) -> dict | int | bool | str | list | None:

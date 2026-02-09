@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 from abc import abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, Optional, TYPE_CHECKING
+from dataclasses import dataclass
+from typing import Any, Optional
 
 from neo.types import UInt160
-from neo.native.native_contract import NativeContract, CallFlags, StorageKey, StorageItem
+from neo.native.native_contract import NativeContract, CallFlags, StorageItem
 
 
 # Storage prefixes

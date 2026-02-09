@@ -1,6 +1,5 @@
 """Tests for Notary."""
 
-import pytest
 from neo.native.notary import Notary
 
 

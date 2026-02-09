@@ -1,6 +1,5 @@
 """Tests for native contracts."""
 
-import pytest
 from neo.native.oracle_response import OracleResponseCode
 
 

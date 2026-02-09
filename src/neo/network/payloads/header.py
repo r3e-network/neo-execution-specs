@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from neo.io.binary_reader import BinaryReader
     from neo.io.binary_writer import BinaryWriter
-    from neo.types import UInt256, UInt160
+    from neo.network.payloads.witness import Witness
 
 
 # Header size without witness
@@ -61,7 +61,7 @@ class Header:
     def serialize(self, writer: "BinaryWriter") -> None:
         """Serialize the header."""
         self._serialize_unsigned(writer)
-        writer.write_byte(1)  # Witness count
+        writer.write_var_int(1)  # Witness count (VarInt per Neo N3 spec)
         if self.witness:
             self.witness.serialize(writer)
         else:
@@ -82,7 +82,7 @@ class Header:
         primary_index = reader.read_byte()
         next_consensus = reader.read_bytes(20)
         
-        witness_count = reader.read_byte()
+        witness_count = reader.read_var_int(1)
         witness = Witness.deserialize(reader) if witness_count > 0 else None
         
         return cls(

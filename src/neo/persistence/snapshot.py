@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterator, Optional, Tuple, Any
 from abc import ABC, abstractmethod
 
-from neo.persistence.store import IStore, IReadOnlyStore
+from neo.persistence.store import IStore
 
 
 class Snapshot(ABC):

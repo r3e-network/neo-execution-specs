@@ -1,6 +1,5 @@
 """Tests for Policy native contract."""
 
-import pytest
 from neo.native.policy import (
     PolicyContract,
     DEFAULT_EXEC_FEE_FACTOR,

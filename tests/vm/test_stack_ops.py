@@ -1,6 +1,5 @@
 """Tests for VM stack operations."""
 
-import pytest
 from neo.vm import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 
@@ -12,7 +11,7 @@ def test_push0():
     engine.execute()
     
     assert engine.state == VMState.HALT
-    ctx = engine.invocation_stack[0] if engine.invocation_stack else None
+    _ctx = engine.invocation_stack[0] if engine.invocation_stack else None
     # Stack should have one item
 
 

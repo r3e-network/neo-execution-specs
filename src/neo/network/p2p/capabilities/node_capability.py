@@ -1,6 +1,5 @@
 """Neo N3 Capabilities."""
 
-from dataclasses import dataclass
 from enum import IntEnum
 
 

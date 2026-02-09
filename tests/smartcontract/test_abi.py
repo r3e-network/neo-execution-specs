@@ -1,6 +1,5 @@
 """Tests for Contract ABI."""
 
-import pytest
 from neo.smartcontract.manifest.contract_abi import ContractAbi
 
 

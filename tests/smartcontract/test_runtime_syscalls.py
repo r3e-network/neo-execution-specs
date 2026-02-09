@@ -1,6 +1,5 @@
 """Tests for runtime syscalls."""
 
-import pytest
 from neo.smartcontract.syscalls import runtime
 
 

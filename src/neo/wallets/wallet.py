@@ -1,9 +1,7 @@
 """Neo N3 Wallet implementation."""
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
-import json
-import os
+from typing import List, Optional
 
 from neo.wallets.account import Account
 from neo.wallets.key_pair import KeyPair

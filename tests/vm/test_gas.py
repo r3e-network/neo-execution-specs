@@ -1,6 +1,5 @@
 """Tests for GAS costs."""
 
-import pytest
 from neo.vm.gas import OPCODE_PRICE
 
 

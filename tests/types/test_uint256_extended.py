@@ -1,6 +1,5 @@
 """Tests for UInt256."""
 
-import pytest
 from neo.types.uint256 import UInt256
 
 

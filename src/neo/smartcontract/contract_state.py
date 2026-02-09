@@ -1,7 +1,7 @@
 """Neo N3 Contract State."""
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict
+from typing import Dict
 
 
 @dataclass

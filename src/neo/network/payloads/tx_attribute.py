@@ -1,6 +1,5 @@
 """Neo N3 Transaction Attribute."""
 
-from dataclasses import dataclass
 from enum import IntEnum
 
 
@@ -10,3 +9,4 @@ class TransactionAttributeType(IntEnum):
     ORACLE_RESPONSE = 0x11
     NOT_VALID_BEFORE = 0x20
     CONFLICTS = 0x21
+    NOTARY_ASSISTED = 0x22

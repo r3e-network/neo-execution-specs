@@ -1,6 +1,5 @@
 """Extended tests for ledger components."""
 
-import pytest
 from neo.ledger.verify_result import VerifyResult
 from neo.ledger.tx_removal_reason import TransactionRemovalReason
 

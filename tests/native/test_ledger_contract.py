@@ -1,6 +1,5 @@
 """Tests for LedgerContract."""
 
-import pytest
 from neo.native.ledger import LedgerContract
 
 

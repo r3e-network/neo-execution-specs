@@ -1,6 +1,5 @@
 """Tests for slot system."""
 
-import pytest
 from neo.vm.slot import Slot
 from neo.vm.types import Integer
 

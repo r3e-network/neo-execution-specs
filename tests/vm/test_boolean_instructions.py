@@ -1,6 +1,5 @@
 """Tests for boolean instructions."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 
@@ -16,7 +15,7 @@ class TestBooleanInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == False
+        assert not engine.result_stack.peek().get_boolean()
     
     def test_not_false(self):
         """Test NOT on false."""
@@ -26,7 +25,7 @@ class TestBooleanInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_booland(self):
         """Test BOOLAND."""
@@ -36,7 +35,7 @@ class TestBooleanInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_boolor(self):
         """Test BOOLOR."""
@@ -46,7 +45,7 @@ class TestBooleanInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_nz(self):
         """Test NZ (not zero)."""
@@ -56,4 +55,4 @@ class TestBooleanInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()

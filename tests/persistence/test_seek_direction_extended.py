@@ -1,6 +1,5 @@
 """Tests for seek direction."""
 
-import pytest
 from neo.persistence.seek_direction import SeekDirection
 
 

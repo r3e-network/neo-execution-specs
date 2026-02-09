@@ -1,6 +1,6 @@
 """Neo N3 Transaction Router."""
 
-from typing import Callable, Optional
+from typing import Callable
 
 
 class TransactionRouter:

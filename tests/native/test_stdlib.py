@@ -1,6 +1,5 @@
 """Tests for StdLib native contract."""
 
-import pytest
 from neo.native.std_lib import StdLib, MAX_INPUT_LENGTH
 
 

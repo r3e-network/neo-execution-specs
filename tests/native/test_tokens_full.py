@@ -1,9 +1,7 @@
 """Comprehensive tests for NEO and GAS tokens."""
 
-import pytest
 from neo.native.neo_token import NeoToken, NeoAccountState, CandidateState
 from neo.native.gas_token import GasToken
-from neo.types import UInt160
 
 
 class TestNeoToken:
@@ -65,7 +63,7 @@ class TestCandidateState:
     def test_default_state(self):
         """Test default candidate state."""
         state = CandidateState()
-        assert state.registered == False
+        assert not state.registered
         assert state.votes == 0
     
     def test_serialization(self):
@@ -77,7 +75,7 @@ class TestCandidateState:
         data = state.to_bytes()
         recovered = CandidateState.from_bytes(data)
         
-        assert recovered.registered == True
+        assert recovered.registered
         assert recovered.votes == 1000000
 
 

@@ -5,7 +5,7 @@ Reference: Neo.Ledger.TransactionVerifier
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, List, Set
+from typing import TYPE_CHECKING, Set
 
 from neo.ledger.verify_result import VerifyResult
 
@@ -100,7 +100,12 @@ class TransactionVerifier:
         # Check sender balance
         if not TransactionVerifier._verify_balance(tx, snapshot):
             return VerifyResult.INSUFFICIENT_FUNDS
-        
+
+        # Verify witnesses (signature / contract verification)
+        witness_result = TransactionVerifier.verify_witnesses(tx, snapshot)
+        if witness_result != VerifyResult.SUCCEED:
+            return witness_result
+
         return VerifyResult.SUCCEED
     
     @staticmethod
@@ -153,19 +158,64 @@ class TransactionVerifier:
         witness,
         snapshot: "Snapshot"
     ) -> bool:
-        """Verify a single witness."""
+        """Verify a single witness by executing its scripts in the VM.
+
+        Neo N3 witness verification:
+        1. Hash the verification script and confirm it matches the signer account.
+        2. Load the invocation script (signatures/args), then the verification
+           script into the VM.
+        3. Execute — the verification script must leave ``True`` on the stack.
+        """
         from neo.crypto.hash import hash160
-        
-        # Get verification script
-        if witness.verification_script:
-            # Standard verification
-            script_hash = hash160(witness.verification_script)
+
+        verification = getattr(witness, 'verification_script',
+                               getattr(witness, 'verification', b''))
+        invocation = getattr(witness, 'invocation_script',
+                             getattr(witness, 'invocation', b''))
+
+        if verification:
+            # Standard account — hash must match signer
+            script_hash = hash160(verification)
             if script_hash != bytes(signer.account):
                 return False
         else:
-            # Contract verification - get from storage
+            # Contract-based verification — fetch script from storage
             contract = snapshot.get_contract(signer.account)
             if contract is None:
                 return False
-        
-        return True
+            verification = getattr(contract, 'script', b'')
+            if not verification:
+                return False
+
+        # Execute the witness scripts in a sandboxed VM
+        try:
+            from neo.smartcontract.application_engine import ApplicationEngine
+            from neo.smartcontract.trigger import TriggerType
+            from neo.vm.execution_engine import VMState
+
+            engine = ApplicationEngine(
+                trigger=TriggerType.VERIFICATION,
+                gas_limit=50_000_000,  # 0.5 GAS cap for verification
+                snapshot=snapshot,
+                script_container=tx,
+            )
+
+            # Load invocation script first (pushes signatures onto stack)
+            if invocation:
+                engine.load_script(invocation)
+
+            # Load verification script on top (consumes signatures, pushes bool)
+            engine.load_script(verification)
+
+            engine.execute()
+
+            if engine.state != VMState.HALT:
+                return False
+
+            # Stack must contain exactly one truthy item
+            if engine.result_stack.count == 0:
+                return False
+
+            return engine.result_stack.peek().get_boolean()
+        except Exception:
+            return False

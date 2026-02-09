@@ -26,7 +26,7 @@ def contract_call(engine: "ApplicationEngine") -> None:
     # Pop arguments
     args = stack.pop()
     if not isinstance(args, Array):
-        args = Array([args])
+        args = Array(items=[args])
     
     call_flags_int = stack.pop().get_integer()
     call_flags = CallFlags(call_flags_int)

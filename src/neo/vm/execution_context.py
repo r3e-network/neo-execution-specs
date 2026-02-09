@@ -5,19 +5,17 @@ in the VM execution stack, including support for exception handling.
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional, List, Any, Dict
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional, Any, Dict
 
 from neo.vm.evaluation_stack import EvaluationStack
 from neo.vm.exception_handling import (
-    ExceptionHandlingContext,
-    ExceptionHandlingState,
     TryStack,
 )
 from neo.vm.slot import Slot
 
 if TYPE_CHECKING:
-    from neo.vm.script import Script
+    pass
 
 
 @dataclass
@@ -241,7 +239,6 @@ class ExecutionContext:
 
 def _parse_instruction(script: bytes, position: int) -> Instruction:
     """Parse an instruction from the script at the given position."""
-    from neo.vm.opcode import OpCode
     
     opcode = script[position]
     operand = b''

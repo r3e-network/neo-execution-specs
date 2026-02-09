@@ -5,7 +5,7 @@ Reference: Neo.Ledger.Blockchain (verification parts)
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, List
+from typing import TYPE_CHECKING, Optional
 
 from neo.ledger.verify_result import VerifyResult
 from neo.ledger.transaction_verifier import TransactionVerifier

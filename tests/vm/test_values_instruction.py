@@ -1,6 +1,5 @@
 """Tests for VM VALUES instruction."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine
 from neo.vm.opcode import OpCode
 

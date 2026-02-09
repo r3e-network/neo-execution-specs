@@ -1,9 +1,7 @@
 """Tests for execution engine."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.script_builder import ScriptBuilder
-from neo.vm.opcode import OpCode
 
 
 class TestExecutionEngine:

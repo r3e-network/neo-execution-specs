@@ -1,6 +1,5 @@
 """Tests for ExecutionEngine."""
 
-import pytest
 from neo.vm import ExecutionEngine, VMState
 
 

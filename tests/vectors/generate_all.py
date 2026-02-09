@@ -14,7 +14,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from generator import VectorCategory
 
 # Import all generators
 from vm_generator import generate_arithmetic_vectors
@@ -69,7 +68,7 @@ def verify_json(filepath: Path):
     """Verify JSON file is valid."""
     try:
         with open(filepath) as f:
-            data = json.load(f)
+            json.load(f)
         print(f"  ✓ Valid JSON: {filepath.name}")
         return True
     except json.JSONDecodeError as e:

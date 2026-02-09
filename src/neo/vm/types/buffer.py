@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 from neo.vm.types.stack_item import StackItem, StackItemType
-from neo.types import BigInteger
 
 
 class Buffer(StackItem):

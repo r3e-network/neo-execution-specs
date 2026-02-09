@@ -48,7 +48,6 @@ def crypto_check_multisig(engine: "ApplicationEngine") -> None:
     """
     from neo.vm.types import Boolean, Array
     from neo.crypto.ecc import SECP256R1
-    from neo.crypto.ecc.signature import verify_signature
     
     stack = engine.current_context.evaluation_stack
     

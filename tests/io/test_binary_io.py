@@ -1,6 +1,5 @@
 """Tests for IO serialization."""
 
-import pytest
 from neo.io.binary_reader import BinaryReader
 from neo.io.binary_writer import BinaryWriter
 

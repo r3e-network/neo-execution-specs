@@ -1,6 +1,5 @@
 """Neo N3 UInt160 - 20-byte hash type."""
 
-from typing import Union
 
 
 class UInt160:

@@ -1,6 +1,5 @@
 """Tests for BinaryReader extended."""
 
-import pytest
 from neo.io.binary_reader import BinaryReader
 
 

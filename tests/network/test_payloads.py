@@ -1,6 +1,5 @@
 """Tests for network payload types."""
 
-import pytest
 from neo.network.payloads.witness import Witness
 from neo.network.payloads.signer import Signer
 from neo.network.payloads.witness_scope import WitnessScope

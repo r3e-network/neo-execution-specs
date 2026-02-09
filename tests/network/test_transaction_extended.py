@@ -1,9 +1,7 @@
 """Tests for network payloads."""
 
-import pytest
 from neo.network.payloads.transaction import Transaction
 from neo.network.payloads.signer import Signer
-from neo.network.payloads.witness import Witness
 from neo.types.uint160 import UInt160
 
 

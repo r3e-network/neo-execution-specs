@@ -1,8 +1,7 @@
 """Tests for ApplicationEngine."""
 
-import pytest
 from neo.smartcontract.application_engine import (
-    ApplicationEngine, TriggerType, VMState, ExecutionContext
+    ApplicationEngine, TriggerType, VMState
 )
 
 

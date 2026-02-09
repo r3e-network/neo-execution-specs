@@ -1,6 +1,5 @@
 """Tests for constant instructions."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 
@@ -37,7 +36,7 @@ class TestPushInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_pushf(self):
         """Test PUSHF pushes false."""
@@ -47,7 +46,7 @@ class TestPushInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == False
+        assert not engine.result_stack.peek().get_boolean()
     
     def test_pushnull(self):
         """Test PUSHNULL pushes null."""

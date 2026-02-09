@@ -1,6 +1,5 @@
 """Tests for InteropDescriptor."""
 
-import pytest
 from neo.smartcontract.interop_descriptor import InteropDescriptor
 
 

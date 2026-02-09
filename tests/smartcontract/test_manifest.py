@@ -1,6 +1,5 @@
 """Tests for contract manifest types."""
 
-import pytest
 from neo.smartcontract.manifest.contract_abi import ContractAbi
 from neo.smartcontract.manifest.contract_manifest import ContractManifest
 from neo.smartcontract.manifest.contract_group import ContractGroup

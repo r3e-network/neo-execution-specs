@@ -1,6 +1,5 @@
 """Tests for Transaction serialization."""
 
-import pytest
 from neo.network.payloads.transaction import Transaction, HEADER_SIZE
 
 

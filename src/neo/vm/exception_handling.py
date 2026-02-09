@@ -5,9 +5,11 @@ TRY/CATCH/FINALLY blocks in the Neo Virtual Machine.
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import IntEnum
 from typing import List, Optional
+
+from neo.exceptions import InvalidOperationException
 
 
 class ExceptionHandlingState(IntEnum):
@@ -61,7 +63,7 @@ class TryStack:
     def pop(self) -> ExceptionHandlingContext:
         """Pop and return the top exception handling context."""
         if not self._stack:
-            raise Exception("The corresponding TRY block cannot be found.")
+            raise InvalidOperationException("The corresponding TRY block cannot be found.")
         return self._stack.pop()
     
     def peek(self) -> Optional[ExceptionHandlingContext]:

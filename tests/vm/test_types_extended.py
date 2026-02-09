@@ -1,7 +1,6 @@
 """Tests for VM types."""
 
-import pytest
-from neo.vm.types import Integer, ByteString, Array, Map, Boolean, Struct
+from neo.vm.types import Integer, ByteString, Array, Map, Boolean
 
 
 class TestVMTypes:

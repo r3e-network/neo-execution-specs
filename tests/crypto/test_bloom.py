@@ -1,6 +1,5 @@
 """Tests for Bloom Filter."""
 
-import pytest
 from neo.crypto.bloom import BloomFilter
 
 

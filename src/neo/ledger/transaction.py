@@ -1,9 +1,8 @@
 """Neo N3 Transaction implementation."""
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 from enum import IntEnum
-import struct
 
 
 class TransactionAttributeType(IntEnum):
@@ -12,6 +11,7 @@ class TransactionAttributeType(IntEnum):
     ORACLE_RESPONSE = 0x11
     NOT_VALID_BEFORE = 0x20
     CONFLICTS = 0x21
+    NOTARY_ASSISTED = 0x22
 
 
 @dataclass

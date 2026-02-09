@@ -13,6 +13,8 @@ This module implements all slot opcodes (0x56-0x87):
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from neo.exceptions import InvalidOperationException
+
 if TYPE_CHECKING:
     from neo.vm.execution_engine import ExecutionEngine, Instruction
 
@@ -20,18 +22,18 @@ if TYPE_CHECKING:
 def _load_from_slot(engine: ExecutionEngine, slot, index: int) -> None:
     """Helper to load from a slot."""
     if slot is None:
-        raise Exception("Slot has not been initialized.")
+        raise InvalidOperationException("Slot has not been initialized.")
     if index < 0 or index >= len(slot):
-        raise Exception(f"Index out of range: {index}")
+        raise InvalidOperationException(f"Index out of range: {index}")
     engine.push(slot[index])
 
 
 def _store_to_slot(engine: ExecutionEngine, slot, index: int) -> None:
     """Helper to store to a slot."""
     if slot is None:
-        raise Exception("Slot has not been initialized.")
+        raise InvalidOperationException("Slot has not been initialized.")
     if index < 0 or index >= len(slot):
-        raise Exception(f"Index out of range: {index}")
+        raise InvalidOperationException(f"Index out of range: {index}")
     slot[index] = engine.pop()
 
 
@@ -39,10 +41,10 @@ def initsslot(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Initialize static field slot."""
     ctx = engine.current_context
     if ctx.static_fields is not None:
-        raise Exception("INITSSLOT cannot be executed twice.")
+        raise InvalidOperationException("INITSSLOT cannot be executed twice.")
     count = instruction.operand[0]
     if count == 0:
-        raise Exception("Invalid operand for INITSSLOT.")
+        raise InvalidOperationException("Invalid operand for INITSSLOT.")
     ctx.static_fields = engine.create_slot(count)
 
 
@@ -50,11 +52,11 @@ def initslot(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Initialize local and argument slots."""
     ctx = engine.current_context
     if ctx.local_variables is not None or ctx.arguments is not None:
-        raise Exception("INITSLOT cannot be executed twice.")
+        raise InvalidOperationException("INITSLOT cannot be executed twice.")
     local_count = instruction.operand[0]
     arg_count = instruction.operand[1]
     if local_count == 0 and arg_count == 0:
-        raise Exception("Invalid operand for INITSLOT.")
+        raise InvalidOperationException("Invalid operand for INITSLOT.")
     if local_count > 0:
         ctx.local_variables = engine.create_slot(local_count)
     if arg_count > 0:

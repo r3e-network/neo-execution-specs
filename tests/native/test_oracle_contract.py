@@ -1,6 +1,5 @@
 """Tests for Oracle."""
 
-import pytest
 from neo.native.oracle import OracleContract
 
 

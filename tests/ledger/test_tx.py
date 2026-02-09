@@ -1,6 +1,5 @@
 """Tests for ledger module."""
 
-import pytest
 from neo.ledger.tx import Transaction
 from neo.ledger.block import Block, BlockHeader
 

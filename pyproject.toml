@@ -41,6 +41,9 @@ all = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore::pytest.PytestCollectionWarning",
+]
 
 [tool.mypy]
 python_version = "3.11"
@@ -49,6 +52,10 @@ strict = true
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/vectors/generate_all.py" = ["E402"]
+"tests/vectors/validate.py" = ["E402"]
 
 [project.scripts]
 neo-diff = "neo.tools.diff.cli:main"

@@ -1,6 +1,5 @@
 """Tests for crypto module."""
 
-import pytest
 from neo.crypto.hash import hash160, hash256
 
 

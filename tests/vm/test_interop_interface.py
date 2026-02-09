@@ -1,6 +1,5 @@
 """Tests for InteropInterface type."""
 
-import pytest
 from neo.vm.types.interop_interface import InteropInterface
 from neo.vm.types.stack_item import StackItemType
 

@@ -1,6 +1,5 @@
 """Extended tests for DataCache."""
 
-import pytest
 from neo.persistence.data_cache import DataCache, TrackState, Trackable
 from neo.persistence.memory_store import MemoryStore
 

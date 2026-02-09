@@ -1,6 +1,5 @@
 """Tests for Header serialization."""
 
-import pytest
 from neo.network.payloads.header import Header
 from neo.network.payloads.witness import Witness
 

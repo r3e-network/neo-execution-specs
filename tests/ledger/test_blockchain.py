@@ -1,6 +1,5 @@
 """Tests for Blockchain."""
 
-import pytest
 from neo.ledger.blockchain import Blockchain
 from neo.persistence.memory_store import MemoryStore
 

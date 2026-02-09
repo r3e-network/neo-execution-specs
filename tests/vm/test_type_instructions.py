@@ -1,6 +1,5 @@
 """Tests for type instructions."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 from neo.vm.types import StackItemType
@@ -20,7 +19,7 @@ class TestTypeInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_isnull_false(self):
         """Test ISNULL with non-null value."""
@@ -33,7 +32,7 @@ class TestTypeInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == False
+        assert not engine.result_stack.peek().get_boolean()
     
     def test_istype_integer(self):
         """Test ISTYPE for integer."""
@@ -47,7 +46,7 @@ class TestTypeInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_istype_wrong_type(self):
         """Test ISTYPE with wrong type."""
@@ -61,4 +60,4 @@ class TestTypeInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == False
+        assert not engine.result_stack.peek().get_boolean()

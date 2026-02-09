@@ -1,6 +1,5 @@
 """Tests for Signer serialization."""
 
-import pytest
 from neo.network.payloads.signer import Signer
 from neo.network.payloads.witness_scope import WitnessScope
 from neo.types.uint160 import UInt160

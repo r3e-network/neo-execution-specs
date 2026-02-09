@@ -1,6 +1,5 @@
 """Extended tests for GasToken native contract."""
 
-import pytest
 from neo.native.gas_token import GasToken
 
 

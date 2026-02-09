@@ -26,6 +26,8 @@ class Signer:
             size += 1 + len(self.allowed_contracts) * 20
         if self.scopes & WitnessScope.CUSTOM_GROUPS:
             size += 1 + len(self.allowed_groups) * 33
+        if self.scopes & WitnessScope.WITNESS_RULES:
+            size += 1 + sum(r.size for r in self.rules)
         return size
     
     def serialize(self, writer: "BinaryWriter") -> None:
@@ -50,7 +52,13 @@ class Signer:
             writer.write_var_int(len(self.allowed_groups))
             for group in self.allowed_groups:
                 writer.write_bytes(group)
-    
+
+        # Write rules if scope includes WITNESS_RULES
+        if self.scopes & WitnessScope.WITNESS_RULES:
+            writer.write_var_int(len(self.rules))
+            for rule in self.rules:
+                rule.serialize(writer)
+
     @classmethod
     def deserialize(cls, reader: "BinaryReader") -> "Signer":
         """Deserialize a signer."""
@@ -68,10 +76,17 @@ class Signer:
         if scopes & WitnessScope.CUSTOM_GROUPS:
             count = reader.read_var_int(16)
             allowed_groups = [reader.read_bytes(33) for _ in range(count)]
-        
+
+        rules = []
+        if scopes & WitnessScope.WITNESS_RULES:
+            from neo.network.payloads.witness_rule import WitnessRule
+            count = reader.read_var_int(16)
+            rules = [WitnessRule.deserialize(reader) for _ in range(count)]
+
         return cls(
             account=account,
             scopes=scopes,
             allowed_contracts=allowed_contracts,
-            allowed_groups=allowed_groups
+            allowed_groups=allowed_groups,
+            rules=rules
         )

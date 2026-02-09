@@ -2,7 +2,7 @@
 
 import pytest
 from neo.vm.evaluation_stack import EvaluationStack
-from neo.vm.types import Integer, ByteString
+from neo.vm.types import Integer
 
 
 class TestEvaluationStack:

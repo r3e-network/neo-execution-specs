@@ -1,6 +1,5 @@
 """Tests for smart contract storage operations."""
 
-import pytest
 
 
 class TestStorageContext:

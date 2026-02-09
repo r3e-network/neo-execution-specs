@@ -1,6 +1,5 @@
 """Tests for numeric comparison instructions."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 
@@ -16,7 +15,7 @@ class TestComparisonInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_lt_false(self):
         """Test LT with not less than."""
@@ -26,7 +25,7 @@ class TestComparisonInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == False
+        assert not engine.result_stack.peek().get_boolean()
     
     def test_le(self):
         """Test LE (less than or equal)."""
@@ -36,7 +35,7 @@ class TestComparisonInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_gt(self):
         """Test GT (greater than)."""
@@ -46,7 +45,7 @@ class TestComparisonInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_ge(self):
         """Test GE (greater than or equal)."""
@@ -56,7 +55,7 @@ class TestComparisonInstructions:
         engine.execute()
         
         assert engine.state == VMState.HALT
-        assert engine.result_stack.peek().get_boolean() == True
+        assert engine.result_stack.peek().get_boolean()
     
     def test_min(self):
         """Test MIN returns smaller value."""

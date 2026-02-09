@@ -67,4 +67,4 @@ class StorageIterator(IIterator):
         if self._options & FindOptions.VALUES_ONLY:
             return result
         
-        return Struct([ByteString(key_bytes), result])
+        return Struct(items=[ByteString(key_bytes), result])

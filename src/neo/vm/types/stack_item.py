@@ -39,7 +39,6 @@ class StackItem(ABC):
     
     def get_integer(self) -> BigInteger:
         """Convert to integer."""
-        from neo.types import BigInteger
         raise TypeError(f"Cannot convert {self.type} to Integer")
     
     def get_bytes_unsafe(self) -> bytes:

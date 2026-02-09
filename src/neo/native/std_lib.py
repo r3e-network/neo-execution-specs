@@ -4,10 +4,9 @@ from __future__ import annotations
 import base64
 import json
 import regex
-from typing import Any, List, Optional, Union
+from typing import Any, List
 
 from neo.native.native_contract import NativeContract, CallFlags
-from neo.types import UInt160
 
 
 # Base58 alphabet

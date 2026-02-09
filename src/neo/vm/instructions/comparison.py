@@ -3,7 +3,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from neo.vm.types import Integer, Boolean
+from neo.vm.types import Boolean
 
 if TYPE_CHECKING:
     from neo.vm.execution_engine import ExecutionContext

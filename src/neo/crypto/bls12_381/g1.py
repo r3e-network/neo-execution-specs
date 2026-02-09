@@ -49,7 +49,7 @@ class G1Affine:
         
         # Check flags in first byte
         flags = data[0] & 0xe0
-        is_compressed = (flags & 0x80) != 0
+        _is_compressed = (flags & 0x80) != 0  # always True for 48-byte input
         is_infinity = (flags & 0x40) != 0
         is_y_odd = (flags & 0x20) != 0
         
@@ -169,8 +169,13 @@ class G1Projective:
                 return True
             if self.z == 0 or other.z == 0:
                 return False
-            return (self.x * other.z - other.x * self.z) % P == 0 and \
-                   (self.y * other.z - other.y * self.z) % P == 0
+            # Jacobian: affine x = X/Z², y = Y/Z³
+            z1_sq = (self.z * self.z) % P
+            z2_sq = (other.z * other.z) % P
+            z1_cu = (z1_sq * self.z) % P
+            z2_cu = (z2_sq * other.z) % P
+            return (self.x * z2_sq - other.x * z1_sq) % P == 0 and \
+                   (self.y * z2_cu - other.y * z1_cu) % P == 0
         if isinstance(other, G1Affine):
             return self.to_affine() == other
         return False

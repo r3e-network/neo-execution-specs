@@ -1,6 +1,5 @@
 """Tests for RoleManagement."""
 
-import pytest
 from neo.native.role_management import RoleManagement
 
 

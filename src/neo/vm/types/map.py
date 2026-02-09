@@ -5,7 +5,7 @@ from typing import Dict, Iterator, TYPE_CHECKING
 from neo.vm.types.stack_item import StackItem, StackItemType
 
 if TYPE_CHECKING:
-    from neo.vm.types.primitive_type import PrimitiveType
+    pass
 
 
 class Map(StackItem):

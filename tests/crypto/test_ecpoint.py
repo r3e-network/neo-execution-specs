@@ -1,7 +1,6 @@
 """Tests for ECPoint."""
 
-import pytest
-from neo.crypto.ecc.curve import SECP256R1, SECP256K1
+from neo.crypto.ecc.curve import SECP256R1
 from neo.crypto.ecc.point import ECPoint
 
 

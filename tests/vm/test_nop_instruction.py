@@ -1,6 +1,5 @@
 """Tests for VM NOP instruction."""
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode
 

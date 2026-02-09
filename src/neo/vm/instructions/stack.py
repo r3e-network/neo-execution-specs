@@ -11,6 +11,7 @@ This module implements all stack manipulation opcodes (0x43-0x55):
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from neo.exceptions import InvalidOperationException
 from neo.vm.types import Integer
 
 if TYPE_CHECKING:
@@ -58,7 +59,7 @@ def xdrop(engine: ExecutionEngine, instruction: Instruction) -> None:
     """
     n = int(engine.pop().get_integer())
     if n < 0:
-        raise Exception(f"The negative value {n} is invalid for XDROP.")
+        raise InvalidOperationException(f"The negative value {n} is invalid for XDROP.")
     engine.current_context.evaluation_stack.remove(n)
 
 
@@ -103,7 +104,7 @@ def pick(engine: ExecutionEngine, instruction: Instruction) -> None:
     """
     n = int(engine.pop().get_integer())
     if n < 0:
-        raise Exception(f"The negative value {n} is invalid for PICK.")
+        raise InvalidOperationException(f"The negative value {n} is invalid for PICK.")
     engine.push(engine.peek(n))
 
 
@@ -152,7 +153,7 @@ def roll(engine: ExecutionEngine, instruction: Instruction) -> None:
     """
     n = int(engine.pop().get_integer())
     if n < 0:
-        raise Exception(f"The negative value {n} is invalid for ROLL.")
+        raise InvalidOperationException(f"The negative value {n} is invalid for ROLL.")
     if n == 0:
         return
     item = engine.current_context.evaluation_stack.remove(n)

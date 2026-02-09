@@ -1,6 +1,5 @@
 """Tests for ContractGroup."""
 
-import pytest
 from neo.smartcontract.manifest.contract_group import ContractGroup
 from neo.types import UInt160
 

@@ -54,10 +54,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install ruff mypy
 
-      - name: Run ruff (informational)
-        run: ruff check src/ --exit-zero
+      - name: Run ruff
+        run: ruff check src/ tests/
 
-      - name: Run mypy (informational)
+      - name: Run mypy (informational — strict mode, gradual adoption)
         run: mypy src/neo --ignore-missing-imports || true
 
   vectors:
