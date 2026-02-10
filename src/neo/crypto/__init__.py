@@ -2,7 +2,7 @@
 
 from .hash import hash160, hash256, sha256, ripemd160
 from .ecdsa import verify_signature
-from .murmur import murmur32
+from .murmur3 import murmur32
 from .ed25519 import ed25519_verify
 
 __all__ = [

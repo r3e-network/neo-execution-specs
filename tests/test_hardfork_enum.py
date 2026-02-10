@@ -1,6 +1,5 @@
 """Tests for hardfork configuration."""
 
-import pytest
 from neo.hardfork import Hardfork
 
 

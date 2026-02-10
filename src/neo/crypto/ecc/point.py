@@ -57,6 +57,57 @@ class ECPoint:
         
         raise ValueError(f"Invalid point encoding: {data[0]:#x}")
     
+    def __neg__(self) -> "ECPoint":
+        """Negate point: -P = (x, -y)."""
+        if self.is_infinity:
+            return ECPoint(0, 0, self.curve)
+        return ECPoint(self.x, self.curve.p - self.y, self.curve)
+
+    def __add__(self, other: "ECPoint") -> "ECPoint":
+        """Add two points on the same curve."""
+        if self.is_infinity:
+            return other
+        if other.is_infinity:
+            return self
+
+        p = self.curve.p
+        if self.x == other.x:
+            if self.y == other.y and self.y != 0:
+                # Point doubling
+                lam = (3 * self.x * self.x + self.curve.a) * pow(2 * self.y, -1, p) % p
+            else:
+                return ECPoint(0, 0, self.curve)  # P + (-P) = O
+        else:
+            lam = (other.y - self.y) * pow(other.x - self.x, -1, p) % p
+
+        x3 = (lam * lam - self.x - other.x) % p
+        y3 = (lam * (self.x - x3) - self.y) % p
+        return ECPoint(x3, y3, self.curve)
+
+    def __sub__(self, other: "ECPoint") -> "ECPoint":
+        """Subtract: P - Q = P + (-Q)."""
+        return self + (-other)
+
+    def __mul__(self, scalar: int) -> "ECPoint":
+        """Scalar multiplication using double-and-add."""
+        if scalar < 0:
+            return (-self) * (-scalar)
+        if scalar == 0:
+            return ECPoint(0, 0, self.curve)
+
+        result = ECPoint(0, 0, self.curve)
+        temp = self
+        while scalar > 0:
+            if scalar & 1:
+                result = result + temp
+            temp = temp + temp
+            scalar >>= 1
+        return result
+
+    def __rmul__(self, scalar: int) -> "ECPoint":
+        """Right scalar multiplication."""
+        return self * scalar
+
     @staticmethod
     def _is_on_curve(x: int, y: int, curve: "ECCurve") -> bool:
         """Verify that (x, y) satisfies y² = x³ + ax + b (mod p)."""

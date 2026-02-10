@@ -217,5 +217,5 @@ class TransactionVerifier:
                 return False
 
             return engine.result_stack.peek().get_boolean()
-        except Exception:
+        except (ValueError, TypeError, KeyError, AttributeError, IndexError, RuntimeError):
             return False

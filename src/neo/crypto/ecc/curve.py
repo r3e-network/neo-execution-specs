@@ -5,6 +5,10 @@ Reference: Neo.Cryptography.ECC.ECCurve
 """
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from neo.crypto.ecc.point import ECPoint
 
 
 @dataclass(frozen=True)
@@ -17,6 +21,12 @@ class ECCurve:
     n: int  # Order
     gx: int  # Generator x
     gy: int  # Generator y
+
+    @property
+    def g(self) -> "ECPoint":
+        """Return the generator point for this curve."""
+        from neo.crypto.ecc.point import ECPoint
+        return ECPoint(self.gx, self.gy, self)
 
 
 # secp256r1 (NIST P-256)

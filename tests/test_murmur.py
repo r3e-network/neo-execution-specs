@@ -1,7 +1,6 @@
 """Tests for Murmur hash."""
 
-import pytest
-from neo.crypto.murmur import murmur32
+from neo.crypto.murmur3 import murmur32
 
 
 def test_murmur32_empty():

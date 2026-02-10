@@ -126,8 +126,10 @@ class NativeContract(ABC):
         self._id = self._get_next_id()
         self._hash = self._calculate_hash()
         self._methods: Dict[str, ContractMethodMetadata] = {}
+        self._methods_by_offset: Dict[int, ContractMethodMetadata] = {}
+        self._next_method_offset: int = 0
         self._register_methods()
-        
+
         # Register contract
         NativeContract._contracts[self._hash] = self
         NativeContract._contracts_by_id[self._id] = self
@@ -178,18 +180,44 @@ class NativeContract(ABC):
         storage_fee: int = 0,
         call_flags: CallFlags = CallFlags.NONE
     ) -> None:
-        """Register a contract method."""
-        self._methods[name] = ContractMethodMetadata(
+        """Register a contract method.
+
+        Each method is assigned a sequential offset (multiples of 5,
+        matching the C# reference where each native stub is 5 bytes:
+        ``PUSH<version> + SYSCALL CallNative``).  The offset is stored
+        in the method descriptor and in ``_methods_by_offset`` for
+        reverse lookup during ``System.Contract.CallNative`` dispatch.
+        """
+        offset = self._next_method_offset
+        self._next_method_offset += 5
+
+        descriptor = ContractMethodDescriptor(name=name, offset=offset)
+        metadata = ContractMethodMetadata(
             name=name,
             handler=handler,
             cpu_fee=cpu_fee,
             storage_fee=storage_fee,
-            required_call_flags=call_flags
+            required_call_flags=call_flags,
+            descriptor=descriptor,
         )
+        self._methods[name] = metadata
+        self._methods_by_offset[offset] = metadata
     
     def _create_storage_key(self, prefix: int, *args) -> StorageKey:
         """Create a storage key for this contract."""
         return StorageKey.create(self._id, prefix, *args)
+
+    def get_method_by_offset(self, offset: int) -> Optional[ContractMethodMetadata]:
+        """Look up a registered method by its script offset.
+
+        Used by ``System.Contract.CallNative`` to resolve which method
+        the native contract stub is invoking.
+        """
+        return self._methods_by_offset.get(offset)
+
+    def get_method(self, name: str) -> Optional[ContractMethodMetadata]:
+        """Look up a registered method by name."""
+        return self._methods.get(name)
     
     def initialize(self, engine: Any) -> None:
         """Initialize the contract. Called on genesis block."""

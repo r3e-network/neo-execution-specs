@@ -1,6 +1,6 @@
 """Tests for Bloom Filter."""
 
-from neo.crypto.bloom import BloomFilter
+from neo.crypto.bloom_filter import BloomFilter
 
 
 class TestBloomFilter:
@@ -19,8 +19,8 @@ class TestBloomFilter:
         bf.add(b"hello")
         bf.add(b"world")
         
-        assert bf.contains(b"hello") is True
-        assert bf.contains(b"world") is True
+        assert bf.check(b"hello") is True
+        assert bf.check(b"world") is True
     
     def test_false_negative_impossible(self):
         """Test that false negatives are impossible."""
@@ -32,4 +32,4 @@ class TestBloomFilter:
         
         # All added items must be found
         for item in items:
-            assert bf.contains(item) is True
+            assert bf.check(item) is True

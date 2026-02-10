@@ -26,31 +26,33 @@ def storage_get_context(engine: "ApplicationEngine") -> None:
     
     stack = engine.current_context.evaluation_stack
     script_hash = engine.current_script_hash
-    
+
     if script_hash is None:
         raise ValueError("No current script")
-    
-    ctx = StorageContext(script_hash, is_read_only=False)
+
+    contract_id = engine._get_contract_id(script_hash)
+    ctx = StorageContext(id=contract_id, script_hash=script_hash, is_read_only=False)
     stack.push(InteropInterface(ctx))
 
 
 def storage_get_read_only_context(engine: "ApplicationEngine") -> None:
     """System.Storage.GetReadOnlyContext
-    
+
     Get a read-only storage context for the current contract.
-    
+
     Stack: [] -> [storage_context]
     """
     from neo.vm.types import InteropInterface
     from neo.smartcontract.storage_context import StorageContext
-    
+
     stack = engine.current_context.evaluation_stack
     script_hash = engine.current_script_hash
-    
+
     if script_hash is None:
         raise ValueError("No current script")
-    
-    ctx = StorageContext(script_hash, is_read_only=True)
+
+    contract_id = engine._get_contract_id(script_hash)
+    ctx = StorageContext(id=contract_id, script_hash=script_hash, is_read_only=True)
     stack.push(InteropInterface(ctx))
 
 
@@ -74,7 +76,7 @@ def storage_as_read_only(engine: "ApplicationEngine") -> None:
     if not isinstance(ctx, StorageContext):
         raise ValueError("Invalid storage context")
     
-    read_only_ctx = StorageContext(ctx.script_hash, is_read_only=True)
+    read_only_ctx = StorageContext(id=ctx.id, script_hash=ctx.script_hash, is_read_only=True)
     stack.push(InteropInterface(read_only_ctx))
 
 
@@ -97,7 +99,7 @@ def storage_get(engine: "ApplicationEngine") -> None:
         raise ValueError("Invalid storage context")
     
     # Build full storage key
-    storage_key = _build_storage_key(ctx.script_hash, key)
+    storage_key = _build_storage_key(ctx, key)
     
     # Get from snapshot
     value = None
@@ -136,7 +138,7 @@ def storage_put(engine: "ApplicationEngine") -> None:
         raise ValueError("Key too long")
     
     # Build full storage key
-    storage_key = _build_storage_key(ctx.script_hash, key)
+    storage_key = _build_storage_key(ctx, key)
     
     # Calculate and charge gas
     engine.add_gas(STORAGE_PRICE * (len(key) + len(value)))
@@ -166,7 +168,7 @@ def storage_delete(engine: "ApplicationEngine") -> None:
     if ctx.is_read_only:
         raise ValueError("Cannot delete from read-only context")
     
-    storage_key = _build_storage_key(ctx.script_hash, key)
+    storage_key = _build_storage_key(ctx, key)
     
     if hasattr(engine, 'snapshot') and engine.snapshot is not None:
         engine.snapshot.storage_delete(storage_key)
@@ -192,13 +194,18 @@ def storage_find(engine: "ApplicationEngine") -> None:
     if not isinstance(ctx, StorageContext):
         raise ValueError("Invalid storage context")
     
-    storage_key = _build_storage_key(ctx.script_hash, prefix)
+    storage_key = _build_storage_key(ctx, prefix)
     
     # Create iterator
     iterator = StorageIterator(engine, storage_key, options)
     stack.push(InteropInterface(iterator))
 
 
-def _build_storage_key(script_hash, key: bytes) -> bytes:
-    """Build full storage key from script hash and key."""
-    return bytes(script_hash) + key
+def _build_storage_key(ctx, key: bytes) -> bytes:
+    """Build full storage key from storage context and user key.
+
+    Neo N3 storage key format: contract_id (int32 LE) + user_key.
+    Matches the C# reference ``StorageKey`` implementation.
+    """
+    contract_id_bytes = ctx.id.to_bytes(4, byteorder="little", signed=True)
+    return contract_id_bytes + key

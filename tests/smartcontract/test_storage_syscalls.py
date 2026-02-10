@@ -13,14 +13,16 @@ class TestStorageSyscalls:
         assert storage.STORAGE_PRICE == 100000
     
     def test_build_storage_key(self):
-        """Build storage key from script hash and key."""
+        """Build storage key from context contract ID (int32 LE) + user key."""
         script_hash = UInt160(b"\x01" * 20)
+        ctx = StorageContext(id=-3, script_hash=script_hash)
         key = b"test_key"
-        
-        result = storage._build_storage_key(script_hash, key)
-        
-        assert result == bytes(script_hash) + key
-        assert len(result) == 28
+
+        result = storage._build_storage_key(ctx, key)
+
+        expected_id = (-3).to_bytes(4, byteorder="little", signed=True)
+        assert result == expected_id + key
+        assert len(result) == 4 + len(key)
 
 
 class TestStorageContext:
@@ -29,14 +31,14 @@ class TestStorageContext:
     def test_create_context(self):
         """Test storage context creation."""
         script_hash = UInt160(b"\x01" * 20)
-        ctx = StorageContext(script_hash, is_read_only=False)
-        
+        ctx = StorageContext(id=-1, script_hash=script_hash, is_read_only=False)
+
         assert ctx.script_hash == script_hash
         assert ctx.is_read_only is False
     
     def test_read_only_context(self):
         """Test read-only storage context."""
         script_hash = UInt160(b"\x01" * 20)
-        ctx = StorageContext(script_hash, is_read_only=True)
-        
+        ctx = StorageContext(id=-1, script_hash=script_hash, is_read_only=True)
+
         assert ctx.is_read_only is True

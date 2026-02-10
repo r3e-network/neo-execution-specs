@@ -21,6 +21,9 @@ class Role(IntEnum):
 # Valid role values for validation
 _VALID_ROLES = frozenset(r.value for r in Role)
 
+# Storage prefix (matches C# RoleManagement.Prefix_Designation)
+PREFIX_DESIGNATION = 11
+
 
 class RoleManagement(NativeContract):
     """Manages node roles.
@@ -64,8 +67,8 @@ class RoleManagement(NativeContract):
         if index < 0:
             raise ValueError("Index must be non-negative")
 
-        key = self._create_key(role, index)
-        data = snapshot.storage_get(key) if snapshot else None
+        key = self._create_storage_key(PREFIX_DESIGNATION, bytes([role]) + index.to_bytes(4, 'little'))
+        data = snapshot.get(key) if snapshot else None
         if data is None:
             return []
         return self._deserialize_nodes(data)
@@ -105,15 +108,9 @@ class RoleManagement(NativeContract):
         # Sort nodes by encoded form for deterministic storage
         sorted_nodes = sorted(nodes, key=lambda n: n.encode(compressed=True))
 
-        key = self._create_key(role, block_index + 1)
+        key = self._create_storage_key(PREFIX_DESIGNATION, bytes([role]) + (block_index + 1).to_bytes(4, 'little'))
         data = self._serialize_nodes(sorted_nodes)
-        if hasattr(snapshot, 'storage_put'):
-            snapshot.storage_put(key, data)
-
-    def _create_key(self, role: int, index: int) -> bytes:
-        """Create storage key for role designation."""
-        prefix = bytes([11])  # Prefix_Designation
-        return bytes(self.hash) + prefix + bytes([role]) + index.to_bytes(4, 'little')
+        snapshot.put(key, data)
 
     def _serialize_nodes(self, nodes: list) -> bytes:
         """Serialize node list to storage format."""

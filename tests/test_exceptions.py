@@ -1,6 +1,5 @@
 """Tests for Neo exceptions."""
 
-import pytest
 from neo.exceptions import (
     NeoException,
     VMException,

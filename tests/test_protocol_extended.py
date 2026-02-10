@@ -1,6 +1,5 @@
 """Tests for ProtocolSettings."""
 
-import pytest
 from neo.protocol_settings import ProtocolSettings
 
 

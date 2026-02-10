@@ -158,27 +158,27 @@ class CryptoLib(NativeContract):
             True if signature is valid, False otherwise
         """
         try:
-            from neo.crypto.ecc.curve import ECCurve
+            from neo.crypto.ecc.curve import SECP256K1, SECP256R1
             from neo.crypto.ecc.point import ECPoint
-            
-            # Determine curve and hash algorithm
-            if curve_hash in (NamedCurveHash.secp256k1SHA256, 
+
+            # Determine curve
+            if curve_hash in (NamedCurveHash.secp256k1SHA256,
                             NamedCurveHash.secp256k1Keccak256):
-                curve = ECCurve.secp256k1()
+                curve = SECP256K1
             else:
-                curve = ECCurve.secp256r1()
-            
+                curve = SECP256R1
+
             # Hash the message
             if curve_hash in (NamedCurveHash.secp256k1Keccak256,
                             NamedCurveHash.secp256r1Keccak256):
                 message_hash = self.keccak256(message)
             else:
                 message_hash = self.sha256(message)
-            
-            # Verify signature
-            point = ECPoint.decode_point(pubkey, curve)
-            return self._verify_ecdsa_signature(message_hash, signature, point)
-        except Exception:
+
+            # Decode public key and verify
+            public_key = ECPoint.decode(pubkey, curve)
+            return self._verify_ecdsa_signature(message_hash, signature, public_key)
+        except (ValueError, TypeError, ImportError):
             return False
     
     def _verify_ecdsa_signature(
@@ -271,8 +271,8 @@ class CryptoLib(NativeContract):
                 return None
             
             # Recover public key using secp256k1
-            from neo.crypto.ecc.curve import ECCurve
-            curve = ECCurve.secp256k1()
+            from neo.crypto.ecc.curve import SECP256K1
+            curve = SECP256K1
             
             # Calculate recovery point
             n = curve.n
@@ -291,7 +291,7 @@ class CryptoLib(NativeContract):
             
             # Create recovery point R
             from neo.crypto.ecc.point import ECPoint
-            R = ECPoint(curve, x, y)
+            R = ECPoint(x, y, curve)
             
             # Calculate public key: Q = r^-1 * (s*R - e*G)
             e = int.from_bytes(message_hash, 'big')
@@ -299,8 +299,8 @@ class CryptoLib(NativeContract):
             
             Q = (R * s - curve.g * e) * r_inv
             
-            return Q.encode_point(compressed=True)
-        except Exception:
+            return Q.encode(compressed=True)
+        except (ValueError, TypeError, ZeroDivisionError, ImportError):
             return None
     
     # ========== BLS12-381 Operations ==========

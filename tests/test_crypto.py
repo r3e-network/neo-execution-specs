@@ -1,6 +1,5 @@
 """Tests for crypto functions."""
 
-import pytest
 from neo.crypto import sha256, hash160, hash256
 
 

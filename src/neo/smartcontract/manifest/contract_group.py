@@ -33,7 +33,7 @@ class ContractGroup:
                 self.pubkey,
                 SECP256R1
             )
-        except Exception:
+        except (ValueError, TypeError, OverflowError):
             return False
     
     def to_json(self) -> Dict[str, Any]:

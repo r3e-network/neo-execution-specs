@@ -6,7 +6,7 @@ Reference: Neo.SmartContract.Native.OracleContract
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Iterator, List, Optional, Tuple
 
 from neo.types import UInt160, UInt256
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
@@ -154,7 +154,6 @@ class OracleContract(NativeContract):
     """
     
     def __init__(self) -> None:
-        self._storage: Dict[bytes, StorageItem] = {}
         super().__init__()
     
     @property
@@ -178,32 +177,42 @@ class OracleContract(NativeContract):
     
     def initialize(self, engine: Any) -> None:
         """Initialize Oracle contract storage."""
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            return
+
         # Set initial request ID to 0
         key = self._create_storage_key(PREFIX_REQUEST_ID)
-        self._storage[key.key] = StorageItem(b'\x00')
-        
+        item = StorageItem(b'\x00')
+        snapshot.put(key, item.value)
+
         # Set default price
         key = self._create_storage_key(PREFIX_PRICE)
-        self._storage[key.key] = StorageItem()
-        self._storage[key.key].set(DEFAULT_ORACLE_PRICE)
+        item = StorageItem()
+        item.set(DEFAULT_ORACLE_PRICE)
+        snapshot.put(key, item.value)
     
     def get_price(self, snapshot: Any = None) -> int:
         """Get the price for an Oracle request in datoshi."""
         key = self._create_storage_key(PREFIX_PRICE)
-        item = self._storage.get(key.key)
-        if item is None:
+        value = snapshot.get(key) if snapshot else None
+        if value is None:
             return DEFAULT_ORACLE_PRICE
-        return int(item)
-    
+        return int.from_bytes(value, 'little', signed=True) if value else DEFAULT_ORACLE_PRICE
+
     def set_price(self, engine: Any, price: int) -> None:
         """Set the price for Oracle requests. Committee only."""
         if price <= 0:
             raise ValueError("Price must be positive")
-        
+
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            return
+
         key = self._create_storage_key(PREFIX_PRICE)
-        if key.key not in self._storage:
-            self._storage[key.key] = StorageItem()
-        self._storage[key.key].set(price)
+        item = StorageItem()
+        item.set(price)
+        snapshot.put(key, item.value)
     
     def request(
         self,
@@ -246,18 +255,22 @@ class OracleContract(NativeContract):
         if gas_for_response < 10_000_000:  # 0.1 GAS minimum
             raise ValueError("gasForResponse must be at least 0.1 GAS")
         
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            raise RuntimeError("Snapshot not available")
+
         # Get and increment request ID
-        request_id = self._get_next_request_id()
-        
+        request_id = self._get_next_request_id(snapshot)
+
         # Serialize user data
         if isinstance(user_data, bytes):
             user_data_bytes = user_data
         else:
             user_data_bytes = b''
-        
+
         if len(user_data_bytes) > MAX_USER_DATA_LENGTH:
             raise ValueError("User data too large")
-        
+
         # Create request
         request = OracleRequest(
             original_txid=UInt256(b'\x00' * 32),
@@ -268,53 +281,54 @@ class OracleContract(NativeContract):
             callback_method=callback,
             user_data=user_data_bytes
         )
-        
+
         # Store request
-        self._store_request(request_id, request)
-        
+        self._store_request(snapshot, request_id, request)
+
         # Add to URL index
-        self._add_to_id_list(url, request_id)
+        self._add_to_id_list(snapshot, url, request_id)
     
-    def _get_next_request_id(self) -> int:
+    def _get_next_request_id(self, snapshot: Any) -> int:
         """Get and increment the request ID counter."""
         key = self._create_storage_key(PREFIX_REQUEST_ID)
-        item = self._storage.get(key.key)
-        if item is None:
+        value = snapshot.get(key)
+        if value is None:
             current_id = 0
         else:
-            current_id = int(item)
-        
+            current_id = int.from_bytes(value, 'little', signed=True) if value else 0
+
         # Increment
-        self._storage[key.key] = StorageItem()
-        self._storage[key.key].set(current_id + 1)
+        item = StorageItem()
+        item.set(current_id + 1)
+        snapshot.put(key, item.value)
         return current_id
-    
-    def _store_request(self, request_id: int, request: OracleRequest) -> None:
+
+    def _store_request(self, snapshot: Any, request_id: int, request: OracleRequest) -> None:
         """Store a request in storage."""
         key = self._create_storage_key(PREFIX_REQUEST, request_id)
-        self._storage[key.key] = StorageItem(request.serialize())
+        snapshot.put(key, request.serialize())
     
     def _get_url_hash(self, url: str) -> bytes:
         """Get hash of URL for indexing."""
         return hash160(url.encode('utf-8'))
     
-    def _add_to_id_list(self, url: str, request_id: int) -> None:
+    def _add_to_id_list(self, snapshot: Any, url: str, request_id: int) -> None:
         """Add request ID to URL's ID list."""
         url_hash = self._get_url_hash(url)
         key = self._create_storage_key(PREFIX_ID_LIST, url_hash)
-        
+
         # Get existing list
-        item = self._storage.get(key.key)
-        if item is None:
+        value = snapshot.get(key)
+        if value is None:
             id_list = []
         else:
-            id_list = self._deserialize_id_list(item.value)
-        
+            id_list = self._deserialize_id_list(value)
+
         if len(id_list) >= 256:
             raise ValueError("Too many pending responses for URL")
-        
+
         id_list.append(request_id)
-        self._storage[key.key] = StorageItem(self._serialize_id_list(id_list))
+        snapshot.put(key, self._serialize_id_list(id_list))
     
     def _serialize_id_list(self, id_list: List[int]) -> bytes:
         """Serialize ID list to bytes."""
@@ -338,29 +352,33 @@ class OracleContract(NativeContract):
     def get_request(self, snapshot: Any, request_id: int) -> Optional[OracleRequest]:
         """Get a pending request by ID."""
         key = self._create_storage_key(PREFIX_REQUEST, request_id)
-        item = self._storage.get(key.key)
-        if item is None:
+        value = snapshot.get(key) if snapshot else None
+        if value is None:
             return None
-        return OracleRequest.deserialize(item.value)
+        return OracleRequest.deserialize(value)
     
     def get_requests(self, snapshot: Any) -> Iterator[Tuple[int, OracleRequest]]:
         """Get all pending requests."""
-        prefix = bytes([PREFIX_REQUEST])
-        for key, item in self._storage.items():
-            if key.startswith(prefix):
-                request_id = int.from_bytes(key[1:], 'big')
-                yield (request_id, OracleRequest.deserialize(item.value))
+        if snapshot is None:
+            return
+        key_prefix = self._create_storage_key(PREFIX_REQUEST)
+        for full_key, value in snapshot.find(key_prefix):
+            # Extract request_id from key suffix
+            suffix = full_key[len(key_prefix):]
+            if suffix:
+                request_id = int.from_bytes(suffix, 'big')
+                yield (request_id, OracleRequest.deserialize(value))
     
     def get_requests_by_url(self, snapshot: Any, url: str) -> Iterator[Tuple[int, OracleRequest]]:
         """Get requests for a specific URL."""
         url_hash = self._get_url_hash(url)
         key = self._create_storage_key(PREFIX_ID_LIST, url_hash)
-        item = self._storage.get(key.key)
-        
-        if item is None:
+        value = snapshot.get(key) if snapshot else None
+
+        if value is None:
             return
-        
-        id_list = self._deserialize_id_list(item.value)
+
+        id_list = self._deserialize_id_list(value)
         for request_id in id_list:
             request = self.get_request(snapshot, request_id)
             if request:
@@ -368,12 +386,115 @@ class OracleContract(NativeContract):
     
     def finish(self, engine: Any) -> None:
         """Finish an Oracle response.
-        
-        Called by Oracle nodes to deliver response data.
+
+        Called by Oracle nodes to deliver response data.  The transaction
+        must carry an OracleResponse attribute (type 0x11) whose fields
+        provide ``id``, ``code``, and ``result``.
+
+        Reference: Neo.SmartContract.Native.OracleContract.Finish
         """
-        # This would be called with response data
-        # In full implementation, validates and processes response
-        pass
+        tx = getattr(engine, 'script_container', None)
+        if tx is None:
+            raise RuntimeError("No transaction attached to engine")
+
+        # --- locate OracleResponse attribute on the transaction ----------
+        response_attr = self._get_oracle_response_attr(tx)
+        if response_attr is None:
+            raise ValueError("Transaction has no OracleResponse attribute")
+
+        request_id = getattr(response_attr, 'id', None)
+        if request_id is None:
+            raise ValueError("OracleResponse missing request id")
+
+        response_code = getattr(response_attr, 'code', None)
+        response_result = getattr(response_attr, 'result', b'')
+
+        # --- retrieve the original request from storage ------------------
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            raise RuntimeError("Snapshot not available")
+
+        request = self.get_request(snapshot, request_id)
+        if request is None:
+            raise ValueError(f"Oracle request {request_id} not found")
+
+        # --- remove the fulfilled request --------------------------------
+        self._remove_request(snapshot, request_id, request.url)
+
+        # --- refund unused GAS to the original requester -----------------
+        #     In the full C# implementation the fixed response-tx cost is
+        #     deducted and the remainder is sent back.  For this reference
+        #     spec we transfer the full gas_for_response back to the
+        #     requester via GasToken when available.
+        if request.gas_for_response > 0:
+            gas_contract = NativeContract.get_contract_by_name("GasToken")
+            if gas_contract is not None and hasattr(gas_contract, 'mint'):
+                gas_contract.mint(
+                    engine,
+                    request.callback_contract,
+                    request.gas_for_response,
+                )
+
+        # --- invoke the callback on the requesting contract --------------
+        #     A production node would use System.Contract.Call to invoke
+        #     callback_contract.callback_method(url, user_data, code, result).
+        #     Here we record the intent so tests can observe it.
+        if request.callback_contract != UInt160(b'\x00' * 20) and request.callback_method:
+            self._invoke_callback(
+                engine,
+                request.callback_contract,
+                request.callback_method,
+                request.url,
+                request.user_data,
+                response_code,
+                response_result,
+            )
+
+    # ------------------------------------------------------------------
+    # finish() helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _get_oracle_response_attr(tx: Any) -> Any:
+        """Extract the OracleResponse attribute (type 0x11) from *tx*."""
+        ORACLE_RESPONSE_TYPE = 0x11
+        attrs = getattr(tx, 'attributes', None)
+        if not attrs:
+            return None
+        for attr in attrs:
+            attr_type = getattr(attr, 'type', None)
+            if attr_type is not None and int(attr_type) == ORACLE_RESPONSE_TYPE:
+                return attr
+        return None
+
+    def _invoke_callback(
+        self,
+        engine: Any,
+        contract: UInt160,
+        method: str,
+        url: str,
+        user_data: bytes,
+        code: Any,
+        result: bytes,
+    ) -> None:
+        """Invoke the oracle callback on the requesting contract.
+
+        In a full node this dispatches via ``System.Contract.Call``.
+        For the reference spec we attempt ``engine.contract_call`` when
+        available, otherwise we record the pending callback as a
+        notification so the intent is observable.
+        """
+        if hasattr(engine, 'contract_call'):
+            engine.contract_call(contract, method, [url, user_data, code, result])
+        elif hasattr(engine, 'send_notification'):
+            from neo.vm.types import Array, ByteString, Integer, NULL
+            state = Array([
+                ByteString(url.encode('utf-8')),
+                ByteString(user_data),
+                Integer(int(code) if code is not None else 0xff),
+                ByteString(result if result else b''),
+            ])
+            engine.send_notification(contract, f"Oracle.{method}", state)
     
     def verify(self, engine: Any) -> bool:
         """Verify Oracle response transaction.
@@ -397,25 +518,22 @@ class OracleContract(NativeContract):
 
         return False
     
-    def _remove_request(self, request_id: int, url: str) -> None:
+    def _remove_request(self, snapshot: Any, request_id: int, url: str) -> None:
         """Remove a request after processing."""
         # Remove from request storage
         key = self._create_storage_key(PREFIX_REQUEST, request_id)
-        if key.key in self._storage:
-            del self._storage[key.key]
-        
+        snapshot.delete(key)
+
         # Remove from URL index
         url_hash = self._get_url_hash(url)
         key = self._create_storage_key(PREFIX_ID_LIST, url_hash)
-        item = self._storage.get(key.key)
-        
-        if item:
-            id_list = self._deserialize_id_list(item.value)
+        value = snapshot.get(key)
+
+        if value:
+            id_list = self._deserialize_id_list(value)
             if request_id in id_list:
                 id_list.remove(request_id)
                 if id_list:
-                    self._storage[key.key] = StorageItem(
-                        self._serialize_id_list(id_list)
-                    )
+                    snapshot.put(key, self._serialize_id_list(id_list))
                 else:
-                    del self._storage[key.key]
+                    snapshot.delete(key)

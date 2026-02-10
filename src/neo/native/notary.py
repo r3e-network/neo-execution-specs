@@ -5,7 +5,7 @@ Reference: Neo.SmartContract.Native.Notary
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from neo.types import UInt160
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
@@ -54,7 +54,6 @@ class Notary(NativeContract):
     """
     
     def __init__(self) -> None:
-        self._storage: Dict[bytes, StorageItem] = {}
         super().__init__()
     
     @property
@@ -86,9 +85,14 @@ class Notary(NativeContract):
     
     def initialize(self, engine: Any) -> None:
         """Initialize Notary contract storage."""
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            return
+
         key = self._create_storage_key(PREFIX_MAX_NOT_VALID_BEFORE_DELTA)
-        self._storage[key.key] = StorageItem()
-        self._storage[key.key].set(DEFAULT_MAX_NOT_VALID_BEFORE_DELTA)
+        item = StorageItem()
+        item.set(DEFAULT_MAX_NOT_VALID_BEFORE_DELTA)
+        snapshot.put(key, item.value)
     
     def verify(self, engine: Any, signature: bytes) -> bool:
         """Verify notary signature.
@@ -142,27 +146,27 @@ class Notary(NativeContract):
     
     def balance_of(self, snapshot: Any, account: UInt160) -> int:
         """Get deposit balance for account."""
-        deposit = self._get_deposit(account)
+        deposit = self._get_deposit(snapshot, account)
         return deposit.amount if deposit else 0
-    
+
     def expiration_of(self, snapshot: Any, account: UInt160) -> int:
         """Get deposit expiration height for account."""
-        deposit = self._get_deposit(account)
+        deposit = self._get_deposit(snapshot, account)
         return deposit.till if deposit else 0
     
     def lock_deposit_until(
-        self, 
-        engine: Any, 
-        account: UInt160, 
+        self,
+        engine: Any,
+        account: UInt160,
         till: int
     ) -> bool:
         """Lock deposit until specified height.
-        
+
         Args:
             engine: Application engine
             account: Account to lock deposit for
             till: Block height until which to lock
-            
+
         Returns:
             True if successful
         """
@@ -170,14 +174,18 @@ class Notary(NativeContract):
         if hasattr(engine, 'check_witness') and not engine.check_witness(account):
             raise PermissionError("Account witness required")
 
-        deposit = self._get_deposit(account)
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            return False
+
+        deposit = self._get_deposit(snapshot, account)
         if deposit is None:
             return False
         if till < deposit.till:
             return False
 
         deposit.till = till
-        self._put_deposit(account, deposit)
+        self._put_deposit(snapshot, account, deposit)
         return True
     
     def withdraw(
@@ -204,16 +212,18 @@ class Notary(NativeContract):
         if hasattr(engine, 'check_witness') and not engine.check_witness(from_account):
             raise PermissionError("Account witness required")
 
-        deposit = self._get_deposit(from_account)
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            return False
+
+        deposit = self._get_deposit(snapshot, from_account)
         if deposit is None:
             return False
 
         # Deposit must be expired before withdrawal
         block_index = 0
-        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
-        if snapshot is not None:
-            if hasattr(snapshot, 'persisting_block') and snapshot.persisting_block:
-                block_index = getattr(snapshot.persisting_block, 'index', 0)
+        if hasattr(snapshot, 'persisting_block') and snapshot.persisting_block:
+            block_index = getattr(snapshot.persisting_block, 'index', 0)
         if deposit.till > block_index:
             return False
 
@@ -221,7 +231,7 @@ class Notary(NativeContract):
         amount = deposit.amount
 
         # Remove deposit first
-        self._remove_deposit(from_account)
+        self._remove_deposit(snapshot, from_account)
 
         # Transfer GAS to recipient
         if amount > 0:
@@ -234,11 +244,11 @@ class Notary(NativeContract):
     def get_max_not_valid_before_delta(self, snapshot: Any) -> int:
         """Get maximum NotValidBefore delta."""
         key = self._create_storage_key(PREFIX_MAX_NOT_VALID_BEFORE_DELTA)
-        item = self._storage.get(key.key)
-        if item is None:
+        value = snapshot.get(key) if snapshot else None
+        if value is None:
             return DEFAULT_MAX_NOT_VALID_BEFORE_DELTA
-        return int(item)
-    
+        return int.from_bytes(value, 'little', signed=True) if value else DEFAULT_MAX_NOT_VALID_BEFORE_DELTA
+
     def set_max_not_valid_before_delta(self, engine: Any, value: int) -> None:
         """Set maximum NotValidBefore delta. Committee only."""
         if value < 1:
@@ -246,10 +256,14 @@ class Notary(NativeContract):
         if hasattr(engine, 'check_committee') and not engine.check_committee():
             raise PermissionError("Committee signature required")
 
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            return
+
         key = self._create_storage_key(PREFIX_MAX_NOT_VALID_BEFORE_DELTA)
-        if key.key not in self._storage:
-            self._storage[key.key] = StorageItem()
-        self._storage[key.key].set(value)
+        item = StorageItem()
+        item.set(value)
+        snapshot.put(key, item.value)
     
     def on_nep17_payment(
         self,
@@ -259,7 +273,7 @@ class Notary(NativeContract):
         data: Any
     ) -> None:
         """Handle NEP-17 GAS payment for deposit.
-        
+
         Args:
             engine: Application engine
             from_account: GAS sender
@@ -268,42 +282,45 @@ class Notary(NativeContract):
         """
         if amount <= 0:
             raise ValueError("Amount must be positive")
-        
+
+        snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
+        if snapshot is None:
+            raise RuntimeError("Snapshot not available")
+
         # Parse data
         to = from_account
         till = 0
-        
+
         if isinstance(data, (list, tuple)) and len(data) >= 2:
             if data[0] is not None:
                 to = data[0]
             till = int(data[1])
-        
+
         # Get or create deposit
-        deposit = self._get_deposit(to)
+        deposit = self._get_deposit(snapshot, to)
         if deposit is None:
             deposit = Deposit(amount=0, till=0)
-        
+
         deposit.amount += amount
         if till > deposit.till:
             deposit.till = till
-        
-        self._put_deposit(to, deposit)
+
+        self._put_deposit(snapshot, to, deposit)
     
-    def _get_deposit(self, account: UInt160) -> Optional[Deposit]:
+    def _get_deposit(self, snapshot: Any, account: UInt160) -> Optional[Deposit]:
         """Get deposit for account."""
         key = self._create_storage_key(PREFIX_DEPOSIT, account.data)
-        item = self._storage.get(key.key)
-        if item is None:
+        value = snapshot.get(key) if snapshot else None
+        if value is None:
             return None
-        return Deposit.deserialize(item.value)
-    
-    def _put_deposit(self, account: UInt160, deposit: Deposit) -> None:
+        return Deposit.deserialize(value)
+
+    def _put_deposit(self, snapshot: Any, account: UInt160, deposit: Deposit) -> None:
         """Store deposit for account."""
         key = self._create_storage_key(PREFIX_DEPOSIT, account.data)
-        self._storage[key.key] = StorageItem(deposit.serialize())
-    
-    def _remove_deposit(self, account: UInt160) -> None:
+        snapshot.put(key, deposit.serialize())
+
+    def _remove_deposit(self, snapshot: Any, account: UInt160) -> None:
         """Remove deposit for account."""
         key = self._create_storage_key(PREFIX_DEPOSIT, account.data)
-        if key.key in self._storage:
-            del self._storage[key.key]
+        snapshot.delete(key)

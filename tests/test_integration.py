@@ -3,11 +3,9 @@
 Tests end-to-end execution of smart contracts.
 """
 
-import pytest
 from neo.vm.execution_engine import ExecutionEngine, VMState
 from neo.vm.script_builder import ScriptBuilder
 from neo.vm.opcode import OpCode
-from neo.vm.types import Integer, ByteString, Array, Boolean
 
 
 class TestVMIntegration:

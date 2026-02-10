@@ -33,7 +33,7 @@ def crypto_check_sig(engine: "ApplicationEngine") -> None:
     
     try:
         result = verify_signature(message, signature, pubkey, SECP256R1)
-    except Exception:
+    except (ValueError, TypeError):
         result = False
     
     stack.push(Boolean(result))
@@ -90,7 +90,7 @@ def crypto_check_multisig(engine: "ApplicationEngine") -> None:
         result = _check_multisig_internal(
             message, signatures, pubkeys, SECP256R1
         )
-    except Exception:
+    except (ValueError, TypeError):
         result = False
     
     stack.push(Boolean(result))
