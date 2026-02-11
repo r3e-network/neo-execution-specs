@@ -29,3 +29,8 @@ class StackOverflowException(VMException):
 class VMAbortException(VMException):
     """Uncatchable VM abort — bypasses try/catch routing."""
     pass
+
+
+class CryptoException(NeoException):
+    """Cryptography library missing or misconfigured."""
+    pass

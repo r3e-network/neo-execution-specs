@@ -51,7 +51,11 @@ def verify_signature(
         return False
 
     if not HAS_CRYPTOGRAPHY:
-        return False
+        from neo.exceptions import CryptoException
+        raise CryptoException(
+            "The 'cryptography' library is required for signature verification "
+            "but is not installed. Install it with: pip install cryptography"
+        )
 
     try:
         public_key = ec.EllipticCurvePublicKey.from_encoded_point(
@@ -69,7 +73,7 @@ def verify_signature(
         )
         return True
 
-    except (InvalidSignature, ValueError, Exception):
+    except (InvalidSignature, ValueError):
         return False
 
 

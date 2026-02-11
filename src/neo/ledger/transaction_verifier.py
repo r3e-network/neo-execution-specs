@@ -162,9 +162,9 @@ class TransactionVerifier:
 
         Neo N3 witness verification:
         1. Hash the verification script and confirm it matches the signer account.
-        2. Load the invocation script (signatures/args), then the verification
-           script into the VM.
-        3. Execute — the verification script must leave ``True`` on the stack.
+        2. Load the verification script first, then the invocation script on top.
+        3. Execute — invocation runs first (pushes signatures), then verification
+           consumes them and must leave ``True`` on the stack.
         """
         from neo.crypto.hash import hash160
 
@@ -200,12 +200,12 @@ class TransactionVerifier:
                 script_container=tx,
             )
 
-            # Load invocation script first (pushes signatures onto stack)
+            # Load verification script first (entry script — executes second)
+            engine.load_script(verification)
+
+            # Load invocation script on top (executes first, pushes signatures)
             if invocation:
                 engine.load_script(invocation)
-
-            # Load verification script on top (consumes signatures, pushes bool)
-            engine.load_script(verification)
 
             engine.execute()
 

@@ -141,16 +141,22 @@ class NativeContract(ABC):
         return NativeContract._id_counter
     
     def _calculate_hash(self) -> UInt160:
-        """Calculate contract hash: Hash160(0x00 * 20 + nef_checksum + name)."""
-        # For native contracts: Hash160(sender + nef_checksum + name)
-        # sender = UInt160.Zero, nef_checksum = 0
-        sender = b'\x00' * 20
-        nef_checksum = (0).to_bytes(4, 'little')
-        name_bytes = self.name.encode('utf-8')
-        
-        # Build the data to hash
-        data = sender + nef_checksum + bytes([len(name_bytes)]) + name_bytes
-        return UInt160(hash160(data))
+        """Calculate contract hash using ScriptBuilder (matches C# Helper.GetContractHash).
+
+        The C# reference builds a small script:
+            ABORT + PUSH(sender) + PUSH(nefCheckSum) + PUSH(name)
+        then hashes it with Hash160.  For native contracts sender is
+        UInt160.Zero and nefCheckSum is 0.
+        """
+        from neo.vm.script_builder import ScriptBuilder
+        from neo.vm.opcode import OpCode
+
+        sb = ScriptBuilder()
+        sb.emit(OpCode.ABORT)
+        sb.emit_push(b'\x00' * 20)   # sender = UInt160.Zero
+        sb.emit_push(0)               # nefCheckSum = 0 for native
+        sb.emit_push(self.name)       # contract name as string
+        return UInt160(hash160(sb.to_array()))
     
     @property
     @abstractmethod

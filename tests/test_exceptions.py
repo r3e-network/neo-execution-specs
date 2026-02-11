@@ -6,6 +6,8 @@ from neo.exceptions import (
     InvalidOperationException,
     OutOfGasException,
     StackOverflowException,
+    VMAbortException,
+    CryptoException,
 )
 
 
@@ -63,12 +65,37 @@ class TestOutOfGasException:
 
 class TestStackOverflowException:
     """Tests for StackOverflowException."""
-    
+
     def test_basic(self):
         """Test basic exception."""
         ex = StackOverflowException("stack overflow")
         assert "stack overflow" in str(ex)
-    
+
     def test_inheritance(self):
         """Test inheritance."""
         assert issubclass(StackOverflowException, VMException)
+
+
+class TestVMAbortException:
+    """Tests for VMAbortException."""
+
+    def test_basic(self):
+        ex = VMAbortException("abort")
+        assert "abort" in str(ex)
+
+    def test_inheritance(self):
+        assert issubclass(VMAbortException, VMException)
+        assert issubclass(VMAbortException, NeoException)
+
+
+class TestCryptoException:
+    """Tests for CryptoException."""
+
+    def test_basic(self):
+        ex = CryptoException("missing library")
+        assert "missing library" in str(ex)
+
+    def test_inheritance(self):
+        """CryptoException inherits NeoException, NOT VMException."""
+        assert issubclass(CryptoException, NeoException)
+        assert not issubclass(CryptoException, VMException)
