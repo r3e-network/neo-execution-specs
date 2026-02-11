@@ -998,7 +998,6 @@ class ApplicationEngine(ExecutionEngine):
 
         Returns ``True`` when the call is permitted.
         """
-        import json as _json
 
         # --- Native contracts: always permitted (methods are code-registered) ---
         from neo.native.native_contract import NativeContract
@@ -1043,7 +1042,6 @@ class ApplicationEngine(ExecutionEngine):
         When there is no calling context (entry-point script), the call
         is always permitted — the entry script has implicit full access.
         """
-        import json as _json
 
         # No caller → entry-point script → always allowed
         if len(self.invocation_stack) < 2:
@@ -1205,7 +1203,7 @@ class ApplicationEngine(ExecutionEngine):
         from neo.native.native_contract import NativeContract
 
         # 1. Pop version
-        version = self.pop().get_integer()
+        self.pop().get_integer()
 
         # 2. Identify native contract
         script_hash = self.current_script_hash

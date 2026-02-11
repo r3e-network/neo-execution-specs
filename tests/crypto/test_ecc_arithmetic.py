@@ -66,19 +66,19 @@ class TestIdentity:
     @pytest.mark.parametrize("curve", CURVES)
     def test_g_plus_identity(self, curve: ECCurve):
         G = curve.g
-        O = _infinity(curve)
-        assert G + O == G
+        infinity = _infinity(curve)
+        assert G + infinity == G
 
     @pytest.mark.parametrize("curve", CURVES)
     def test_identity_plus_g(self, curve: ECCurve):
         G = curve.g
-        O = _infinity(curve)
-        assert O + G == G
+        infinity = _infinity(curve)
+        assert infinity + G == G
 
     @pytest.mark.parametrize("curve", CURVES)
     def test_identity_plus_identity(self, curve: ECCurve):
-        O = _infinity(curve)
-        assert (O + O).is_infinity
+        infinity = _infinity(curve)
+        assert (infinity + infinity).is_infinity
 
 
 class TestNegation:
@@ -97,8 +97,8 @@ class TestNegation:
 
     @pytest.mark.parametrize("curve", CURVES)
     def test_neg_identity_is_identity(self, curve: ECCurve):
-        O = _infinity(curve)
-        assert (-O).is_infinity
+        infinity = _infinity(curve)
+        assert (-infinity).is_infinity
 
 
 class TestSubtraction:

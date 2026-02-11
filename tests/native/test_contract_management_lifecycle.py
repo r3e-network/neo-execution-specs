@@ -16,19 +16,15 @@ from __future__ import annotations
 import json
 import pytest
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from neo.types import UInt160
 from neo.native.contract_management import (
     ContractManagement,
     ContractState,
     DEFAULT_MINIMUM_DEPLOYMENT_FEE,
-    PREFIX_CONTRACT,
-    PREFIX_CONTRACT_HASH,
-    PREFIX_MINIMUM_DEPLOYMENT_FEE,
-    PREFIX_NEXT_AVAILABLE_ID,
 )
-from neo.native.native_contract import NativeContract, StorageItem, StorageKey
+from neo.native.native_contract import NativeContract, StorageKey
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +55,7 @@ class MockSnapshot:
     def add(self, key, value) -> None:
         tk = self._to_tuple(key)
         if tk in self._store:
-            raise KeyError(f"Key already exists")
+            raise KeyError("Key already exists")
         self._store[tk] = value
 
     def delete(self, key) -> None:
@@ -214,7 +210,7 @@ class TestContractManagementDeploy:
         engine = MockEngine(snap)
         cm.initialize(engine)
 
-        contract = cm.deploy(engine, _make_nef(), _make_manifest())
+        cm.deploy(engine, _make_nef(), _make_manifest())
         assert len(engine.notifications) == 1
         assert engine.notifications[0][1] == "Deploy"
 

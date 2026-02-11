@@ -11,13 +11,12 @@ Covers:
 from __future__ import annotations
 
 import pytest
-from typing import Iterator, List, Tuple
+from typing import List, Tuple
 
 from neo.smartcontract.iterators import StorageIterator
 from neo.smartcontract.storage.find_options import FindOptions
 from neo.smartcontract.storage import StorageKey, StorageItem
 from neo.vm.types import ByteString, Struct, Array
-from neo.smartcontract.binary_serializer import BinarySerializer
 
 
 # ---------------------------------------------------------------------------

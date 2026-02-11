@@ -11,16 +11,13 @@ Covers:
 from __future__ import annotations
 
 import pytest
-from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from neo.types import UInt160
-from neo.native.native_contract import NativeContract, StorageItem, StorageKey
+from neo.native.native_contract import NativeContract, StorageKey
 from neo.native.fungible_token import (
     FungibleToken,
     AccountState,
-    PREFIX_TOTAL_SUPPLY,
-    PREFIX_ACCOUNT,
 )
 
 

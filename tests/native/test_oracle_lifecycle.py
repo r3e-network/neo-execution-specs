@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from neo.types import UInt160, UInt256
 from neo.native.oracle import (
@@ -27,13 +27,8 @@ from neo.native.oracle import (
     MAX_URL_LENGTH,
     MAX_FILTER_LENGTH,
     MAX_CALLBACK_LENGTH,
-    MAX_USER_DATA_LENGTH,
-    PREFIX_PRICE,
-    PREFIX_REQUEST,
-    PREFIX_REQUEST_ID,
-    PREFIX_ID_LIST,
 )
-from neo.native.native_contract import NativeContract, StorageItem, StorageKey
+from neo.native.native_contract import NativeContract, StorageKey
 
 
 # ---------------------------------------------------------------------------

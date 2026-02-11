@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import pytest
 
-from neo.vm import ExecutionEngine, VMState
-from neo.vm.opcode import OpCode
+from neo.vm import ExecutionEngine
+from neo.vm.execution_context import Instruction
+from neo.vm.instructions import compound as C
 from neo.vm.types import (
-    Integer, Boolean, ByteString, Array, Struct, Map, Buffer,
-    InteropInterface, NULL, StackItemType,
+    Integer, ByteString, Array, Struct, Map, NULL, StackItemType,
 )
 
 
@@ -36,10 +36,6 @@ def _run(script: bytes) -> ExecutionEngine:
 
 def _stack_int(engine: ExecutionEngine) -> int:
     return engine.result_stack.pop().get_integer()
-
-
-from neo.vm.execution_context import Instruction
-from neo.vm.instructions import compound as C
 
 
 def _engine() -> ExecutionEngine:

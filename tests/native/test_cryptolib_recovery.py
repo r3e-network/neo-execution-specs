@@ -65,7 +65,6 @@ class TestRecoverEndToEnd:
         """Sign with secp256k1 and return (r, s, v) for recovery."""
         from cryptography.hazmat.primitives.asymmetric import ec, utils
         from cryptography.hazmat.primitives import hashes
-        import hashlib
 
         der_sig = private_key.sign(msg_hash, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
         r, s = utils.decode_dss_signature(der_sig)

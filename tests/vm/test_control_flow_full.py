@@ -13,7 +13,6 @@ Covers all untested control flow opcodes:
 from __future__ import annotations
 
 import struct
-import pytest
 
 from neo.vm import ExecutionEngine, VMState
 from neo.vm.opcode import OpCode

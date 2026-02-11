@@ -6,10 +6,9 @@ and boundary cases.
 
 from __future__ import annotations
 
-import pytest
 
 from neo.vm.execution_context import ExecutionContext
-from neo.vm.types import Integer, Boolean
+from neo.vm.types import Integer
 from neo.vm.instructions.comparison import lt, le, gt, ge
 
 

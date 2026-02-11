@@ -21,11 +21,8 @@ from neo.native.notary import (
     Notary,
     Deposit,
     DEFAULT_MAX_NOT_VALID_BEFORE_DELTA,
-    DEFAULT_DEPOSIT_DELTA_TILL,
-    PREFIX_DEPOSIT,
-    PREFIX_MAX_NOT_VALID_BEFORE_DELTA,
 )
-from neo.native.native_contract import NativeContract, StorageItem, StorageKey
+from neo.native.native_contract import NativeContract, StorageKey
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,7 @@ This project provides an **executable specification** for Neo N3, similar to Eth
 # Basic installation
 pip install neo-execution-specs
 
-# With crypto dependencies (recommended)
+# With optional BLS dependencies
 pip install neo-execution-specs[crypto]
 
 # Full development installation
@@ -170,13 +170,13 @@ src/neo/
 - [Roadmap](ROADMAP.md) - Implementation progress
 - [Full-Surface Matrix](docs/verification/neo-n3-full-surface-matrix.md) - Ethereum-style full Neo N3 verification scope
 
-## Optional Dependencies
+## Dependency Notes
 
 | Package | Purpose |
 |---------|---------|
-| `cryptography` | Ed25519 signatures |
-| `pycryptodome` | Keccak256 hash |
-| `py_ecc` | BLS12-381 pairing |
+| `cryptography` | Included by default (Ed25519 signatures) |
+| `pycryptodome` | Included by default (Keccak256 hash) |
+| `py_ecc` | Optional via `[crypto]` (BLS12-381 pairing) |
 
 Install with: `pip install neo-execution-specs[crypto]`
 

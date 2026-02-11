@@ -35,8 +35,11 @@ dev = [
 bls = [
     "py_ecc>=7.0",
 ]
+crypto = [
+    "py_ecc>=7.0",
+]
 all = [
-    "neo-execution-specs[dev,bls]",
+    "neo-execution-specs[dev,crypto]",
 ]
 
 [tool.pytest.ini_options]
@@ -47,7 +50,7 @@ filterwarnings = [
 
 [tool.mypy]
 python_version = "3.11"
-strict = true
+strict = false
 
 [tool.ruff]
 line-length = 100

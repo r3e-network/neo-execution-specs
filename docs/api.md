@@ -150,7 +150,7 @@ hash256 = hash.hash256(b"data")  # SHA256(SHA256(data))
 hash160 = hash.hash160(b"data")  # RIPEMD160(SHA256(data))
 
 # Murmur3
-from neo.crypto.murmur import murmur32
+from neo.crypto.murmur3 import murmur32
 h = murmur32(b"data", seed=0)
 ```
 

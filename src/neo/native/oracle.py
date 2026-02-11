@@ -487,7 +487,7 @@ class OracleContract(NativeContract):
         if hasattr(engine, 'contract_call'):
             engine.contract_call(contract, method, [url, user_data, code, result])
         elif hasattr(engine, 'send_notification'):
-            from neo.vm.types import Array, ByteString, Integer, NULL
+            from neo.vm.types import Array, ByteString, Integer
             state = Array([
                 ByteString(url.encode('utf-8')),
                 ByteString(user_data),
