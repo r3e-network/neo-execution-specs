@@ -61,6 +61,14 @@ jobs:
         run: |
           python -c "import neo; print(neo.__version__)"
 
+      - name: Smoke-test console scripts
+        run: |
+          neo-diff --help
+          neo-compat --help
+          neo-multicompat --help
+          neo-coverage --help
+          neo-t8n --help
+
   publish-testpypi:
     needs: test
     runs-on: ubuntu-latest

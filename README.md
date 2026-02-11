@@ -1,7 +1,5 @@
-# Neo N3 Execution Specs
-
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1100%2B%20passing-brightgreen.svg)](tests/)
+# Neo N3 Execution Specs[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-1400%2B%20passing-brightgreen.svg)](tests/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A Python reference implementation of the Neo N3 protocol, prioritizing **readability** over performance.
@@ -24,7 +22,7 @@ This project provides an **executable specification** for Neo N3, similar to Eth
 | Native Contracts (10) | ✅ Complete | 200+ |
 | Storage Layer | ✅ Complete | 100+ |
 | Network Types | ✅ Complete | 150+ |
-| **Total** | **Production Ready** | **1100+** |
+| **Total** | **Production Ready** | **1400+** |
 
 ## Installation
 
@@ -114,6 +112,17 @@ neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-templat
 pytest tests/tools/test_non_vm_vector_expectations.py -q
 ```
 
+### Local neo-rs helper scripts
+
+For local deep-dive validation against a running neo-rs RPC node:
+
+```bash
+python scripts/neo_rs_vector_runner.py tests/vectors/vm/control_flow.json --show-failures
+python scripts/neo_rs_batch_diff.py --vectors-dir tests/vectors --reports-dir reports/neo-rs-batch
+```
+
+See `scripts/README.md` for full options and operational guidance.
+
 ### neo-t8n - State Transition
 
 Ethereum-style state transition tool:
@@ -165,6 +174,7 @@ src/neo/
 - [Architecture](docs/architecture.md) - System design and module structure
 - [API Reference](docs/api.md) - Main APIs and examples
 - [Testing Guide](docs/testing.md) - Test vectors and diff testing
+- [Script Helpers](scripts/README.md) - Local neo-rs validation utilities
 - [Contributing](CONTRIBUTING.md) - How to contribute
 - [Changelog](CHANGELOG.md) - Version history
 - [Roadmap](ROADMAP.md) - Implementation progress

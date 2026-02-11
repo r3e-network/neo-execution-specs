@@ -36,3 +36,9 @@ Thumbs.db
 # Project-specific artifacts
 diff-report.json
 alloc-out.json
+
+# Local cross-client validation artifacts
+.neo_go_ref/
+.serena/
+data/
+reports/

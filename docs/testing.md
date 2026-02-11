@@ -30,8 +30,6 @@ pytest tests/vm/test_numeric.py::test_add_basic
 
 # Run tests matching pattern
 pytest -k "add"
-```
-
 ### Coverage
 
 ```bash
@@ -40,8 +38,6 @@ pytest --cov=neo --cov-report=html
 
 # View coverage report
 open htmlcov/index.html
-```
-
 ### Test Categories
 
 ```bash
@@ -262,6 +258,25 @@ neo-multicompat --vectors tests/vectors/ \
                 --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
                 --neo-rs-rpc http://127.0.0.1:40332
 ```
+
+### Local neo-rs Helper Scripts
+
+Use the helper scripts in `scripts/` for local investigation and batch replay against a running neo-rs node:
+
+```bash
+# Run one vector file against neo-rs and emit a report
+python scripts/neo_rs_vector_runner.py tests/vectors/vm/control_flow.json \
+  --rpc-url http://127.0.0.1:40332 \
+  --show-failures
+
+# Run all vector files and aggregate failures
+python scripts/neo_rs_batch_diff.py \
+  --vectors-dir tests/vectors \
+  --reports-dir reports/neo-rs-batch \
+  --gas-tolerance 100000
+```
+
+See `scripts/README.md` for the full CLI options and exit-code behavior.
 
 ### CLI Options
 

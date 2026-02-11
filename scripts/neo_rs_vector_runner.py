@@ -1,264 +1,152 @@
-"""
-Neo-rs vector runner with connection pooling.
-Uses requests.Session to avoid the ~30 connection deadlock in neo-rs.
-"""
+"""Run one vector file against neo-rs and produce a normalized neo-diff report."""
+
+from __future__ import annotations
+
+import argparse
 import json
 import sys
-import base64
-import time
-import gzip
 from pathlib import Path
-from datetime import datetime
-
-import subprocess
-
-RPC_URL = "http://127.0.0.1:40332"
-GAS_TOLERANCE = 100000  # ignore gas diffs (ExecFeeFactor=30 at genesis)
-DELAY_BETWEEN = 0.3  # seconds between RPC calls
+from typing import Any
 
 
-def invoke_script(session, script_hex: str) -> dict:
-    """Send invokescript RPC via subprocess curl (clean TCP per call)."""
-    if script_hex.startswith("0x"):
-        script_hex = script_hex[2:]
-    script_bytes = bytes.fromhex(script_hex)
-    b64 = base64.b64encode(script_bytes).decode("ascii")
+def _run_neo_diff(vectors: Path, rpc_url: str, output_path: Path, gas_tolerance: int) -> int:
+    repo_src = Path(__file__).resolve().parent.parent / "src"
+    if str(repo_src) not in sys.path:
+        sys.path.insert(0, str(repo_src))
 
-    payload = json.dumps({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "invokescript",
-        "params": [b64],
-    })
-    result = subprocess.run(
-        ["curl", "-s", "--max-time", "15", "--compressed",
-         "-X", "POST", RPC_URL,
-         "-H", "Content-Type: application/json",
-         "-H", "Connection: close",
-         "-d", payload],
-        capture_output=True, timeout=20,
+    from neo.tools.diff.compat import run_neo_diff
+
+    return run_neo_diff(vectors, rpc_url, output_path, gas_tolerance)
+
+
+DEFAULT_RPC_URL = "http://127.0.0.1:40332"
+DEFAULT_GAS_TOLERANCE = 100_000
+
+
+def create_parser() -> argparse.ArgumentParser:
+    """Create CLI parser for single-file neo-rs vector validation."""
+    parser = argparse.ArgumentParser(
+        prog="neo-rs-vector-runner",
+        description="Run one vector file against neo-rs and emit a neo-diff report.",
     )
-    if result.returncode != 0:
-        raise RuntimeError(f"curl failed: rc={result.returncode}")
-    raw = result.stdout
-    if not raw:
-        raise RuntimeError("empty response from neo-rs")
-    return json.loads(raw)
+    parser.add_argument("vector_file", type=Path, help="Path to vector JSON file.")
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        default=None,
+        help="Output report path (default: reports/neo-rs-batch/<vector>.json).",
+    )
+    parser.add_argument(
+        "--rpc-url",
+        type=str,
+        default=DEFAULT_RPC_URL,
+        help=f"neo-rs RPC endpoint (default: {DEFAULT_RPC_URL}).",
+    )
+    parser.add_argument(
+        "--gas-tolerance",
+        type=int,
+        default=DEFAULT_GAS_TOLERANCE,
+        help=f"Allowed gas mismatch tolerance (default: {DEFAULT_GAS_TOLERANCE}).",
+    )
+    parser.add_argument(
+        "--show-failures",
+        action="store_true",
+        help="Print non-gas mismatch details from the generated report.",
+    )
+    return parser
 
 
-def parse_stack_value(item: dict):
-    """Parse a neo RPC stack item to a comparable Python value."""
-    t = item.get("type", "")
-    v = item.get("value")
-    if t == "Integer":
-        return int(v) if v is not None else 0
-    if t == "Boolean":
-        return bool(v) if isinstance(v, bool) else v == "true"
-    if t == "ByteString":
-        if v is None:
-            return b""
-        try:
-            return base64.b64decode(v)
-        except Exception:
-            return v
-    if t == "Buffer":
-        if v is None:
-            return b""
-        try:
-            return base64.b64decode(v)
-        except Exception:
-            return v
-    if t in ("Array", "Struct"):
-        return [parse_stack_value(x) for x in (v or [])]
-    if t == "Map":
-        return {str(parse_stack_value(kv["key"])): parse_stack_value(kv["value"]) for kv in (v or [])}
-    if t == "Pointer":
-        return int(v) if v is not None else 0
-    if t == "InteropInterface":
-        return "<interop>"
-    return v
+def _load_report(report_path: Path) -> dict[str, Any]:
+    with report_path.open("r", encoding="utf-8") as report_file:
+        data = json.load(report_file)
+    if not isinstance(data, dict):
+        raise ValueError(f"Invalid report structure in {report_path}")
+    return data
 
 
-def normalize_expected(val):
-    """Normalize expected stack value — handle both plain values and typed dicts."""
-    if isinstance(val, dict) and "type" in val:
-        t = val["type"]
-        v = val.get("value")
-        if t == "Integer":
-            return int(v) if v is not None else 0
-        if t == "Boolean":
-            return bool(v) if isinstance(v, bool) else v == "true"
-        if t == "ByteString" or t == "Buffer":
-            if v is None:
-                return b""
-            if isinstance(v, str):
-                try:
-                    return bytes.fromhex(v)
-                except ValueError:
-                    return v.encode()
-            return v
-        if t in ("Array", "Struct"):
-            return [normalize_expected(x) for x in (v or [])]
-        if t == "Map":
-            if isinstance(v, dict):
-                return {str(k): normalize_expected(vv) for k, vv in v.items()}
-            if isinstance(v, list):
-                return {str(normalize_expected(kv["key"])): normalize_expected(kv["value"]) for kv in v}
-            return v
-        return v
-    return val
+def _summary_value(summary: dict[str, Any], key: str) -> int:
+    value = summary.get(key, 0)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return 0
 
 
-def compare_vector(vector: dict, rpc_result: dict) -> dict:
-    """Compare a single vector's expected output against RPC result."""
-    result = {"vector": vector["name"], "match": True, "differences": []}
+def _collect_non_gas_failures(report: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]]]:
+    failures: list[tuple[str, list[dict[str, Any]]]] = []
+    results = report.get("results")
+    if not isinstance(results, list):
+        return failures
 
-    rpc_res = rpc_result.get("result", {})
-    state = rpc_res.get("state", "UNKNOWN")
-    expected_error = vector.get("error")
-
-    # State check
-    if expected_error:
-        if state != "FAULT":
-            result["match"] = False
-            result["differences"].append({
-                "type": "state_mismatch",
-                "path": "state",
-                "python": "FAULT",
-                "csharp": state,
-                "message": f"State mismatch: expected FAULT, got {state}",
-            })
-            return result
-        # FAULT expected and got FAULT — pass
-        return result
-    else:
-        if state != "HALT":
-            result["match"] = False
-            result["differences"].append({
-                "type": "state_mismatch",
-                "path": "state",
-                "python": "HALT",
-                "csharp": state,
-                "message": f"State mismatch: expected HALT, got {state}",
-            })
-            return result
-
-    # Stack check — normalize expected values (may be plain ints or typed dicts)
-    raw_expected = vector.get("post", {}).get("stack", [])
-    expected_stack = [normalize_expected(v) for v in raw_expected]
-    actual_stack_raw = rpc_res.get("stack", [])
-    actual_stack = [parse_stack_value(item) for item in actual_stack_raw]
-
-    if len(expected_stack) != len(actual_stack):
-        result["match"] = False
-        result["differences"].append({
-            "type": "stack_length_mismatch",
-            "path": "stack",
-            "python": len(expected_stack),
-            "csharp": len(actual_stack),
-            "message": f"Stack length: expected {len(expected_stack)}, got {len(actual_stack)}",
-        })
-        return result
-
-    for i, (exp, act) in enumerate(zip(expected_stack, actual_stack)):
-        if exp != act:
-            result["match"] = False
-            result["differences"].append({
-                "type": "stack_value_mismatch",
-                "path": f"stack[{i}]",
-                "python": str(exp),
-                "csharp": str(act),
-                "message": f"Stack[{i}]: expected {exp}, got {act}",
-            })
-
-    return result
-
-
-def run_vectors(vector_file: Path, output_file: Path):
-    """Run all vectors in a file against neo-rs."""
-    data = json.loads(vector_file.read_text())
-    vectors = data.get("vectors", [])
-    if not vectors:
-        print(f"  No vectors in {vector_file.name}")
-        return
-
-    results = []
-    passed = 0
-    failed = 0
-    errors = 0
-
-    for idx, v in enumerate(vectors):
-        name = v["name"]
-        script = v.get("script", "")
-        if not script:
-            print(f"  SKIP {name}: no script")
+    for entry in results:
+        if not isinstance(entry, dict) or entry.get("match", False):
             continue
 
-        if idx > 0:
-            time.sleep(DELAY_BETWEEN)
+        vector_name = str(entry.get("vector", "<unknown>"))
+        raw_differences = entry.get("differences")
+        if not isinstance(raw_differences, list):
+            failures.append((vector_name, []))
+            continue
 
-        try:
-            rpc_result = invoke_script(None, script)
-            if "error" in rpc_result and "result" not in rpc_result:
-                # RPC-level error (not VM fault)
-                results.append({
-                    "vector": name,
-                    "match": False,
-                    "differences": [{
-                        "type": "rpc_error",
-                        "message": str(rpc_result["error"]),
-                    }],
-                })
-                errors += 1
-                print(f"  ERROR {name}: {rpc_result['error']}")
-                continue
+        non_gas_differences = [
+            difference
+            for difference in raw_differences
+            if isinstance(difference, dict)
+            and str(difference.get("type", "")) != "gas_mismatch"
+        ]
+        if non_gas_differences:
+            failures.append((vector_name, non_gas_differences))
 
-            cmp = compare_vector(v, rpc_result)
-            results.append(cmp)
-            if cmp["match"]:
-                passed += 1
-            else:
-                failed += 1
-                non_gas = [d for d in cmp["differences"] if d["type"] != "gas_mismatch"]
-                if non_gas:
-                    print(f"  FAIL {name}: {non_gas[0]['message']}")
-                else:
-                    print(f"  WARN {name}: gas mismatch only")
-                    passed += 1
-                    failed -= 1
-                    cmp["match"] = True  # treat gas-only as pass
-        except Exception as e:
-            results.append({
-                "vector": name,
-                "match": False,
-                "differences": [{"type": "exception", "message": str(e)}],
-            })
-            errors += 1
-            print(f"  ERROR {name}: {e}")
+    return failures
 
-    total = passed + failed + errors
-    report = {
-        "timestamp": datetime.now().isoformat(),
-        "summary": {
-            "total": total,
-            "passed": passed,
-            "failed": failed,
-            "errors": errors,
-            "pass_rate": f"{100*passed/total:.2f}%" if total else "N/A",
-        },
-        "results": results,
-    }
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(json.dumps(report, indent=2))
-    print(f"\n  => {passed}/{total} PASS ({report['summary']['pass_rate']})")
+
+def main(argv: list[str] | None = None) -> int:
+    """Execute one vector file against neo-rs and return CI-friendly status code."""
+    parser = create_parser()
+    args = parser.parse_args(argv)
+
+    if not args.vector_file.exists() or not args.vector_file.is_file():
+        print(f"Vector file not found: {args.vector_file}", file=sys.stderr)
+        return 2
+
+    output_path = args.output or Path(f"reports/neo-rs-batch/{args.vector_file.stem}.json")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    print(f"=== {args.vector_file.stem} ({args.vector_file}) ===")
+    command_status = _run_neo_diff(args.vector_file, args.rpc_url, output_path, args.gas_tolerance)
+    if command_status not in (0, 1):
+        print(f"neo-diff execution failed with code {command_status}", file=sys.stderr)
+        return 1
+
+    if not output_path.exists():
+        print(f"Expected report output was not created: {output_path}", file=sys.stderr)
+        return 1
+
+    report = _load_report(output_path)
+    summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+    assert isinstance(summary, dict)
+
+    total = _summary_value(summary, "total")
+    passed = _summary_value(summary, "passed")
+    failed = _summary_value(summary, "failed")
+    errors = _summary_value(summary, "errors")
+
+    print(f"\nSummary: total={total}, passed={passed}, failed={failed}, errors={errors}")
+
+    non_gas_failures = _collect_non_gas_failures(report)
+    if args.show_failures and non_gas_failures:
+        print("\nNon-gas failures:")
+        for vector_name, differences in non_gas_failures:
+            print(f"- {vector_name}")
+            for difference in differences:
+                message = str(difference.get("message", "<no message>"))
+                diff_type = str(difference.get("type", "unknown"))
+                print(f"  - {diff_type}: {message}")
+
+    return 1 if errors > 0 or non_gas_failures else 0
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python neo_rs_vector_runner.py <vector_file.json> [output.json]")
-        sys.exit(1)
-
-    vf = Path(sys.argv[1])
-    out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(f"reports/neo-rs-batch/{vf.stem}.json")
-    print(f"=== {vf.stem} ({vf}) ===")
-    run_vectors(vf, out)
+    raise SystemExit(main())
