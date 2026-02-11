@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- _No changes yet._
+
+## [0.1.1] - 2026-02-11
+
+### Added
+
 - **Deep vector expansion**
 - **Protocol-surface matrix expansion**
   - Added deep VM control-flow vectors (`tests/vectors/vm/control_flow_deep.json`) for long jump families, CALL/CALL_L/CALLA/PUSHA, TRY/ENDTRY long-offset paths, and ABORTMSG/ASSERTMSG behavior.
@@ -33,11 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Workflow integration**
   - Extended diff workflow with optional `workflow_dispatch` tri-client lane using a supplied neo-rs RPC endpoint.
 
+- **neo-rs compatibility helper scripts**
+  - Added `scripts/neo_rs_vector_runner.py` and `scripts/neo_rs_batch_diff.py` to support direct neo-rs vector execution and batch reporting.
+
 ### Changed
 
 - Fixed VM `MEMCPY` destination bounds check to use buffer length (`len(dst)`) and added dedicated splice instruction tests.
 - Raised corpus depth gates to enforce broader VM/native/crypto/state surface thresholds and advanced opcode floor checks.
-
 - Aligned PolicyContract vector defaults with observed Neo v3.9.1 baseline values (`FeePerByte=20`, `ExecFeeFactor=1`, `StoragePrice=1000`).
 
 ## [0.1.0] - 2024-02-04
