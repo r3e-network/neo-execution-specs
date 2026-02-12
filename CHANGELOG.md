@@ -9,7 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- _No changes yet._
+- Added `docs/production-readiness.md` with release-grade validation criteria and operational gates.
+- Added `tests/tools/test_release_metadata.py` to enforce version/changelog consistency locally.
+
+### Changed
+
+- Hardened local neo-rs helper scripts (`scripts/neo_rs_vector_runner.py`, `scripts/neo_rs_batch_diff.py`) with robust CLI behavior and deterministic exit status.
+- Strengthened CI with packaging/entrypoint smoke checks in `.github/workflows/test.yml`.
+- Hardened release workflow with tag/version/changelog consistency checks in `.github/workflows/release.yml`.
+- Updated contribution guidance and script/testing docs for production-oriented workflows.
 
 ## [0.1.1] - 2026-02-11
 

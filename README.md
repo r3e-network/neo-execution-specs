@@ -174,6 +174,7 @@ src/neo/
 - [Architecture](docs/architecture.md) - System design and module structure
 - [API Reference](docs/api.md) - Main APIs and examples
 - [Testing Guide](docs/testing.md) - Test vectors and diff testing
+- [Production Readiness](docs/production-readiness.md) - Release quality gates and checklist
 - [Script Helpers](scripts/README.md) - Local neo-rs validation utilities
 - [Contributing](CONTRIBUTING.md) - How to contribute
 - [Changelog](CHANGELOG.md) - Version history

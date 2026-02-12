@@ -1,181 +1,105 @@
 # Contributing to Neo Execution Specs
 
-Thank you for your interest in contributing! This document provides guidelines for contributing to the project.
+Thanks for contributing. This guide keeps contributions professional, reproducible, and release-safe.
 
-## Getting Started
+## Prerequisites
 
-### Prerequisites
-
-- Python 3.11 or higher
+- Python 3.11+
 - Git
-- Basic understanding of Neo N3 protocol
+- Familiarity with Neo N3 protocol concepts
 
-### Setup
+## Local Setup
 
 ```bash
-# Fork and clone
 git clone https://github.com/YOUR_USERNAME/neo-execution-specs.git
 cd neo-execution-specs
-
-# Create virtual environment
 python -m venv .venv
 source .venv/bin/activate
-
-# Install with dev dependencies
 pip install -e ".[all]"
-
-# Verify setup
-pytest
 ```
 
-## Development Workflow
-
-### 1. Create a Branch
+## Branching
 
 ```bash
-git checkout -b feature/your-feature-name
+git checkout -b feature/your-feature
 # or
-git checkout -b fix/issue-description
+git checkout -b fix/your-fix
 ```
 
-### 2. Make Changes
+## Required Quality Gates (before PR)
 
-- Write code following the style guide
-- Add tests for new functionality
-- Update documentation as needed
-
-### 3. Run Tests
+Run these from repo root:
 
 ```bash
-# Run all tests
+# 1) Lint (includes scripts)
+ruff check src tests scripts
+
+# 2) Full test suite
 pytest
 
-# Run with coverage
-pytest --cov=neo
+# 3) Packaging integrity
+python -m build --sdist --wheel
+twine check dist/*
 
-# Run type checking
-mypy src/neo
+# 4) Console entrypoints (installed wheel smoke)
+pip install --force-reinstall dist/*.whl
+neo-diff --help
+neo-compat --help
+neo-multicompat --help
+neo-coverage --help
+neo-t8n --help
 ```
 
-### 4. Commit Changes
+## Optional / Informational Checks
 
 ```bash
-git add .
-git commit -m "feat: add new feature description"
+# Type checking is currently non-gating while backlog is reduced
+mypy src/neo --ignore-missing-imports
 ```
-
-Use conventional commit messages:
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `docs:` - Documentation
-- `test:` - Tests
-- `refactor:` - Code refactoring
-
-### 5. Submit PR
-
-Push your branch and create a pull request on GitHub.
 
 ## Code Style
 
-### Python Style
+- Follow PEP 8 and existing project conventions.
+- Keep lines at 100 chars max.
+- Add type hints for new/updated public APIs.
+- Add or update tests for behavior changes.
+- Keep changes focused and minimal.
 
-- Follow PEP 8
-- Use type hints for all public APIs
-- Maximum line length: 100 characters
-- Use `ruff` for linting
+## Commit Message Convention
 
-```bash
-# Format code
-ruff format src/ tests/
+Use conventional commits:
 
-# Check linting
-ruff check src/ tests/
-```
-
-### Naming Conventions
-
-| Type | Convention | Example |
-|------|------------|---------|
-| Classes | PascalCase | `ExecutionEngine` |
-| Functions | snake_case | `get_balance` |
-| Constants | UPPER_SNAKE | `MAX_STACK_SIZE` |
-| Private | _prefix | `_internal_method` |
-
-### Documentation
-
-- All public functions need docstrings
-- Use Google-style docstrings
-
-```python
-def execute_script(script: bytes, gas_limit: int = 0) -> ExecutionResult:
-    """Execute a Neo VM script.
-    
-    Args:
-        script: The script bytes to execute.
-        gas_limit: Maximum gas to consume (0 = unlimited).
-    
-    Returns:
-        ExecutionResult containing state and stack.
-    
-    Raises:
-        VMException: If execution fails.
-    """
-```
-
-## Pull Request Guidelines
-
-### Requirements
-
-- [ ] All tests pass
-- [ ] Code follows style guide
-- [ ] New code has tests
-- [ ] Documentation updated
-- [ ] Commit messages are clear
-
-### PR Title Format
-
-```
-type(scope): description
+- `feat:` new feature
+- `fix:` bug fix
+- `docs:` docs-only changes
+- `test:` tests
+- `refactor:` internal refactor without behavior change
+- `chore:` tooling/workflow/maintenance
 
 Examples:
-feat(vm): add CALLT instruction support
-fix(crypto): correct Ed25519 signature verification
-docs: update API documentation
-```
 
-### Review Process
+- `feat(vm): add CALLT edge-case vector coverage`
+- `fix(diff): normalize ByteString comparison semantics`
+- `chore(ci): add release metadata consistency checks`
 
-1. Automated checks run (tests, linting)
-2. Maintainer reviews code
-3. Address feedback if needed
-4. Merge when approved
+## Pull Request Checklist
 
-## Testing Guidelines
+- [ ] Tests pass locally (`pytest`)
+- [ ] Lint passes (`ruff check src tests scripts`)
+- [ ] Packaging checks pass (`build` + `twine check`)
+- [ ] New behavior has tests
+- [ ] Docs/changelog updated when relevant
+- [ ] PR description clearly explains intent and impact
 
-### Writing Tests
+## Release Consistency Notes
 
-- Test one thing per test function
-- Use descriptive test names
-- Include edge cases
-- Add test vectors for cross-validation
+For release PRs and tags:
 
-```python
-def test_add_positive_integers():
-    """ADD instruction with positive integers."""
-    engine = ExecutionEngine()
-    sb = ScriptBuilder()
-    sb.emit_push(3)
-    sb.emit_push(5)
-    sb.emit(OpCode.ADD)
-    
-    engine.load_script(sb.to_array())
-    engine.execute()
-    
-    assert engine.result_stack.peek().get_integer() == 8
-```
+- Keep `pyproject.toml` version and `src/neo/__init__.py` `__version__` identical.
+- Add a matching version heading in `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`).
+- Tag format must be `vX.Y.Z`.
 
-## Questions?
+## Questions
 
-- Open an issue for questions
-- Join Neo Discord for discussions
-- Check existing issues before creating new ones
+- Open a GitHub issue for bugs/questions.
+- Check existing issues before creating a new one.

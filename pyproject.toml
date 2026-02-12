@@ -12,18 +12,27 @@ requires-python = ">=3.11"
 authors = [
     { name = "Neo Project", email = "dev@neo.org" }
 ]
+keywords = ["neo", "neo-n3", "execution-specs", "blockchain", "reference"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
     "regex>=2024.0",
     "cryptography>=41.0",
     "pycryptodome>=3.19",
 ]
+
+[project.urls]
+Homepage = "https://github.com/r3e-network/neo-execution-specs"
+Repository = "https://github.com/r3e-network/neo-execution-specs"
+Issues = "https://github.com/r3e-network/neo-execution-specs/issues"
+Changelog = "https://github.com/r3e-network/neo-execution-specs/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
