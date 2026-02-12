@@ -3,7 +3,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from neo.tools.diff.models import ExecutionResult, StackValue
 
@@ -23,8 +23,8 @@ class Difference:
     """A single difference between results."""
     diff_type: DiffType
     path: str
-    python_value: any
-    csharp_value: any
+    python_value: Any
+    csharp_value: Any
     message: str = ""
     
     def to_dict(self) -> dict:

@@ -113,8 +113,7 @@ class NeoToken(FungibleToken):
     def total_amount(self) -> int:
         return self._total_amount
     
-    @property
-    def total_supply(self) -> int:
+    def total_supply(self, snapshot: Any) -> int:
         return self._total_amount
     
     def _register_methods(self) -> None:

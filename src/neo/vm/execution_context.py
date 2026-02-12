@@ -92,7 +92,7 @@ class SharedStates:
         self.script = script
         self.evaluation_stack = EvaluationStack()
         self.static_fields: Optional[Slot] = None
-        self.states: Dict[type, Any] = {}
+        self.states: Dict[object, Any] = {}
         self.reference_counter = reference_counter
 
 
@@ -254,16 +254,21 @@ def _parse_instruction(script: bytes, position: int) -> Instruction:
 def _get_operand_size(opcode: int, script: bytes, position: int) -> int:
     """Get the operand size for an opcode."""
     from neo.vm.opcode import OpCode
-    
+
+    try:
+        op = OpCode(opcode)
+    except ValueError:
+        return 0
+
     # Variable-length operands
-    if opcode == OpCode.PUSHDATA1:
+    if op == OpCode.PUSHDATA1:
         return 1 + script[position + 1] if position + 1 < len(script) else 0
-    elif opcode == OpCode.PUSHDATA2:
+    elif op == OpCode.PUSHDATA2:
         if position + 2 < len(script):
             length = int.from_bytes(script[position + 1:position + 3], 'little')
             return 2 + length
         return 0
-    elif opcode == OpCode.PUSHDATA4:
+    elif op == OpCode.PUSHDATA4:
         if position + 4 < len(script):
             length = int.from_bytes(script[position + 1:position + 5], 'little')
             return 4 + length
@@ -317,4 +322,4 @@ def _get_operand_size(opcode: int, script: bytes, position: int) -> int:
         OpCode.CONVERT: 1,
     }
     
-    return operand_sizes.get(opcode, 0)
+    return operand_sizes.get(op, 0)

@@ -121,6 +121,8 @@ def newarray_t(engine: ExecutionEngine, instruction: Instruction) -> None:
         raise InvalidOperationException(f"Invalid type for NEWARRAY_T: {item_type}")
     
     # Determine default value based on type
+    from neo.vm.types import StackItem
+    default_item: StackItem
     if item_type == StackItemType.BOOLEAN:
         default_item = Boolean(False)
     elif item_type == StackItemType.INTEGER:

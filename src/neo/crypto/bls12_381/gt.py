@@ -8,6 +8,8 @@ Uses py_ecc library for cryptographically correct implementation.
 
 from __future__ import annotations
 
+from typing import Any
+
 from .scalar import Scalar, SCALAR_MODULUS
 
 
@@ -30,8 +32,10 @@ class Gt:
     """
     
     __slots__ = ('_data', '_fq12')
+    _data: bytes
+    _fq12: Any | None
     
-    def __init__(self, data: bytes = None, fq12=None) -> None:
+    def __init__(self, data: bytes | None = None, fq12: Any | None = None) -> None:
         """Initialize Gt element."""
         self._fq12 = fq12
         
@@ -45,6 +49,7 @@ class Gt:
             self._fq12 = fq12
             self._data = self._fq12_to_bytes(fq12)
         else:
+            assert data is not None
             if len(data) != 576:
                 raise ValueError("Gt element must be 576 bytes")
             self._data = bytes(data)

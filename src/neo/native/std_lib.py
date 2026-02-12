@@ -172,12 +172,12 @@ class StdLib(NativeContract):
         elif type_byte == 0x48:  # Map
             count = data[offset]
             offset += 1
-            result = {}
+            map_result: dict[Any, Any] = {}
             for _ in range(count):
                 key, offset = self._binary_deserialize(data, offset)
                 value, offset = self._binary_deserialize(data, offset)
-                result[key] = value
-            return result, offset
+                map_result[key] = value
+            return map_result, offset
         else:
             raise ValueError(f"Unknown type byte: {type_byte}")
     

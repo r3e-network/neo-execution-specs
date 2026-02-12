@@ -815,6 +815,14 @@ class CSharpExecutor:
             )
 
         result = response.get("result")
+        if not isinstance(result, dict):
+            return ExecutionResult(
+                source=ExecutionSource.CSHARP_CLI,
+                state="ERROR",
+                exception="Missing or invalid RPC result payload",
+                raw_response=response,
+            )
+
         stack = self._parse_stack(result.get("stack", []))
 
         return ExecutionResult(

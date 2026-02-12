@@ -36,8 +36,8 @@ def decode(s: str) -> bytes:
     
     # Handle leading '1's (zeros)
     leading_zeros = 0
-    for c in s:
-        if c == '1':
+    for ch in s:
+        if ch == '1':
             leading_zeros += 1
         else:
             break

@@ -5,7 +5,7 @@ Reference: Neo.IO.ISerializable
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     from neo.io.binary_reader import BinaryReader
@@ -14,20 +14,17 @@ if TYPE_CHECKING:
 
 class ISerializable(ABC):
     """Interface for objects that can be serialized/deserialized."""
-    
+
     @property
     @abstractmethod
     def size(self) -> int:
         """Get the serialized size in bytes."""
-        pass
-    
+
     @abstractmethod
     def serialize(self, writer: "BinaryWriter") -> None:
         """Serialize the object to a binary writer."""
-        pass
-    
+
     @classmethod
     @abstractmethod
-    def deserialize(cls, reader: "BinaryReader") -> "ISerializable":
+    def deserialize(cls, reader: "BinaryReader") -> Self:
         """Deserialize an object from a binary reader."""
-        pass

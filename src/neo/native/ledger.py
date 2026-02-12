@@ -95,9 +95,9 @@ class LedgerContract(NativeContract):
         key = self._create_storage_key(PREFIX_CURRENT_BLOCK)
         item = snapshot.get(key)
         if item is None:
-            return UInt256.zero()
+            return UInt256.ZERO
         state = HashIndexState.from_bytes(item.value)
-        return state.hash or UInt256.zero()
+        return state.hash or UInt256.ZERO
     
     def current_index(self, snapshot: Any) -> int:
         """Get the index of the current block."""

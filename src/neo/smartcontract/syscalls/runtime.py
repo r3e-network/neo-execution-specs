@@ -186,96 +186,81 @@ def runtime_get_address_version(engine: "ApplicationEngine") -> None:
 
 def runtime_log(engine: "ApplicationEngine") -> None:
     """System.Runtime.Log
-    
+
     Emit a log message.
-    
+
     Stack: [message] -> []
     """
     stack = engine.current_context.evaluation_stack
     message = stack.pop()
-    
-    # Get message as string
+
     msg_bytes = message.get_bytes()
     if len(msg_bytes) > 1024:
         raise ValueError("Log message too long")
-    
-    msg_str = msg_bytes.decode('utf-8', errors='replace')
-    
-    # Add to engine's log list
-    if not hasattr(engine, '_logs'):
-        engine._logs = []
-    
+
+    msg_str = msg_bytes.decode("utf-8", errors="replace")
     script_hash = engine.current_script_hash
-    engine._logs.append({
-        'script_hash': script_hash,
-        'message': msg_str
-    })
+    if script_hash is None:
+        raise ValueError("No current script hash")
+    engine.write_log(script_hash, msg_str)
 
 
 def runtime_notify(engine: "ApplicationEngine") -> None:
     """System.Runtime.Notify
-    
+
     Emit a notification event.
-    
+
     Stack: [state, event_name] -> []
     """
     from neo.vm.types import Array
+
     stack = engine.current_context.evaluation_stack
-    
+
     state = stack.pop()
     event_name_item = stack.pop()
-    
-    event_name = event_name_item.get_bytes().decode('utf-8')
+
+    event_name = event_name_item.get_bytes().decode("utf-8")
     if len(event_name) > 32:
         raise ValueError("Event name too long")
-    
-    # Convert state to array if needed
+
     if not isinstance(state, Array):
         state = Array(items=[state])
-    
-    # Add to notifications
-    if not hasattr(engine, '_notifications'):
-        engine._notifications = []
-    
+
     script_hash = engine.current_script_hash
-    engine._notifications.append({
-        'script_hash': script_hash,
-        'event_name': event_name,
-        'state': state
-    })
+    if script_hash is None:
+        raise ValueError("No current script hash")
+    engine.send_notification(script_hash, event_name, state)
 
 
 def runtime_get_notifications(engine: "ApplicationEngine") -> None:
     """System.Runtime.GetNotifications
-    
+
     Get notifications emitted by a contract.
-    
+
     Stack: [script_hash] -> [notifications_array]
     """
-    from neo.vm.types import Array, ByteString, Struct
     from neo.types import UInt160
+    from neo.vm.types import Array, ByteString, Struct, StackItem
+
     stack = engine.current_context.evaluation_stack
-    
+
     hash_item = stack.pop()
     hash_bytes = hash_item.get_bytes()
-    
+
     filter_hash = None
     if len(hash_bytes) == 20:
         filter_hash = UInt160(hash_bytes)
-    
-    notifications = getattr(engine, '_notifications', [])
-    result = []
-    
-    for notif in notifications:
-        if filter_hash is None or notif['script_hash'] == filter_hash:
-            # Create notification struct: [script_hash, event_name, state]
+
+    result: list[StackItem] = []
+    for notification in engine.notifications:
+        if filter_hash is None or notification.script_hash == filter_hash:
             notif_struct = Struct(items=[
-                ByteString(bytes(notif['script_hash'])),
-                ByteString(notif['event_name'].encode('utf-8')),
-                notif['state']
+                ByteString(bytes(notification.script_hash)),
+                ByteString(notification.event_name.encode("utf-8")),
+                notification.state,
             ])
             result.append(notif_struct)
-    
+
     stack.push(Array(items=result))
 
 

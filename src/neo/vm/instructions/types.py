@@ -124,7 +124,7 @@ def _convert_to(item, target_type: int, engine):
     
     elif target_type == StackItemType.BUFFER:
         if isinstance(item, (ByteString, Buffer)):
-            data = item.get_span() if hasattr(item, 'get_span') else bytes(item)
+            data = item.get_span()
             return Buffer(data)
         elif isinstance(item, Integer):
             value = int(item.get_integer())

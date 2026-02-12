@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 class StackItemType(IntEnum):
     """Stack item types."""
+
     ANY = 0x00
     POINTER = 0x10
     BOOLEAN = 0x20
@@ -25,26 +26,45 @@ class StackItemType(IntEnum):
 
 class StackItem(ABC):
     """Base class for all stack items."""
-    
+
+    _items: list["StackItem"] | dict["StackItem", "StackItem"]
+
     @property
     @abstractmethod
     def type(self) -> StackItemType:
         """Get the stack item type."""
         ...
-    
+
     @abstractmethod
     def get_boolean(self) -> bool:
         """Convert to boolean."""
         ...
-    
+
     def get_integer(self) -> BigInteger:
         """Convert to integer."""
         raise TypeError(f"Cannot convert {self.type} to Integer")
-    
+
     def get_bytes_unsafe(self) -> bytes:
         """Get raw bytes without copy."""
         raise TypeError(f"Cannot get bytes from {self.type}")
-    
+
+    def get_bytes(self) -> bytes:
+        """Get bytes representation."""
+        return self.get_bytes_unsafe()
+
+    def get_span(self) -> bytes:
+        """Get byte span representation."""
+        return self.get_bytes_unsafe()
+
+    def get_string(self) -> str:
+        """Get UTF-8 string representation from bytes."""
+        return self.get_bytes_unsafe().decode("utf-8")
+
+    @property
+    def value(self) -> object:
+        """Get canonical item value for serializers."""
+        raise TypeError(f"Cannot get value from {self.type}")
+
     def equals(self, other: "StackItem", limits: object = None) -> bool:
         """Check equality with another stack item."""
         if self is other:
@@ -52,11 +72,11 @@ class StackItem(ABC):
         if self.type != other.type:
             return False
         return self._equals_impl(other, limits)
-    
+
     def _equals_impl(self, other: "StackItem", limits: object) -> bool:
         """Implementation-specific equality check."""
         return False
-    
+
     @property
     def is_null(self) -> bool:
         """Check if this is a null value."""

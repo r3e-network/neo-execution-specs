@@ -54,7 +54,9 @@ class TransactionVerifier:
         # Check for duplicate signers
         signer_accounts: Set[bytes] = set()
         for signer in tx.signers:
-            account_bytes = bytes(signer.account)
+            if signer.account is None:
+                return VerifyResult.INVALID
+            account_bytes = signer.account.data
             if account_bytes in signer_accounts:
                 return VerifyResult.INVALID
             signer_accounts.add(account_bytes)
@@ -213,7 +215,7 @@ class TransactionVerifier:
                 return False
 
             # Stack must contain exactly one truthy item
-            if engine.result_stack.count == 0:
+            if len(engine.result_stack) == 0:
                 return False
 
             return engine.result_stack.peek().get_boolean()

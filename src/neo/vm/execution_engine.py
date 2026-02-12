@@ -9,7 +9,7 @@ from neo.vm.evaluation_stack import EvaluationStack
 from neo.vm.gas import get_price
 from neo.vm.limits import ExecutionEngineLimits
 from neo.vm.opcode import OpCode
-from neo.vm.execution_context import ExecutionContext
+from neo.vm.execution_context import ExecutionContext, Instruction
 from neo.vm.exception_handling import (
     ExceptionHandlingContext,
     ExceptionHandlingState,
@@ -55,8 +55,10 @@ class ExecutionEngine:
         self._init_handlers()
     
     @property
-    def current_context(self) -> Optional[ExecutionContext]:
-        return self.invocation_stack[-1] if self.invocation_stack else None
+    def current_context(self) -> ExecutionContext:
+        if not self.invocation_stack:
+            raise InvalidOperationException("No current execution context")
+        return self.invocation_stack[-1]
     
     def load_script(self, script: bytes, rv_count: int = -1) -> ExecutionContext:
         ctx = ExecutionContext(script=script, rv_count=rv_count, 
@@ -76,10 +78,10 @@ class ExecutionEngine:
         return self.state
     
     def execute_next(self) -> None:
-        ctx = self.current_context
-        if ctx is None:
+        if not self.invocation_stack:
             self.state = VMState.HALT
             return
+        ctx = self.invocation_stack[-1]
         instr = ctx.current_instruction
         if instr is None:
             # Copy evaluation stack to target before popping
@@ -405,3 +407,10 @@ class ExecutionEngine:
         self._handlers[OpCode.CONVERT] = types.convert
         self._handlers[OpCode.ABORTMSG] = types.abortmsg
         self._handlers[OpCode.ASSERTMSG] = types.assertmsg
+
+__all__ = [
+    "ExecutionEngine",
+    "VMState",
+    "VMUnhandledException",
+    "Instruction",
+]

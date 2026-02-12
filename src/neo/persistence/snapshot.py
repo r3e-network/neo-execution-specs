@@ -66,6 +66,32 @@ class Snapshot(ABC):
         self.put(key, value)
 
 
+    # Storage helper methods for ApplicationEngine
+    def storage_get(self, key: bytes) -> Optional[bytes]:
+        """Get storage value by key."""
+        return self.get(key)
+
+    def storage_put(self, key: bytes, value: bytes) -> None:
+        """Set storage value."""
+        self.put(key, value)
+
+    def storage_delete(self, key: bytes) -> None:
+        """Delete storage value."""
+        self.delete(key)
+
+    # Contract/ledger helper methods
+    def get_contract(self, script_hash: Any) -> Optional[Any]:
+        """Get contract data by script hash."""
+        return None
+
+    def contains_transaction(self, tx_hash: Any) -> bool:
+        """Check whether a transaction exists."""
+        return False
+
+    def get_gas_balance(self, account: Any) -> int:
+        """Get GAS balance for account."""
+        return 0
+
 @dataclass
 class MemorySnapshot(Snapshot):
     """In-memory snapshot implementation."""

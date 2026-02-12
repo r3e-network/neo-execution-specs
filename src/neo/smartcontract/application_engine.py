@@ -88,6 +88,7 @@ class ApplicationEngine(ExecutionEngine):
         self._notifications: List[Notification] = []
         self._logs: List[LogEntry] = []
         self._invocation_counters: Dict[bytes, int] = {}
+        self._random_counter: int = 0
         self._storage_contexts: Dict[int, Any] = {}
         self._loaded_tokens: Dict[int, Any] = {}
         self._default_call_flags: CallFlags = CallFlags.ALL
@@ -499,7 +500,7 @@ class ApplicationEngine(ExecutionEngine):
 
     def _runtime_get_invocation_counter(self, engine: "ApplicationEngine") -> None:
         """Get invocation counter for current script."""
-        script_hash = self.current_script_hash
+        script_hash = self._require_current_script_hash()
         if script_hash:
             count = self._invocation_counters.get(bytes(script_hash), 1)
             self.push(Integer(count))
@@ -554,7 +555,7 @@ class ApplicationEngine(ExecutionEngine):
         msg_str = message.get_string()
         if len(msg_str.encode('utf-8')) > 1024:
             raise InvalidOperationException("Log message exceeds 1024 bytes")
-        script_hash = self.current_script_hash
+        script_hash = self._require_current_script_hash()
         if script_hash:
             self.write_log(script_hash, msg_str)
     
@@ -565,7 +566,7 @@ class ApplicationEngine(ExecutionEngine):
         """
         state = self.pop()
         event_name = self.pop().get_string()
-        script_hash = self.current_script_hash
+        script_hash = self._require_current_script_hash()
         if script_hash:
             self.send_notification(script_hash, event_name, state)
     
@@ -586,7 +587,7 @@ class ApplicationEngine(ExecutionEngine):
         # UInt160.Zero (20 zero bytes) means "no filter"
         is_zero = filter_bytes is None or filter_bytes == b'\x00' * 20
 
-        items = []
+        items: list[StackItem] = []
         for n in self._notifications:
             if not is_zero:
                 n_hash = bytes(n.script_hash) if n.script_hash else b'\x00' * 20
@@ -628,7 +629,7 @@ class ApplicationEngine(ExecutionEngine):
             self.push(NULL)
             return
 
-        items = []
+        items: list[StackItem] = []
         for s in signers:
             entry = Struct(self.reference_counter)
             account = bytes(s.account) if s.account else b'\x00' * 20
@@ -659,14 +660,33 @@ class ApplicationEngine(ExecutionEngine):
         if (call_flags & ~CallFlags.ALL) != 0:
             raise InvalidOperationException("Invalid call flags")
 
+        self._current_call_flags = call_flags
         self.load_script(script_data)
+
+    def _require_current_script_hash(self) -> "UInt160":
+        script_hash = self.current_script_hash
+        if script_hash is None:
+            raise InvalidOperationException("No current script hash")
+        return script_hash
+
+    def _unwrap_storage_context(self, ctx_item: StackItem) -> Any:
+        from neo.smartcontract.storage_context import StorageContext
+        from neo.vm.types import InteropInterface
+
+        if not isinstance(ctx_item, InteropInterface):
+            raise InvalidOperationException("Invalid storage context")
+        ctx = ctx_item.get_interface()
+        if not isinstance(ctx, StorageContext):
+            raise InvalidOperationException("Invalid storage context")
+        return ctx
 
     # Storage syscall implementations
     def _storage_get_context(self, engine: "ApplicationEngine") -> None:
         """Get storage context."""
         from neo.vm.types import InteropInterface
         from neo.smartcontract.storage_context import StorageContext
-        script_hash = self.current_script_hash
+
+        script_hash = self._require_current_script_hash()
         contract_id = self._get_contract_id(script_hash)
         ctx = StorageContext(id=contract_id, script_hash=script_hash, is_read_only=False)
         self.push(InteropInterface(ctx))
@@ -675,7 +695,8 @@ class ApplicationEngine(ExecutionEngine):
         """Get read-only storage context."""
         from neo.vm.types import InteropInterface
         from neo.smartcontract.storage_context import StorageContext
-        script_hash = self.current_script_hash
+
+        script_hash = self._require_current_script_hash()
         contract_id = self._get_contract_id(script_hash)
         ctx = StorageContext(id=contract_id, script_hash=script_hash, is_read_only=True)
         self.push(InteropInterface(ctx))
@@ -683,38 +704,25 @@ class ApplicationEngine(ExecutionEngine):
     def _storage_as_readonly(self, engine: "ApplicationEngine") -> None:
         """Convert storage context to read-only."""
         from neo.vm.types import InteropInterface
-        from neo.smartcontract.storage_context import StorageContext
-        ctx_item = self.pop()
-        if hasattr(ctx_item, 'value'):
-            ctx = ctx_item.value
-            readonly_ctx = StorageContext(id=ctx.id, script_hash=ctx.script_hash, is_read_only=True)
-            self.push(InteropInterface(readonly_ctx))
-        else:
-            self.push(NULL)
+
+        ctx = self._unwrap_storage_context(self.pop())
+        self.push(InteropInterface(ctx.as_read_only()))
     
     def _storage_get(self, engine: "ApplicationEngine") -> None:
         """Get value from storage.
 
         C# pop order: context (top), key.
         """
-        ctx_item = self.pop()
+        ctx = self._unwrap_storage_context(self.pop())
         key = self.pop()
-        
-        # Get storage context
-        if not hasattr(ctx_item, 'value'):
-            self.push(NULL)
-            return
-        
-        ctx = ctx_item.value
+
         if self.snapshot is None:
             self.push(NULL)
             return
-        
-        # Build full storage key: contract_id + user_key
+
         key_bytes = key.get_bytes_unsafe()
         full_key = self._build_storage_key(ctx, key_bytes)
-        
-        # Get value from snapshot
+
         value = self.snapshot.get(full_key)
         if value is None:
             self.push(NULL)
@@ -729,19 +737,13 @@ class ApplicationEngine(ExecutionEngine):
         from neo.vm.types import InteropInterface
         from neo.smartcontract.iterators import StorageIterator
 
-        ctx_item = self.pop()
+        ctx = self._unwrap_storage_context(self.pop())
         prefix_item = self.pop()
         options_item = self.pop()
 
-        if not hasattr(ctx_item, 'value'):
-            self.push(InteropInterface(iter([])))
-            return
-
-        ctx = ctx_item.value
         prefix_bytes = prefix_item.get_bytes_unsafe()
-        options = options_item.get_integer()
+        options = int(options_item.get_integer())
 
-        # Build full storage key prefix: STORAGE_PREFIX + script_hash + user_prefix
         full_prefix = self._build_storage_key(ctx, prefix_bytes)
 
         iterator = StorageIterator(self, full_prefix, options)
@@ -752,32 +754,21 @@ class ApplicationEngine(ExecutionEngine):
 
         C# pop order: context (top), key, value.
         """
-        ctx_item = self.pop()
+        ctx = self._unwrap_storage_context(self.pop())
         key = self.pop()
         value = self.pop()
-        
-        # Get storage context
-        if not hasattr(ctx_item, 'value'):
-            raise InvalidOperationException("Invalid storage context")
-        
-        ctx = ctx_item.value
-        
-        # Check if context is read-only
+
         if ctx.is_read_only:
             raise InvalidOperationException("Cannot write to read-only storage context")
-        
+
         if self.snapshot is None:
             raise InvalidOperationException("No snapshot available for storage")
-        
-        # Build full storage key
+
         key_bytes = key.get_bytes_unsafe()
         value_bytes = value.get_bytes_unsafe()
         full_key = self._build_storage_key(ctx, key_bytes)
-        
-        # Put value to snapshot
+
         self.snapshot.put(full_key, value_bytes)
-        
-        # Add gas cost for storage write
         self.add_gas(GasCost.STORAGE_WRITE)
     
     def _storage_delete(self, engine: "ApplicationEngine") -> None:
@@ -785,27 +776,17 @@ class ApplicationEngine(ExecutionEngine):
 
         C# pop order: context (top), key.
         """
-        ctx_item = self.pop()
+        ctx = self._unwrap_storage_context(self.pop())
         key = self.pop()
-        
-        # Get storage context
-        if not hasattr(ctx_item, 'value'):
-            raise InvalidOperationException("Invalid storage context")
-        
-        ctx = ctx_item.value
-        
-        # Check if context is read-only
+
         if ctx.is_read_only:
             raise InvalidOperationException("Cannot delete from read-only storage context")
-        
+
         if self.snapshot is None:
             raise InvalidOperationException("No snapshot available for storage")
-        
-        # Build full storage key
+
         key_bytes = key.get_bytes_unsafe()
         full_key = self._build_storage_key(ctx, key_bytes)
-        
-        # Delete from snapshot
         self.snapshot.delete(full_key)
 
     def _storage_local_get(self, engine: "ApplicationEngine") -> None:
@@ -814,7 +795,7 @@ class ApplicationEngine(ExecutionEngine):
         from neo.smartcontract.storage_context import StorageContext
 
         key = self.pop()
-        script_hash = self.current_script_hash
+        script_hash = self._require_current_script_hash()
         contract_id = self._get_contract_id(script_hash)
         ctx = StorageContext(id=contract_id, script_hash=script_hash, is_read_only=True)
 
@@ -830,7 +811,7 @@ class ApplicationEngine(ExecutionEngine):
 
         options = self.pop()
         prefix = self.pop()
-        script_hash = self.current_script_hash
+        script_hash = self._require_current_script_hash()
         contract_id = self._get_contract_id(script_hash)
         ctx = StorageContext(id=contract_id, script_hash=script_hash, is_read_only=True)
 
@@ -847,7 +828,7 @@ class ApplicationEngine(ExecutionEngine):
 
         value = self.pop()
         key = self.pop()
-        script_hash = self.current_script_hash
+        script_hash = self._require_current_script_hash()
         contract_id = self._get_contract_id(script_hash)
         ctx = StorageContext(id=contract_id, script_hash=script_hash, is_read_only=False)
 
@@ -863,7 +844,7 @@ class ApplicationEngine(ExecutionEngine):
         from neo.smartcontract.storage_context import StorageContext
 
         key = self.pop()
-        script_hash = self.current_script_hash
+        script_hash = self._require_current_script_hash()
         contract_id = self._get_contract_id(script_hash)
         ctx = StorageContext(id=contract_id, script_hash=script_hash, is_read_only=False)
 
@@ -921,10 +902,10 @@ class ApplicationEngine(ExecutionEngine):
         # and are consumed by the called method via INITSLOT
         self._call_contract_internal(contract, method, None, call_flags)
     
-    def _check_call_flags(self, flags: CallFlags) -> bool:
+    def _check_call_flags(self, flags: int | CallFlags) -> bool:
         """Check if the requested call flags are allowed by current context."""
-        # The called contract's flags must be a subset of current flags
-        return (flags & self._current_call_flags) == flags
+        requested = CallFlags(int(flags))
+        return (requested & self._current_call_flags) == requested
     
     def _get_contract(self, contract_hash: "UInt160") -> Optional[Any]:
         """Get contract state from storage."""
@@ -1114,7 +1095,7 @@ class ApplicationEngine(ExecutionEngine):
         return None
     
     def _call_contract_internal(self, contract: Any, method: str,
-                                 args: StackItem, flags: CallFlags) -> None:
+                                 args: StackItem | None, flags: CallFlags) -> None:
         """Execute a contract call by loading its script.
 
         Call flags are scoped per execution context: the new context
@@ -1137,7 +1118,8 @@ class ApplicationEngine(ExecutionEngine):
         self._invocation_counters[script_hash] = self._invocation_counters.get(script_hash, 0) + 1
 
         # Push arguments onto stack for the called method
-        if hasattr(args, '__iter__') and not isinstance(args, (bytes, str)):
+        from neo.vm.types import Array, Struct
+        if isinstance(args, (Array, Struct)):
             for arg in reversed(list(args)):
                 self.push(arg)
         elif args is not None and args != NULL:
@@ -1206,7 +1188,7 @@ class ApplicationEngine(ExecutionEngine):
         self.pop().get_integer()
 
         # 2. Identify native contract
-        script_hash = self.current_script_hash
+        script_hash = self._require_current_script_hash()
         if script_hash is None:
             raise InvalidOperationException("No current script for CallNative")
 

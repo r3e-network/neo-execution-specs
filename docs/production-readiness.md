@@ -54,8 +54,8 @@ The release workflow enforces these checks automatically.
 - Document behavior changes in `CHANGELOG.md`.
 - Prefer backward-compatible defaults in CLI/tools.
 
-## 6) Known Non-Gating Area
+## 6) Type Safety Gate
 
-- Mypy uses an error-count baseline gate in CI via `scripts/check_mypy_regressions.py`; full zero-error typing is still non-blocking while backlog is reduced.
-- Do not increase the baseline; reduce it when touching typed areas.
-- Do not treat this as permission to skip tests/lint/vector checks.
+- Mypy baseline gate in CI is now strict (`scripts/mypy-error-baseline.txt` = `0`).
+- Any new mypy error fails CI and must be fixed before release.
+- Keep running the same full lint/test/vector gates; type safety complements, not replaces, runtime verification.

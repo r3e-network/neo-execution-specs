@@ -6,7 +6,7 @@ Reference: Neo.Network.P2P.Payloads.Conditions
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import TYPE_CHECKING, List
 
@@ -113,7 +113,7 @@ class CalledByEntryCondition(WitnessCondition):
 @dataclass
 class ScriptHashCondition(WitnessCondition):
     """Script hash condition."""
-    hash: bytes = None
+    hash: bytes = b""
     
     @property
     def type(self) -> WitnessConditionType:
@@ -135,7 +135,7 @@ class ScriptHashCondition(WitnessCondition):
 @dataclass
 class GroupCondition(WitnessCondition):
     """Group condition (EC point)."""
-    group: bytes = None
+    group: bytes = b""
     
     @property
     def type(self) -> WitnessConditionType:
@@ -157,7 +157,7 @@ class GroupCondition(WitnessCondition):
 @dataclass
 class CalledByContractCondition(WitnessCondition):
     """Called by contract condition."""
-    hash: bytes = None
+    hash: bytes = b""
     
     @property
     def type(self) -> WitnessConditionType:
@@ -179,7 +179,7 @@ class CalledByContractCondition(WitnessCondition):
 @dataclass
 class CalledByGroupCondition(WitnessCondition):
     """Called by group condition."""
-    group: bytes = None
+    group: bytes = b""
     
     @property
     def type(self) -> WitnessConditionType:
@@ -201,7 +201,7 @@ class CalledByGroupCondition(WitnessCondition):
 @dataclass
 class NotCondition(WitnessCondition):
     """Not condition."""
-    expression: WitnessCondition = None
+    expression: WitnessCondition | None = None
     
     @property
     def type(self) -> WitnessConditionType:
@@ -225,7 +225,7 @@ class NotCondition(WitnessCondition):
 @dataclass
 class AndCondition(WitnessCondition):
     """And condition."""
-    expressions: List[WitnessCondition] = None
+    expressions: List[WitnessCondition] = field(default_factory=list)
     
     @property
     def type(self) -> WitnessConditionType:
@@ -253,7 +253,7 @@ class AndCondition(WitnessCondition):
 @dataclass
 class OrCondition(WitnessCondition):
     """Or condition."""
-    expressions: List[WitnessCondition] = None
+    expressions: List[WitnessCondition] = field(default_factory=list)
     
     @property
     def type(self) -> WitnessConditionType:

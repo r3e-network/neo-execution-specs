@@ -17,6 +17,7 @@ def derive_public_key(private_key: bytes, curve: ECCurve = SECP256R1) -> ECPoint
     try:
         from cryptography.hazmat.primitives.asymmetric import ec
 
+        ec_curve: ec.EllipticCurve
         if curve.name == "secp256r1":
             ec_curve = ec.SECP256R1()
         elif curve.name == "secp256k1":
@@ -29,10 +30,10 @@ def derive_public_key(private_key: bytes, curve: ECCurve = SECP256R1) -> ECPoint
         pub = priv.public_key()
         nums = pub.public_numbers()
         return ECPoint(x=nums.x, y=nums.y, curve=curve)
-    except ImportError:
+    except ImportError as error:
         raise RuntimeError(
             "cryptography library required for derive_public_key"
-        )
+        ) from error
 
 
 __all__ = [

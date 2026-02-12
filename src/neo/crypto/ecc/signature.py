@@ -11,14 +11,18 @@ if TYPE_CHECKING:
     from neo.crypto.ecc.curve import ECCurve
 
 # Try to import cryptography library
+INVALID_SIGNATURE_ERROR: type[Exception] = Exception
+
 try:
     from cryptography.hazmat.primitives.asymmetric import ec, utils
     from cryptography.hazmat.primitives import hashes
-    from cryptography.exceptions import InvalidSignature
+    from cryptography.exceptions import InvalidSignature as _InvalidSignature
+
     HAS_CRYPTOGRAPHY = True
+    INVALID_SIGNATURE_ERROR = _InvalidSignature
 except ImportError:
     HAS_CRYPTOGRAPHY = False
-    InvalidSignature = Exception  # Fallback
+    INVALID_SIGNATURE_ERROR = Exception
 
 
 def verify_signature(
@@ -52,6 +56,7 @@ def verify_signature(
 
     if not HAS_CRYPTOGRAPHY:
         from neo.exceptions import CryptoException
+
         raise CryptoException(
             "The 'cryptography' library is required for signature verification "
             "but is not installed. Install it with: pip install cryptography"
@@ -68,34 +73,35 @@ def verify_signature(
 
         # Use Prehashed — message is already a SHA-256 digest
         public_key.verify(
-            der_sig, message,
-            ec.ECDSA(utils.Prehashed(hashes.SHA256()))
+            der_sig,
+            message,
+            ec.ECDSA(utils.Prehashed(hashes.SHA256())),
         )
         return True
 
-    except (InvalidSignature, ValueError):
+    except (INVALID_SIGNATURE_ERROR, ValueError):
         return False
 
 
-def _get_curve_instance(curve: "ECCurve"):
+def _get_curve_instance(curve: "ECCurve") -> ec.EllipticCurve:
     """Get cryptography library curve instance."""
     if curve.name == "secp256r1":
         return ec.SECP256R1()
-    elif curve.name == "secp256k1":
+    if curve.name == "secp256k1":
         return ec.SECP256K1()
-    else:
-        raise ValueError(f"Unsupported curve: {curve.name}")
+    raise ValueError(f"Unsupported curve: {curve.name}")
 
 
 def _encode_der_signature(r: int, s: int) -> bytes:
     """Encode r, s as DER signature."""
+
     def encode_int(val: int) -> bytes:
         length = (val.bit_length() + 8) // 8
         b = val.to_bytes(length, 'big')
         if b[0] & 0x80:
             b = b'\x00' + b
         return b'\x02' + bytes([len(b)]) + b
-    
+
     r_enc = encode_int(r)
     s_enc = encode_int(s)
     content = r_enc + s_enc

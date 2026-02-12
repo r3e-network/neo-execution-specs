@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refreshed `docs/testing.md` CI section to match live workflow topology and reduce documentation drift.
 - Added `scripts/check_mypy_regressions.py` and `scripts/mypy-error-baseline.txt` to enforce a no-regression mypy baseline in CI while existing typing debt is reduced.
 - Updated test workflow and contributor/readme/production docs to include the mypy baseline gate command.
+- Eliminated all remaining mypy errors across `src/neo` and set `scripts/mypy-error-baseline.txt` to `0` for strict type enforcement in CI.
 
 ## [0.1.1] - 2026-02-11
 

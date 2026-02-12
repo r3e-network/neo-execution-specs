@@ -364,7 +364,11 @@ class OracleContract(NativeContract):
         key_prefix = self._create_storage_key(PREFIX_REQUEST)
         for full_key, value in snapshot.find(key_prefix):
             # Extract request_id from key suffix
-            suffix = full_key[len(key_prefix):]
+            full_key_bytes = full_key.key if hasattr(full_key, "key") else full_key
+            prefix_bytes = key_prefix.key if hasattr(key_prefix, "key") else key_prefix
+            if not isinstance(full_key_bytes, bytes) or not isinstance(prefix_bytes, bytes):
+                continue
+            suffix = full_key_bytes[len(prefix_bytes):]
             if suffix:
                 request_id = int.from_bytes(suffix, 'big')
                 yield (request_id, OracleRequest.deserialize(value))
@@ -488,7 +492,7 @@ class OracleContract(NativeContract):
             engine.contract_call(contract, method, [url, user_data, code, result])
         elif hasattr(engine, 'send_notification'):
             from neo.vm.types import Array, ByteString, Integer
-            state = Array([
+            state = Array(items=[
                 ByteString(url.encode('utf-8')),
                 ByteString(user_data),
                 Integer(int(code) if code is not None else 0xff),

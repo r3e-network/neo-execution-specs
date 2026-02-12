@@ -5,7 +5,7 @@ Reference: Neo.SmartContract.Native.Notary
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from neo.types import UInt160
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
@@ -120,7 +120,8 @@ class Notary(NativeContract):
             if role_mgmt is None:
                 return False
 
-            notary_nodes = role_mgmt.get_designated_by_role(
+            role_mgmt_any = cast(Any, role_mgmt)
+            notary_nodes = role_mgmt_any.get_designated_by_role(
                 snapshot, Role.P2P_NOTARY, block_index
             )
             if not notary_nodes:

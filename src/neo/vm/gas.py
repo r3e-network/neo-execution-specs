@@ -239,4 +239,8 @@ def get_price(opcode: int) -> int:
 
     Returns 0 for unknown opcodes (they will fault during execution).
     """
-    return OPCODE_PRICE.get(opcode, 0)
+    try:
+        op = OpCode(opcode)
+    except ValueError:
+        return 0
+    return OPCODE_PRICE.get(op, 0)

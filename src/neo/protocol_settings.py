@@ -110,10 +110,10 @@ class ProtocolSettings:
     max_traceable_blocks: int = 2102400
     initial_gas_distribution: int = 52_000_000 * 100_000_000
 
-    hardforks: Dict[Hardfork | str, int] = field(
+    hardforks: Dict[Hardfork, int] = field(
         default_factory=lambda: dict(_MAINNET_HARDFORKS)
     )
-    standby_committee: List[bytes | str] = field(
+    standby_committee: List[bytes] = field(
         default_factory=lambda: [bytes.fromhex(key) for key in _MAINNET_STANDBY_COMMITTEE_HEX]
     )
     seed_list: List[str] = field(default_factory=lambda: list(_MAINNET_SEED_LIST))
@@ -228,7 +228,10 @@ class ProtocolSettings:
         if not self.hardforks:
             return
 
-        ordered_keys = sorted(self.hardforks.keys(), key=lambda hf: int(hf))
+        ordered_keys = sorted(
+            (self._normalize_hardfork_key(hf) for hf in self.hardforks.keys()),
+            key=lambda hf: int(hf),
+        )
 
         for index in range(len(ordered_keys) - 1):
             current = ordered_keys[index]

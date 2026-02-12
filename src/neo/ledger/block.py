@@ -8,6 +8,7 @@ from neo.network.payloads.header import Header
 
 if TYPE_CHECKING:
     from neo.network.payloads.transaction import Transaction
+    from neo.types.uint256 import UInt256
 
 # Backward-compatible alias
 BlockHeader = Header
@@ -20,7 +21,7 @@ class Block:
     transactions: List["Transaction"] = field(default_factory=list)
 
     @property
-    def hash(self) -> bytes:
+    def hash(self) -> bytes | "UInt256":
         return self.header.hash
 
     @property

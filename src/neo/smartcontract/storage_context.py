@@ -24,7 +24,7 @@ class StorageContext:
         is_read_only: Whether this context is read-only.
     """
     id: int = 0
-    script_hash: "UInt160" = field(default=None)
+    script_hash: "UInt160 | None" = field(default=None)
     is_read_only: bool = False
 
     def as_read_only(self) -> "StorageContext":

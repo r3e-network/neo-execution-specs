@@ -79,7 +79,7 @@ class G2Affine:
     
     __slots__ = ('x', 'y', '_is_infinity')
     
-    def __init__(self, x: Fp2 = None, y: Fp2 = None, is_infinity: bool = False) -> None:
+    def __init__(self, x: Fp2 | None = None, y: Fp2 | None = None, is_infinity: bool = False) -> None:
         self.x = x if x else Fp2.zero()
         self.y = y if y else Fp2.zero()
         self._is_infinity = is_infinity
@@ -250,7 +250,7 @@ class G2Projective:
     
     __slots__ = ('x', 'y', 'z')
     
-    def __init__(self, x: Fp2 = None, y: Fp2 = None, z: Fp2 = None) -> None:
+    def __init__(self, x: Fp2 | None = None, y: Fp2 | None = None, z: Fp2 | None = None) -> None:
         self.x = x if x else Fp2.zero()
         self.y = y if y else Fp2.one()
         self.z = z if z else Fp2.zero()

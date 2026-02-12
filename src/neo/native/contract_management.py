@@ -69,9 +69,9 @@ class ContractManagement(NativeContract):
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
         self._register_method("setMinimumDeploymentFee", self.set_minimum_deployment_fee,
                             cpu_fee=1 << 15, call_flags=CallFlags.STATES)
-        self._register_method("getContract", self.get_contract,
+        self._register_method("getContract", self.get_contract_state,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
-        self._register_method("getContractById", self.get_contract_by_id,
+        self._register_method("getContractById", self.get_contract_state_by_id,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
         self._register_method("hasMethod", self.has_method,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
@@ -107,7 +107,7 @@ class ContractManagement(NativeContract):
         item.add(1)
         return value
     
-    def get_contract(self, snapshot: Any, hash: UInt160) -> Optional[ContractState]:
+    def get_contract_state(self, snapshot: Any, hash: UInt160) -> Optional[ContractState]:
         """Get a deployed contract by hash."""
         key = self._create_storage_key(PREFIX_CONTRACT, hash.data)
         item = snapshot.get(key)
@@ -115,14 +115,14 @@ class ContractManagement(NativeContract):
             return None
         return ContractState.from_bytes(item.value)
     
-    def get_contract_by_id(self, snapshot: Any, id: int) -> Optional[ContractState]:
+    def get_contract_state_by_id(self, snapshot: Any, id: int) -> Optional[ContractState]:
         """Get a deployed contract by ID."""
         key = self._create_storage_key(PREFIX_CONTRACT_HASH, id)
         item = snapshot.get(key)
         if item is None:
             return None
         hash = UInt160(item.value)
-        return self.get_contract(snapshot, hash)
+        return self.get_contract_state(snapshot, hash)
     
     def has_method(self, snapshot: Any, hash: UInt160, method: str, pcount: int) -> bool:
         """Check if a contract has a specific method.
@@ -133,7 +133,7 @@ class ContractManagement(NativeContract):
         """
         import json as _json
 
-        contract = self.get_contract(snapshot, hash)
+        contract = self.get_contract_state(snapshot, hash)
         if contract is None:
             return False
 

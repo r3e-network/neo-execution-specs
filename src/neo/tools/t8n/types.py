@@ -169,7 +169,7 @@ class Receipt:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
-        result = {
+        result: Dict[str, Any] = {
             "txHash": self.tx_hash,
             "vmState": self.vm_state,
             "gasConsumed": str(self.gas_consumed),

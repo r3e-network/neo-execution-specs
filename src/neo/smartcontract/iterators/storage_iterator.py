@@ -1,70 +1,84 @@
 """StorageIterator - Iterator for storage entries."""
 
 from __future__ import annotations
-from typing import Iterator, Tuple, TYPE_CHECKING
+
+from typing import TYPE_CHECKING
 
 from .iterator import IIterator
 from neo.smartcontract.storage.find_options import FindOptions
+from neo.vm.types import Array, ByteString, StackItem, Struct
 
 if TYPE_CHECKING:
-    from neo.vm.types import StackItem
-    from neo.smartcontract.storage import StorageKey, StorageItem
+    from neo.smartcontract.application_engine import ApplicationEngine
 
 
 class StorageIterator(IIterator):
     """Iterator for storage search results."""
-    
+
     def __init__(
         self,
-        enumerator: Iterator[Tuple[StorageKey, StorageItem]],
-        prefix_length: int,
-        options: FindOptions
-    ):
-        self._enumerator = enumerator
-        self._prefix_length = prefix_length
-        self._options = options
-        self._current = None
-    
+        engine: "ApplicationEngine",
+        prefix: bytes,
+        options: int,
+    ) -> None:
+        self._engine = engine
+        self._prefix = prefix
+        self._options = FindOptions(options)
+        self._pairs: list[tuple[bytes, bytes]] = []
+        self._index = -1
+
+        snapshot = getattr(engine, "snapshot", None)
+        if snapshot is not None and hasattr(snapshot, "find"):
+            self._pairs = list(snapshot.find(prefix))
+
+        if self._options & FindOptions.BACKWARDS:
+            self._pairs.reverse()
+
     def next(self) -> bool:
         """Advance to next element."""
-        try:
-            self._current = next(self._enumerator)
-            return True
-        except StopIteration:
-            self._current = None
-            return False
-    
+        self._index += 1
+        return self._index < len(self._pairs)
+
     def value(self) -> StackItem:
         """Get current element."""
-        from neo.vm.types import ByteString, Struct
-        from neo.smartcontract.binary_serializer import BinarySerializer
-        
-        if self._current is None:
+        if self._index < 0 or self._index >= len(self._pairs):
             raise ValueError("No current element")
-        
-        key, item = self._current
-        key_bytes = key.key
-        value_bytes = item.value
-        
-        # Remove prefix if requested
+
+        raw_key, raw_value = self._pairs[self._index]
+        return self._apply_options(raw_key, raw_value)
+
+    def _apply_options(self, raw_key: bytes, raw_value: bytes) -> StackItem:
+        key_bytes = raw_key
         if self._options & FindOptions.REMOVE_PREFIX:
-            key_bytes = key_bytes[self._prefix_length:]
-        
-        # Deserialize value if requested
+            key_bytes = raw_key[len(self._prefix):]
+
+        value_item: StackItem = ByteString(raw_value)
         if self._options & FindOptions.DESERIALIZE_VALUES:
-            result = BinarySerializer.deserialize(value_bytes)
-            # Pick field if requested
-            if self._options & FindOptions.PICK_FIELD0:
-                result = result[0]
-            elif self._options & FindOptions.PICK_FIELD1:
-                result = result[1]
-        else:
-            result = ByteString(value_bytes)
-        
-        # Return based on options
+            value_item = self._deserialize(raw_value)
+
+        if self._options & FindOptions.PICK_FIELD0:
+            value_item = self._pick_field(value_item, 0)
+        elif self._options & FindOptions.PICK_FIELD1:
+            value_item = self._pick_field(value_item, 1)
+
         if self._options & FindOptions.KEYS_ONLY:
             return ByteString(key_bytes)
         if self._options & FindOptions.VALUES_ONLY:
-            return result
-        
-        return Struct(items=[ByteString(key_bytes), result])
+            return value_item
+
+        return Struct(items=[ByteString(key_bytes), value_item])
+
+    @staticmethod
+    def _deserialize(data: bytes) -> StackItem:
+        try:
+            from neo.smartcontract.binary_serializer import BinarySerializer
+
+            return BinarySerializer.deserialize(data)
+        except (ValueError, TypeError, IndexError, KeyError):
+            return ByteString(data)
+
+    @staticmethod
+    def _pick_field(item: StackItem, index: int) -> StackItem:
+        if isinstance(item, Array) and index < len(item):
+            return item[index]
+        return item

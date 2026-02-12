@@ -67,7 +67,7 @@ class DataCache:
     def get_or_add(self, key: bytes, factory: Callable[[], bytes]) -> bytes:
         """Get existing value or add new one using factory."""
         found, value = self.try_get(key)
-        if found:
+        if found and value is not None:
             return value
         value = factory()
         self.add(key, value)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import IntEnum
+from enum import IntFlag
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from neo.types import UInt160
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     pass
 
 
-class CallFlags(IntEnum):
+class CallFlags(IntFlag):
     """Call flags for contract methods."""
     NONE = 0
     READ_STATES = 0b00000001

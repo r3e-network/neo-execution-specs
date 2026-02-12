@@ -66,10 +66,10 @@ class TryStack:
             raise InvalidOperationException("The corresponding TRY block cannot be found.")
         return self._stack.pop()
     
-    def peek(self) -> Optional[ExceptionHandlingContext]:
+    def peek(self) -> ExceptionHandlingContext:
         """Peek at the top exception handling context without removing it."""
         if not self._stack:
-            return None
+            raise InvalidOperationException("The corresponding TRY block cannot be found.")
         return self._stack[-1]
     
     def try_peek(self) -> tuple[bool, Optional[ExceptionHandlingContext]]:

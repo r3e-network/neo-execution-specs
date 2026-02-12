@@ -186,7 +186,7 @@ def storage_find(engine: "ApplicationEngine") -> None:
     from neo.smartcontract.iterators import StorageIterator
     
     stack = engine.current_context.evaluation_stack
-    options = stack.pop().get_integer()
+    options = int(stack.pop().get_integer())
     prefix = stack.pop().get_bytes()
     ctx_item = stack.pop()
     

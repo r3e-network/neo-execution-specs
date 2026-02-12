@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from neo.io.binary_reader import BinaryReader
     from neo.io.binary_writer import BinaryWriter
     from neo.network.payloads.witness import Witness
+    from neo.types.uint256 import UInt256
 
 
 # Header size without witness
@@ -31,7 +32,7 @@ class Header:
     witness: Optional["Witness"] = None
     
     @property
-    def hash(self) -> bytes:
+    def hash(self) -> bytes | "UInt256":
         """Get the header hash."""
         from neo.crypto.hash import hash256
         return hash256(self._get_hash_data())

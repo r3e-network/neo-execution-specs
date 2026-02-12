@@ -103,7 +103,7 @@ class NotValidBeforeAttribute(TransactionAttribute):
 @dataclass
 class ConflictsAttribute(TransactionAttribute):
     """Conflicts attribute."""
-    hash: bytes = None
+    hash: bytes = b""
     
     @property
     def type(self) -> TransactionAttributeType:
