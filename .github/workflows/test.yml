@@ -67,8 +67,8 @@ jobs:
       - name: Run ruff
         run: ruff check src/ tests/ scripts/
 
-      - name: Run mypy (informational — strict mode, gradual adoption)
-        run: mypy src/neo --ignore-missing-imports || true
+      - name: Run mypy baseline regression check
+        run: python scripts/check_mypy_regressions.py --baseline-file scripts/mypy-error-baseline.txt
 
   package:
     runs-on: ubuntu-latest

@@ -390,7 +390,7 @@ CI checks run automatically on pull requests and branch pushes, with separate wo
 
 - `.github/workflows/test.yml`
   - Python matrix tests (3.11/3.12)
-  - Ruff lint and informational mypy
+  - Ruff lint and mypy baseline regression guard
   - Packaging build + `twine check` + CLI smoke tests
 - `.github/workflows/vectors.yml`
   - Path-scoped vector validation and checklist coverage checks

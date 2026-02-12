@@ -21,6 +21,8 @@ This checklist defines the minimum bar for calling a release "production-ready" 
 
 - Lint:
   - `ruff check src tests scripts`
+- Type regression:
+  - `python scripts/check_mypy_regressions.py --baseline-file scripts/mypy-error-baseline.txt`
 - Build tools:
   - `pip install build twine`
 - Build artifacts:
@@ -54,5 +56,6 @@ The release workflow enforces these checks automatically.
 
 ## 6) Known Non-Gating Area
 
-- Mypy is currently informational (not release-gating) while historical typing backlog is reduced.
+- Mypy uses an error-count baseline gate in CI via `scripts/check_mypy_regressions.py`; full zero-error typing is still non-blocking while backlog is reduced.
+- Do not increase the baseline; reduce it when touching typed areas.
 - Do not treat this as permission to skip tests/lint/vector checks.

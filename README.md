@@ -153,6 +153,7 @@ pip install build twine
 
 # Core quality gates
 ruff check src tests scripts
+python scripts/check_mypy_regressions.py --baseline-file scripts/mypy-error-baseline.txt
 pytest
 python scripts/check_release_metadata.py
 rm -rf dist build

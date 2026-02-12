@@ -37,6 +37,9 @@ ruff check src tests scripts
 # 2) Full test suite
 pytest
 
+# 2b) Type-regression guard (no new mypy errors)
+python scripts/check_mypy_regressions.py --baseline-file scripts/mypy-error-baseline.txt
+
 # 3) Packaging integrity
 python scripts/check_release_metadata.py
 pip install build twine
@@ -56,7 +59,7 @@ neo-t8n --help
 ## Optional / Informational Checks
 
 ```bash
-# Type checking is currently non-gating while backlog is reduced
+# Optional raw mypy output for deep cleanup work
 mypy src/neo --ignore-missing-imports
 ```
 
@@ -89,6 +92,7 @@ Examples:
 
 - [ ] Tests pass locally (`pytest`)
 - [ ] Lint passes (`ruff check src tests scripts`)
+- [ ] Type-regression guard passes (`check_mypy_regressions`)
 - [ ] Packaging checks pass (`check_release_metadata` + `build` + `twine check`)
 - [ ] New behavior has tests
 - [ ] Docs/changelog updated when relevant
