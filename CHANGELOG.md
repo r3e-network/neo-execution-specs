@@ -11,13 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `docs/production-readiness.md` with release-grade validation criteria and operational gates.
 - Added `tests/tools/test_release_metadata.py` to enforce version/changelog consistency locally.
+- Added `scripts/check_release_metadata.py` as a reusable metadata validation CLI used by local checks and CI.
 
 ### Changed
 
 - Hardened local neo-rs helper scripts (`scripts/neo_rs_vector_runner.py`, `scripts/neo_rs_batch_diff.py`) with robust CLI behavior and deterministic exit status.
 - Strengthened CI with packaging/entrypoint smoke checks in `.github/workflows/test.yml`.
-- Hardened release workflow with tag/version/changelog consistency checks in `.github/workflows/release.yml`.
+- Hardened release workflow with tag/version/changelog consistency checks in `.github/workflows/release.yml` and fixed tag parsing to use runtime environment values correctly.
+- Updated test workflow packaging lane to run metadata validation and clean build artifacts before building distributions.
 - Updated contribution guidance and script/testing docs for production-oriented workflows.
+- Replaced static README test count badge with CI workflow status badge and corrected repository clone URL.
+- Hardened `check_release_metadata.py` to validate real calendar dates in changelog headings, support single- or double-quoted `__version__`, and surface file-read errors cleanly.
+- Aligned README, contribution guide, and production checklist packaging commands with CI (`build`/`twine` install + clean `dist`/`build`).
+- Enforced semantic version format (`X.Y.Z`) for `pyproject.toml` release metadata validation via `scripts/check_release_metadata.py`.
+- Hardened GitHub Actions workflows with explicit least-privilege `permissions` and `concurrency` controls across test, release, diff, and vector workflows.
+- Refreshed `docs/testing.md` CI section to match live workflow topology and reduce documentation drift.
 
 ## [0.1.1] - 2026-02-11
 

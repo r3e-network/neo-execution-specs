@@ -386,27 +386,19 @@ def test_add_type_mismatch(): ...
 
 ## Continuous Integration
 
-Tests run automatically on:
-- Pull requests
-- Pushes to main branch
+CI checks run automatically on pull requests and branch pushes, with separate workflows for different quality gates:
 
-### CI Configuration
+- `.github/workflows/test.yml`
+  - Python matrix tests (3.11/3.12)
+  - Ruff lint and informational mypy
+  - Packaging build + `twine check` + CLI smoke tests
+- `.github/workflows/vectors.yml`
+  - Path-scoped vector validation and checklist coverage checks
+- `.github/workflows/diff.yml`
+  - Cross-client compatibility matrix (Neo C# vs NeoGo), plus optional tri-client `neo-rs` lane on manual dispatch
+- `.github/workflows/release.yml`
+  - Tag-driven release build/publish pipeline with strict release metadata validation
 
-```yaml
-# .github/workflows/test.yml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install -e ".[all]"
-      - run: pytest --cov=neo
-```
-
+Refer to the workflow files directly for the live source of truth.
 
 See also: `docs/verification/neo-n3-full-surface-matrix.md`.

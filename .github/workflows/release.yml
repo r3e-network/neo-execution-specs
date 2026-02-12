@@ -5,6 +5,13 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,45 +27,7 @@ jobs:
         env:
           GIT_TAG: ${{ github.ref_name }}
         run: |
-          python - <<'PY'
-          import re
-          import tomllib
-          from pathlib import Path
-
-          tag = "${GIT_TAG}"
-          if not tag.startswith("v"):
-              raise SystemExit(f"Release tags must start with 'v', got: {tag}")
-
-          expected_version = tag[1:]
-          pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
-          package_version = pyproject["project"]["version"]
-
-          init_text = Path("src/neo/__init__.py").read_text(encoding="utf-8")
-          match = re.search(r"__version__\s*=\s*\"([^\"]+)\"", init_text)
-          if not match:
-              raise SystemExit("Could not locate __version__ in src/neo/__init__.py")
-          init_version = match.group(1)
-
-          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-          changelog_heading = f"## [{expected_version}]"
-
-          errors = []
-          if package_version != expected_version:
-              errors.append(
-                  f"pyproject.toml version mismatch: expected {expected_version}, got {package_version}"
-              )
-          if init_version != expected_version:
-              errors.append(
-                  f"src/neo/__init__.py version mismatch: expected {expected_version}, got {init_version}"
-              )
-          if changelog_heading not in changelog:
-              errors.append(f"CHANGELOG.md missing heading: {changelog_heading}")
-
-          if errors:
-              raise SystemExit("\n".join(errors))
-
-          print(f"Release metadata verified for {tag}")
-          PY
+          python scripts/check_release_metadata.py --tag "$GIT_TAG"
 
       - name: Install build tools
         run: |
@@ -66,7 +35,9 @@ jobs:
           pip install build twine
 
       - name: Build package
-        run: python -m build
+        run: |
+          rm -rf dist build
+          python -m build
 
       - name: Check package
         run: twine check dist/*
@@ -118,6 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
+      contents: read
       id-token: write
     steps:
       - name: Download artifacts
@@ -136,6 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      contents: read
       id-token: write
     steps:
       - name: Download artifacts

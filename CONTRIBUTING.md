@@ -38,6 +38,9 @@ ruff check src tests scripts
 pytest
 
 # 3) Packaging integrity
+python scripts/check_release_metadata.py
+pip install build twine
+rm -rf dist build
 python -m build --sdist --wheel
 twine check dist/*
 
@@ -86,7 +89,7 @@ Examples:
 
 - [ ] Tests pass locally (`pytest`)
 - [ ] Lint passes (`ruff check src tests scripts`)
-- [ ] Packaging checks pass (`build` + `twine check`)
+- [ ] Packaging checks pass (`check_release_metadata` + `build` + `twine check`)
 - [ ] New behavior has tests
 - [ ] Docs/changelog updated when relevant
 - [ ] PR description clearly explains intent and impact

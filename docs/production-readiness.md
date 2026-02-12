@@ -21,7 +21,10 @@ This checklist defines the minimum bar for calling a release "production-ready" 
 
 - Lint:
   - `ruff check src tests scripts`
+- Build tools:
+  - `pip install build twine`
 - Build artifacts:
+  - `rm -rf dist build`
   - `python -m build --sdist --wheel`
   - `twine check dist/*`
 - Smoke CLI entrypoints from built wheel:
@@ -36,6 +39,7 @@ This checklist defines the minimum bar for calling a release "production-ready" 
 
 Before tagging:
 
+- Run: `python scripts/check_release_metadata.py --tag vX.Y.Z`
 - `pyproject.toml` `project.version` == `src/neo/__init__.py` `__version__`
 - `CHANGELOG.md` contains `## [X.Y.Z] - YYYY-MM-DD`
 - Git tag format is `vX.Y.Z`

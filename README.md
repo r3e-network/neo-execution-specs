@@ -1,5 +1,7 @@
-# Neo N3 Execution Specs[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1400%2B%20passing-brightgreen.svg)](tests/)
+# Neo N3 Execution Specs
+
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/r3e-network/neo-execution-specs/actions/workflows/test.yml/badge.svg)](https://github.com/r3e-network/neo-execution-specs/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A Python reference implementation of the Neo N3 protocol, prioritizing **readability** over performance.
@@ -138,7 +140,7 @@ neo-t8n --input-alloc alloc.json \
 
 ```bash
 # Clone repository
-git clone https://github.com/neo-project/neo-execution-specs.git
+git clone https://github.com/r3e-network/neo-execution-specs.git
 cd neo-execution-specs
 
 # Create virtual environment
@@ -147,12 +149,15 @@ source .venv/bin/activate
 
 # Install dependencies
 pip install -e ".[all]"
+pip install build twine
 
-# Run tests
+# Core quality gates
+ruff check src tests scripts
 pytest
-
-# Run with coverage
-pytest --cov=neo --cov-report=html
+python scripts/check_release_metadata.py
+rm -rf dist build
+python -m build --sdist --wheel
+twine check dist/*
 ```
 
 ## Project Structure
