@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- _None yet._
+
+### Changed
+- _None yet._
+
+## [0.1.2] - 2026-02-12
+
+### Added
 
 - Added `docs/production-readiness.md` with release-grade validation criteria and operational gates.
 - Added `tests/tools/test_release_metadata.py` to enforce version/changelog consistency locally.
