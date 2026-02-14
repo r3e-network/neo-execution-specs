@@ -53,9 +53,64 @@ class Transaction:
         data.extend(struct.pack('<Q', self.system_fee))
         data.extend(struct.pack('<Q', self.network_fee))
         data.extend(struct.pack('<I', self.valid_until_block))
-        # Signers, attributes, script...
+        # Signers
+        self._write_var_int(data, len(self.signers))
+        for signer in self.signers:
+            data.extend(self._serialize_signer(signer))
+        # Attributes
+        self._write_var_int(data, len(self.attributes))
+        for attr in self.attributes:
+            data.extend(self._serialize_attribute(attr))
+        # Script
+        self._write_var_int(data, len(self.script))
         data.extend(self.script)
         return bytes(data)
+
+    @staticmethod
+    def _write_var_int(data: bytearray, value: int) -> None:
+        """Write a variable-length integer into *data*."""
+        if value < 0xFD:
+            data.append(value)
+        elif value <= 0xFFFF:
+            data.append(0xFD)
+            data.extend(struct.pack('<H', value))
+        elif value <= 0xFFFFFFFF:
+            data.append(0xFE)
+            data.extend(struct.pack('<I', value))
+        else:
+            data.append(0xFF)
+            data.extend(struct.pack('<Q', value))
+
+    @staticmethod
+    def _serialize_signer(signer: "Signer") -> bytes:
+        """Serialize a single signer."""
+        buf = bytearray()
+        buf.extend(signer.account)          # 20 bytes UInt160
+        buf.append(signer.scopes)           # 1 byte WitnessScope
+        # Allowed contracts (only when CustomContracts scope bit is set)
+        if signer.scopes & 0x10:
+            Transaction._write_var_int(buf, len(signer.allowed_contracts))
+            for h in signer.allowed_contracts:
+                buf.extend(h)
+        # Allowed groups (only when CustomGroups scope bit is set)
+        if signer.scopes & 0x20:
+            Transaction._write_var_int(buf, len(signer.allowed_groups))
+            for g in signer.allowed_groups:
+                buf.extend(g)
+        # Rules (only when WitnessRules scope bit is set)
+        if signer.scopes & 0x40:
+            Transaction._write_var_int(buf, len(signer.rules))
+            for r in signer.rules:
+                buf.extend(r if isinstance(r, bytes) else bytes(r))
+        return bytes(buf)
+
+    @staticmethod
+    def _serialize_attribute(attr: "TransactionAttribute") -> bytes:
+        """Serialize a single transaction attribute."""
+        buf = bytearray()
+        buf.append(attr.type)
+        buf.extend(attr.data)
+        return bytes(buf)
     
     def serialize(self) -> bytes:
         """Serialize transaction."""

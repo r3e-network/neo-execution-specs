@@ -2,34 +2,73 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator, List, Tuple
 
 from .iterator import IIterator
 from neo.smartcontract.storage.find_options import FindOptions
 from neo.vm.types import Array, ByteString, StackItem, Struct
 
 if TYPE_CHECKING:
-    from neo.smartcontract.application_engine import ApplicationEngine
+    pass
 
 
 class StorageIterator(IIterator):
-    """Iterator for storage search results."""
+    """Iterator for storage search results.
+
+    Can be created in two ways:
+    1. From an ApplicationEngine (queries snapshot.find)
+    2. From a list of (key, value) pairs (for testing)
+    """
 
     def __init__(
         self,
-        engine: "ApplicationEngine",
-        prefix: bytes,
-        options: int,
+        engine_or_pairs,
+        prefix: bytes = b"",
+        options: int = 0,
     ) -> None:
-        self._engine = engine
-        self._prefix = prefix
-        self._options = FindOptions(options)
-        self._pairs: list[tuple[bytes, bytes]] = []
-        self._index = -1
+        """Initialize StorageIterator.
 
-        snapshot = getattr(engine, "snapshot", None)
-        if snapshot is not None and hasattr(snapshot, "find"):
-            self._pairs = list(snapshot.find(prefix))
+        Args:
+            engine_or_pairs: Either an ApplicationEngine or an iterator of (key, value) pairs.
+            prefix: Storage key prefix (used with REMOVE_PREFIX option).
+            options: FindOptions flags.
+        """
+        # Handle two calling conventions
+        if isinstance(engine_or_pairs, Iterator):
+            # Called from test with list of pairs: StorageIterator(iter(pairs), prefix_len, options)
+            raw_pairs = list(engine_or_pairs)
+            # Extract raw bytes from StorageKey/StorageItem if needed
+            self._pairs: List[Tuple[bytes, bytes]] = []
+            for item in raw_pairs:
+                if len(item) == 2:
+                    key, value = item
+                    # Extract key bytes
+                    if hasattr(key, "key"):
+                        key_bytes = key.key
+                    else:
+                        key_bytes = key
+                    # Extract value bytes
+                    if hasattr(value, "value"):
+                        value_bytes = value.value
+                    else:
+                        value_bytes = value
+                    self._pairs.append((key_bytes, value_bytes))
+            self._engine = None
+            self._prefix = prefix
+            self._options = FindOptions(options)
+        else:
+            # Called from production: StorageIterator(engine, prefix, options)
+            engine = engine_or_pairs
+            self._engine = engine
+            self._prefix = prefix
+            self._options = FindOptions(options)
+            self._pairs = []
+
+            snapshot = getattr(engine, "snapshot", None)
+            if snapshot is not None and hasattr(snapshot, "find"):
+                self._pairs = list(snapshot.find(prefix))
+
+        self._index = -1
 
         if self._options & FindOptions.BACKWARDS:
             self._pairs.reverse()
@@ -50,7 +89,12 @@ class StorageIterator(IIterator):
     def _apply_options(self, raw_key: bytes, raw_value: bytes) -> StackItem:
         key_bytes = raw_key
         if self._options & FindOptions.REMOVE_PREFIX:
-            key_bytes = raw_key[len(self._prefix):]
+            # Handle both int prefix_len and bytes prefix
+            if isinstance(self._prefix, int):
+                prefix_len = self._prefix
+            else:
+                prefix_len = len(self._prefix)
+            key_bytes = raw_key[prefix_len:]
 
         value_item: StackItem = ByteString(raw_value)
         if self._options & FindOptions.DESERIALIZE_VALUES:

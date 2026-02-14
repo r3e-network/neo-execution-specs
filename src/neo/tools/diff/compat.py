@@ -7,7 +7,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 
 DEFAULT_CSHARP_RPC = "http://seed1.neo.org:10332"
@@ -63,6 +63,18 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Return success when C# and NeoGo results are identical, even if both fail vectors.",
     )
+    parser.add_argument(
+        "--ignore-vector",
+        action="append",
+        default=[],
+        help="Vector name to ignore during compatibility comparison (repeatable).",
+    )
+    parser.add_argument(
+        "--ignore-vectors-file",
+        type=Path,
+        default=None,
+        help="Path to newline-delimited vector names to ignore ('#' comments allowed).",
+    )
     return parser
 
 
@@ -94,6 +106,13 @@ def _load_report(path: Path) -> dict[str, Any]:
 
 
 def _indexed_results(report: dict[str, Any]) -> dict[str, tuple[bool, list[dict[str, Any]]]]:
+    return _indexed_results_filtered(report, ignored_vectors=None)
+
+
+def _indexed_results_filtered(
+    report: dict[str, Any],
+    ignored_vectors: set[str] | None,
+) -> dict[str, tuple[bool, list[dict[str, Any]]]]:
     indexed: dict[str, tuple[bool, list[dict[str, Any]]]] = {}
     results = report.get("results")
     if not isinstance(results, list):
@@ -104,6 +123,8 @@ def _indexed_results(report: dict[str, Any]) -> dict[str, tuple[bool, list[dict[
             continue
         vector = entry.get("vector")
         if not isinstance(vector, str) or not vector:
+            continue
+        if ignored_vectors and vector in ignored_vectors:
             continue
         match = bool(entry.get("match", False))
         differences_raw = entry.get("differences")
@@ -117,10 +138,14 @@ def _indexed_results(report: dict[str, Any]) -> dict[str, tuple[bool, list[dict[
     return indexed
 
 
-def compare_report_results(csharp_report: dict[str, Any], neogo_report: dict[str, Any]) -> list[str]:
+def compare_report_results(
+    csharp_report: dict[str, Any],
+    neogo_report: dict[str, Any],
+    ignored_vectors: set[str] | None = None,
+) -> list[str]:
     """Return vector names where C# and NeoGo report outcomes differ."""
-    csharp_results = _indexed_results(csharp_report)
-    neogo_results = _indexed_results(neogo_report)
+    csharp_results = _indexed_results_filtered(csharp_report, ignored_vectors)
+    neogo_results = _indexed_results_filtered(neogo_report, ignored_vectors)
 
     all_vectors = sorted(set(csharp_results) | set(neogo_results))
     deltas: list[str] = []
@@ -142,25 +167,47 @@ def compare_report_results(csharp_report: dict[str, Any], neogo_report: dict[str
     return deltas
 
 
-def _summary(report: dict[str, Any]) -> dict[str, int]:
+def _summary(report: dict[str, Any], ignored_vectors: set[str] | None = None) -> dict[str, int]:
+    """Return report summary, optionally excluding specific vector names."""
     summary_raw = report.get("summary")
-    if not isinstance(summary_raw, dict):
-        return {"total": 0, "passed": 0, "failed": 0, "errors": 0}
+    errors = 0
+    if isinstance(summary_raw, dict):
+        raw_errors = summary_raw.get("errors", 0)
+        if isinstance(raw_errors, int):
+            errors = raw_errors
+        elif isinstance(raw_errors, str) and raw_errors.isdigit():
+            errors = int(raw_errors)
 
-    def _as_int(name: str) -> int:
-        value = summary_raw.get(name, 0)
-        if isinstance(value, int):
-            return value
-        if isinstance(value, str) and value.isdigit():
-            return int(value)
-        return 0
+    indexed = _indexed_results_filtered(report, ignored_vectors)
+    total = len(indexed)
+    passed = sum(1 for match, _ in indexed.values() if match)
+    failed = total - passed
+    return {"total": total, "passed": passed, "failed": failed, "errors": errors}
 
-    return {
-        "total": _as_int("total"),
-        "passed": _as_int("passed"),
-        "failed": _as_int("failed"),
-        "errors": _as_int("errors"),
-    }
+
+def load_ignored_vectors(
+    inline_vectors: Iterable[str] | None,
+    vectors_file: Path | None,
+) -> set[str]:
+    """Load ignored vector names from CLI values and optional file."""
+    ignored: set[str] = set()
+
+    if inline_vectors:
+        ignored.update(name.strip() for name in inline_vectors if name and name.strip())
+
+    if vectors_file is None:
+        return ignored
+    if not vectors_file.exists():
+        raise FileNotFoundError(f"ignore vectors file not found: {vectors_file}")
+
+    with open(vectors_file, "r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            ignored.add(line)
+
+    return ignored
 
 
 def is_strictly_compatible(
@@ -183,6 +230,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = create_parser()
     args = parser.parse_args(argv)
 
+    try:
+        ignored_vectors = load_ignored_vectors(args.ignore_vector, args.ignore_vectors_file)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
     args.output_dir.mkdir(parents=True, exist_ok=True)
     csharp_output = args.output_dir / f"{args.prefix}-csharp.json"
     neogo_output = args.output_dir / f"{args.prefix}-neogo.json"
@@ -204,13 +257,15 @@ def main(argv: list[str] | None = None) -> int:
     csharp_report = _load_report(csharp_output)
     neogo_report = _load_report(neogo_output)
 
-    csharp_summary = _summary(csharp_report)
-    neogo_summary = _summary(neogo_report)
-    vector_deltas = compare_report_results(csharp_report, neogo_report)
+    csharp_summary = _summary(csharp_report, ignored_vectors)
+    neogo_summary = _summary(neogo_report, ignored_vectors)
+    vector_deltas = compare_report_results(csharp_report, neogo_report, ignored_vectors)
 
     print("\nC# summary:", csharp_summary)
     print("NeoGo summary:", neogo_summary)
     print(f"Vector deltas: {len(vector_deltas)}")
+    if ignored_vectors:
+        print(f"Ignored vectors: {len(ignored_vectors)}")
 
     if vector_deltas:
         print("Mismatched vectors:")

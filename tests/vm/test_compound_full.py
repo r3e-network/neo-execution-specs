@@ -18,13 +18,20 @@ from neo.vm import ExecutionEngine
 from neo.vm.execution_context import Instruction
 from neo.vm.instructions import compound as C
 from neo.vm.types import (
-    Integer, ByteString, Array, Struct, Map, NULL, StackItemType,
+    Integer,
+    ByteString,
+    Array,
+    Struct,
+    Map,
+    NULL,
+    StackItemType,
 )
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _run(script: bytes) -> ExecutionEngine:
     """Load script, execute, return engine."""
@@ -52,24 +59,26 @@ _DUMMY = Instruction(opcode=0)
 # PACKMAP tests
 # ---------------------------------------------------------------------------
 
+
 class TestPackMap:
     """PACKMAP: pack key-value pairs into a map."""
 
     def test_packmap_basic(self):
         e = _engine()
         e.push(ByteString(b"v1"))  # value
-        e.push(Integer(1))         # key
-        e.push(Integer(1))         # size=1
+        e.push(Integer(1))  # key
+        e.push(Integer(1))  # size=1
         C.packmap(e, _DUMMY)
         result = e.pop()
         assert isinstance(result, Map)
         assert len(result) == 1
+        assert result[Integer(1)].get_bytes_unsafe() == b"v1"
 
     def test_packmap_invalid_key_type(self):
         e = _engine()
-        e.push(ByteString(b"v"))
+        e.push(ByteString(b"v"))  # value
         e.push(Array(e.reference_counter))  # non-primitive key
-        e.push(Integer(1))
+        e.push(Integer(1))  # size
         with pytest.raises(Exception, match="PrimitiveType"):
             C.packmap(e, _DUMMY)
 
@@ -84,6 +93,7 @@ class TestPackMap:
 # PACKSTRUCT tests
 # ---------------------------------------------------------------------------
 
+
 class TestPackStruct:
     """PACKSTRUCT: pack items into a struct."""
 
@@ -96,6 +106,8 @@ class TestPackStruct:
         result = e.pop()
         assert isinstance(result, Struct)
         assert len(result) == 2
+        assert result[0].get_integer() == 20
+        assert result[1].get_integer() == 10
 
     def test_packstruct_negative_size(self):
         e = _engine()
@@ -107,6 +119,7 @@ class TestPackStruct:
 # ---------------------------------------------------------------------------
 # UNPACK tests (Map branch + error branch)
 # ---------------------------------------------------------------------------
+
 
 class TestUnpack:
     """UNPACK: unpack collection onto stack."""
@@ -131,6 +144,7 @@ class TestUnpack:
 # ---------------------------------------------------------------------------
 # NEWARRAY_T tests
 # ---------------------------------------------------------------------------
+
 
 class TestNewArrayT:
     """NEWARRAY_T: create typed array."""
@@ -173,6 +187,7 @@ class TestNewArrayT:
 # ---------------------------------------------------------------------------
 # NEWSTRUCT tests
 # ---------------------------------------------------------------------------
+
 
 class TestNewStruct:
     """NEWSTRUCT: create struct with n null elements."""

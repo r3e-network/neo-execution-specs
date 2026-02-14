@@ -1,13 +1,13 @@
 """Contract Management native contract."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from neo.types import UInt160
-from neo.native.native_contract import NativeContract, CallFlags, StorageItem
 from neo.crypto import hash160
-
+from neo.native.native_contract import CallFlags, NativeContract, StorageItem
+from neo.types import UInt160
 
 # Storage prefixes
 PREFIX_MINIMUM_DEPLOYMENT_FEE = 20
@@ -22,6 +22,7 @@ DEFAULT_MINIMUM_DEPLOYMENT_FEE = 10_00000000
 @dataclass
 class ContractState:
     """State of a deployed contract."""
+
     id: int = 0
     update_counter: int = 0
     hash: Optional[UInt160] = None
@@ -37,7 +38,7 @@ class ContractState:
         return data
     
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'ContractState':
+    def from_bytes(cls, data: bytes) -> ContractState:
         state = cls()
         if not data:
             return state
@@ -168,7 +169,7 @@ class ContractManagement(NativeContract):
         storage_price = engine.storage_price
         min_fee = self.get_minimum_deployment_fee(engine.snapshot)
         fee = max(storage_price * (len(nef_file) + len(manifest)), min_fee)
-        engine.add_fee(fee)
+        engine.add_gas(fee)
         
         # Calculate contract hash
         tx = engine.script_container
@@ -198,27 +199,52 @@ class ContractManagement(NativeContract):
         
         return contract
     
-    def _calculate_contract_hash(self, sender: UInt160, nef: bytes, 
+    def _calculate_contract_hash(self, sender: UInt160, nef: bytes,
                                   manifest: bytes) -> UInt160:
-        """Calculate contract hash from sender, NEF checksum, and name."""
+        """Calculate contract hash from sender, NEF checksum, and name.
+
+        Matches C# Helper.GetContractHash: builds a script with
+        ABORT + PUSHDATA1(sender) + PUSHDATA1(nef_checksum_le) + PUSHDATA1(name_utf8)
+        then hashes it with Hash160.
+        """
         import json
+        import struct
+
+        from neo.vm.opcode import OpCode
+
         # Parse manifest to get name
         manifest_obj = json.loads(manifest.decode('utf-8'))
         name = manifest_obj.get('name', '')
-        
+
         # NEF checksum is the last 4 bytes of the serialized NEF
-        import struct
         if len(nef) >= 4:
             nef_checksum = struct.unpack_from('<I', nef, len(nef) - 4)[0]
         else:
             nef_checksum = 0
-        
-        # Build hash input
-        data = sender.data
-        data += nef_checksum.to_bytes(4, 'little')
-        data += bytes([len(name)]) + name.encode('utf-8')
-        
-        return UInt160(hash160(data))
+
+        # Build script: ABORT + PUSHDATA1(sender) + PUSHDATA1(checksum) + PUSHDATA1(name)
+        script = bytearray()
+        script.append(OpCode.ABORT)
+
+        # Push sender (20 bytes)
+        sender_bytes = sender.data if hasattr(sender, 'data') else bytes(sender)
+        script.append(OpCode.PUSHDATA1)
+        script.append(len(sender_bytes))
+        script.extend(sender_bytes)
+
+        # Push nef checksum (4 bytes LE)
+        checksum_bytes = nef_checksum.to_bytes(4, 'little')
+        script.append(OpCode.PUSHDATA1)
+        script.append(len(checksum_bytes))
+        script.extend(checksum_bytes)
+
+        # Push name (UTF-8)
+        name_bytes = name.encode('utf-8')
+        script.append(OpCode.PUSHDATA1)
+        script.append(len(name_bytes))
+        script.extend(name_bytes)
+
+        return UInt160(hash160(bytes(script)))
     
     def update(self, engine: Any, nef_file: Optional[bytes], 
                manifest: Optional[bytes], data: Any = None) -> None:

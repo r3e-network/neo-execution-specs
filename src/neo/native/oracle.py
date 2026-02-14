@@ -4,14 +4,15 @@ Reference: Neo.SmartContract.Native.OracleContract
 """
 
 from __future__ import annotations
+
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Iterator, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
-from neo.types import UInt160, UInt256
-from neo.native.native_contract import NativeContract, CallFlags, StorageItem
 from neo.crypto import hash160
-
+from neo.native.native_contract import CallFlags, NativeContract, StorageItem
+from neo.types import UInt160, UInt256
 
 # Storage prefixes
 PREFIX_PRICE = 5
@@ -31,6 +32,7 @@ DEFAULT_ORACLE_PRICE = 50_000_000
 
 class OracleResponseCode(IntEnum):
     """Oracle response codes."""
+
     Success = 0x00
     ProtocolNotSupported = 0x10
     ConsensusUnreachable = 0x12
@@ -46,6 +48,7 @@ class OracleResponseCode(IntEnum):
 @dataclass
 class OracleRequest:
     """Oracle request data structure."""
+
     original_txid: UInt256 = field(default_factory=lambda: UInt256(b'\x00' * 32))
     gas_for_response: int = 0
     url: str = ""
@@ -64,9 +67,16 @@ class OracleRequest:
         # Gas for response (8 bytes, little-endian)
         result.extend(self.gas_for_response.to_bytes(8, 'little'))
         
-        # URL (length-prefixed)
+        # URL (variable-length encoded)
         url_bytes = self.url.encode('utf-8')
-        result.append(len(url_bytes))
+        if len(url_bytes) < 0xFD:
+            result.append(len(url_bytes))
+        elif len(url_bytes) <= 0xFFFF:
+            result.append(0xFD)
+            result.extend(len(url_bytes).to_bytes(2, 'little'))
+        else:
+            result.append(0xFE)
+            result.extend(len(url_bytes).to_bytes(4, 'little'))
         result.extend(url_bytes)
         
         # Filter (length-prefixed, 0 for None)
@@ -105,9 +115,20 @@ class OracleRequest:
         gas_for_response = int.from_bytes(data[offset:offset + 8], 'little')
         offset += 8
         
-        # URL
-        url_len = data[offset]
+        # URL (var-int length)
+        first_byte = data[offset]
         offset += 1
+        if first_byte < 0xFD:
+            url_len = first_byte
+        elif first_byte == 0xFD:
+            url_len = int.from_bytes(data[offset:offset + 2], 'little')
+            offset += 2
+        elif first_byte == 0xFE:
+            url_len = int.from_bytes(data[offset:offset + 4], 'little')
+            offset += 4
+        else:
+            url_len = int.from_bytes(data[offset:offset + 8], 'little')
+            offset += 8
         url = data[offset:offset + url_len].decode('utf-8')
         offset += url_len
         
@@ -204,6 +225,9 @@ class OracleContract(NativeContract):
         """Set the price for Oracle requests. Committee only."""
         if price <= 0:
             raise ValueError("Price must be positive")
+        # Committee check is mandatory
+        if not engine.check_committee():
+            raise PermissionError("Committee authorization required")
 
         snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
         if snapshot is None:
@@ -272,12 +296,22 @@ class OracleContract(NativeContract):
             raise ValueError("User data too large")
 
         # Create request
+        original_txid = (
+            engine.script_container.hash
+            if hasattr(engine, 'script_container') and hasattr(engine.script_container, 'hash')
+            else UInt256(b'\x00' * 32)
+        )
+        callback_contract = (
+            engine.calling_script_hash
+            if hasattr(engine, 'calling_script_hash')
+            else UInt160(b'\x00' * 20)
+        )
         request = OracleRequest(
-            original_txid=UInt256(b'\x00' * 32),
+            original_txid=original_txid,
             gas_for_response=gas_for_response,
             url=url,
             filter=filter,
-            callback_contract=UInt160(b'\x00' * 20),
+            callback_contract=callback_contract,
             callback_method=callback,
             user_data=user_data_bytes
         )
@@ -370,7 +404,7 @@ class OracleContract(NativeContract):
                 continue
             suffix = full_key_bytes[len(prefix_bytes):]
             if suffix:
-                request_id = int.from_bytes(suffix, 'big')
+                request_id = int.from_bytes(suffix, 'little')
                 yield (request_id, OracleRequest.deserialize(value))
     
     def get_requests_by_url(self, snapshot: Any, url: str) -> Iterator[Tuple[int, OracleRequest]]:

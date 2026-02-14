@@ -1,41 +1,70 @@
-"""Comparison instructions."""
+"""Comparison instructions for NeoVM.
 
-from __future__ import annotations
-from typing import TYPE_CHECKING
+This module provides standalone comparison functions that work with
+ExecutionContext directly. These are used for testing and can also
+be used for simpler comparison operations.
+
+Functions:
+    lt: Less than comparison
+    le: Less than or equal comparison
+    gt: Greater than comparison
+    ge: Greater than or equal comparison
+"""
 
 from neo.vm.types import Boolean
 
-if TYPE_CHECKING:
-    from neo.vm.execution_engine import ExecutionContext
+
+def lt(ctx) -> None:
+    """Push true if x1 < x2.
+
+    Pops two integers from the stack and pushes True if the first
+    is less than the second, False otherwise.
+    """
+    x2 = ctx.evaluation_stack.pop()
+    x1 = ctx.evaluation_stack.pop()
+    if x1.is_null or x2.is_null:
+        ctx.evaluation_stack.push(Boolean(False))
+    else:
+        ctx.evaluation_stack.push(Boolean(x1.get_integer() < x2.get_integer()))
 
 
-def lt(context: ExecutionContext) -> None:
-    """Less than."""
-    stack = context.evaluation_stack
-    b = stack.pop().get_integer()
-    a = stack.pop().get_integer()
-    stack.push(Boolean(a < b))
+def le(ctx) -> None:
+    """Push true if x1 <= x2.
+
+    Pops two integers from the stack and pushes True if the first
+    is less than or equal to the second, False otherwise.
+    """
+    x2 = ctx.evaluation_stack.pop()
+    x1 = ctx.evaluation_stack.pop()
+    if x1.is_null or x2.is_null:
+        ctx.evaluation_stack.push(Boolean(False))
+    else:
+        ctx.evaluation_stack.push(Boolean(x1.get_integer() <= x2.get_integer()))
 
 
-def le(context: ExecutionContext) -> None:
-    """Less than or equal."""
-    stack = context.evaluation_stack
-    b = stack.pop().get_integer()
-    a = stack.pop().get_integer()
-    stack.push(Boolean(a <= b))
+def gt(ctx) -> None:
+    """Push true if x1 > x2.
+
+    Pops two integers from the stack and pushes True if the first
+    is greater than the second, False otherwise.
+    """
+    x2 = ctx.evaluation_stack.pop()
+    x1 = ctx.evaluation_stack.pop()
+    if x1.is_null or x2.is_null:
+        ctx.evaluation_stack.push(Boolean(False))
+    else:
+        ctx.evaluation_stack.push(Boolean(x1.get_integer() > x2.get_integer()))
 
 
-def gt(context: ExecutionContext) -> None:
-    """Greater than."""
-    stack = context.evaluation_stack
-    b = stack.pop().get_integer()
-    a = stack.pop().get_integer()
-    stack.push(Boolean(a > b))
+def ge(ctx) -> None:
+    """Push true if x1 >= x2.
 
-
-def ge(context: ExecutionContext) -> None:
-    """Greater than or equal."""
-    stack = context.evaluation_stack
-    b = stack.pop().get_integer()
-    a = stack.pop().get_integer()
-    stack.push(Boolean(a >= b))
+    Pops two integers from the stack and pushes True if the first
+    is greater than or equal to the second, False otherwise.
+    """
+    x2 = ctx.evaluation_stack.pop()
+    x1 = ctx.evaluation_stack.pop()
+    if x1.is_null or x2.is_null:
+        ctx.evaluation_stack.push(Boolean(False))
+    else:
+        ctx.evaluation_stack.push(Boolean(x1.get_integer() >= x2.get_integer()))

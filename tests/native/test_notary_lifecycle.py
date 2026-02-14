@@ -23,11 +23,13 @@ from neo.native.notary import (
     DEFAULT_MAX_NOT_VALID_BEFORE_DELTA,
 )
 from neo.native.native_contract import NativeContract, StorageKey
+from neo.native.gas_token import GasToken
 
 
 # ---------------------------------------------------------------------------
 # Mock infrastructure
 # ---------------------------------------------------------------------------
+
 
 class MockSnapshot:
     """In-memory snapshot that accepts StorageKey objects."""
@@ -44,15 +46,43 @@ class MockSnapshot:
     def get(self, key) -> Optional[Any]:
         return self._store.get(self._to_tuple(key))
 
+    def get_and_change(self, key, default_factory=None) -> Any:
+        """Get existing item or create a new one."""
+        k = self._to_tuple(key)
+        if k in self._store:
+            return self._store[k]
+        if default_factory:
+            new_item = default_factory()
+            self._store[k] = new_item
+            return new_item
+        return None
+
     def contains(self, key) -> bool:
         return self._to_tuple(key) in self._store
 
-    def put(self, key, value) -> None:
+    def put(self, key, value: Any) -> None:
         self._store[self._to_tuple(key)] = value
 
     def delete(self, key) -> None:
         tk = self._to_tuple(key)
         self._store.pop(tk, None)
+
+
+@dataclass
+class _MockProtocolSettings:
+    initial_gas_distribution: int = 100_000_000 * 10**8
+    standby_committee: list = None
+
+    def __post_init__(self):
+        if self.standby_committee is None:
+            self.standby_committee = []
+
+    def get_bft_address(self) -> UInt160:
+        if self.standby_committee:
+            from neo.crypto import hash160
+
+            return UInt160(hash160(self.standby_committee[0]))
+        return UInt160(b"\x00" * 20)
 
 
 @dataclass
@@ -72,6 +102,8 @@ class MockEngine:
         self.snapshot = snapshot
         self._is_committee = is_committee
         self._witness_accounts = witness_accounts or set()
+        self.protocol_settings = _MockProtocolSettings()
+        self.notifications = []
 
     def check_committee(self) -> bool:
         return self._is_committee
@@ -79,13 +111,20 @@ class MockEngine:
     def check_witness(self, account: UInt160) -> bool:
         return account in self._witness_accounts
 
+    def send_notification(self, script_hash: UInt160, event_name: str, state: Any) -> None:
+        self.notifications.append((script_hash, event_name, state))
+
+    def is_contract(self, account: UInt160) -> bool:
+        """Check if an account is a contract. For testing, we assume only known contracts are contracts."""
+        return False  # Keep simple - assume no contracts in tests
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-ACCOUNT_A = UInt160(b'\x01' * 20)
-ACCOUNT_B = UInt160(b'\x02' * 20)
+ACCOUNT_A = UInt160(b"\x01" * 20)
+ACCOUNT_B = UInt160(b"\x02" * 20)
 
 
 def _fresh_notary() -> Notary:
@@ -99,10 +138,25 @@ def _fresh_notary() -> Notary:
 
 def _initialized_notary(block_index: int = 0):
     """Return (notary, snapshot, engine) with storage initialized."""
-    n = _fresh_notary()
+    # Clear registry first
+    NativeContract._contracts.clear()
+    NativeContract._contracts_by_id.clear()
+    NativeContract._contracts_by_name.clear()
+    NativeContract._id_counter = 0
+
+    # Create Notary first (clears registry again)
+    n = Notary()
+
+    # Now create GasToken (will be registered after Notary)
+    gas = GasToken()
+
     snap = MockSnapshot()
     snap.persisting_block = _MockBlock(index=block_index)
     engine = MockEngine(snap, witness_accounts={ACCOUNT_A, ACCOUNT_B})
+    # Set up calling_script_hash to simulate GasToken caller
+    gas_hash = gas.hash
+    engine.calling_script_hash = gas_hash
+    gas.initialize(engine)
     n.initialize(engine)
     return n, snap, engine
 
@@ -110,6 +164,7 @@ def _initialized_notary(block_index: int = 0):
 # ===========================================================================
 # Tests: Deposit serialization
 # ===========================================================================
+
 
 class TestDepositSerialization:
     """Deposit serialize / deserialize round-trip."""
@@ -136,6 +191,7 @@ class TestDepositSerialization:
 # ===========================================================================
 # Tests: on_nep17_payment (deposit creation)
 # ===========================================================================
+
 
 class TestOnNep17Payment:
     """on_nep17_payment deposit creation and accumulation."""
@@ -191,6 +247,7 @@ class TestOnNep17Payment:
 # Tests: balance_of / expiration_of
 # ===========================================================================
 
+
 class TestBalanceAndExpiration:
     """balance_of and expiration_of lookups."""
 
@@ -216,6 +273,7 @@ class TestBalanceAndExpiration:
 # ===========================================================================
 # Tests: lock_deposit_until
 # ===========================================================================
+
 
 class TestLockDepositUntil:
     """lock_deposit_until extend and rejection."""
@@ -251,6 +309,7 @@ class TestLockDepositUntil:
 # ===========================================================================
 # Tests: withdraw
 # ===========================================================================
+
 
 class TestWithdraw:
     """withdraw with expiration check."""
@@ -299,6 +358,7 @@ class TestWithdraw:
 # ===========================================================================
 # Tests: max_not_valid_before_delta
 # ===========================================================================
+
 
 class TestMaxNotValidBeforeDelta:
     """get/set max_not_valid_before_delta with committee check."""

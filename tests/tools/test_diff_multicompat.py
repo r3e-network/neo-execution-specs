@@ -55,6 +55,39 @@ def test_compare_triplet_reports_pairwise_deltas() -> None:
     assert deltas["neo_rs_vs_neogo"] == ["A"]
 
 
+def test_compare_triplet_reports_respects_ignored_vectors() -> None:
+    csharp = _report(
+        total=1,
+        passed=1,
+        failed=0,
+        errors=0,
+        results=[{"vector": "TRY_no_exception", "match": True, "differences": []}],
+    )
+    neogo = _report(
+        total=1,
+        passed=0,
+        failed=1,
+        errors=0,
+        results=[{"vector": "TRY_no_exception", "match": False, "differences": [{"type": "state_mismatch"}]}],
+    )
+    neo_rs = _report(
+        total=1,
+        passed=1,
+        failed=0,
+        errors=0,
+        results=[{"vector": "TRY_no_exception", "match": True, "differences": []}],
+    )
+
+    deltas = compare_triplet_reports(
+        {"csharp": csharp, "neogo": neogo, "neo_rs": neo_rs},
+        ignored_vectors={"TRY_no_exception"},
+    )
+
+    assert deltas["csharp_vs_neogo"] == []
+    assert deltas["csharp_vs_neo_rs"] == []
+    assert deltas["neo_rs_vs_neogo"] == []
+
+
 def test_is_strictly_compatible_triplet_requires_clean_summaries() -> None:
     summaries = {
         "csharp": {"total": 2, "passed": 2, "failed": 0, "errors": 0},
@@ -184,3 +217,56 @@ def test_main_returns_one_when_triplet_reports_differ(tmp_path: Path, monkeypatc
     ])
 
     assert exit_code == 1
+
+
+def test_main_ignore_vector_can_clear_known_triplet_delta(tmp_path: Path, monkeypatch) -> None:
+    csharp_report = _report(
+        total=1,
+        passed=1,
+        failed=0,
+        errors=0,
+        results=[{"vector": "TRY_no_exception", "match": True, "differences": []}],
+    )
+    neogo_report = _report(
+        total=1,
+        passed=0,
+        failed=1,
+        errors=0,
+        results=[{"vector": "TRY_no_exception", "match": False, "differences": [{"type": "state_mismatch"}]}],
+    )
+    neo_rs_report = _report(
+        total=1,
+        passed=1,
+        failed=0,
+        errors=0,
+        results=[{"vector": "TRY_no_exception", "match": True, "differences": []}],
+    )
+
+    def fake_run(vectors: Path, rpc_url: str, output_path: Path, gas_tolerance: int) -> int:
+        report = csharp_report
+        if "nspcc" in rpc_url:
+            report = neogo_report
+        if "127.0.0.1" in rpc_url:
+            report = neo_rs_report
+        output_path.write_text(json.dumps(report), encoding="utf-8")
+        return 1
+
+    monkeypatch.setattr("neo.tools.diff.multicompat._run_report", fake_run)
+
+    strict_exit = main([
+        "--vectors",
+        "tests/vectors/",
+        "--output-dir",
+        str(tmp_path),
+    ])
+    ignored_exit = main([
+        "--vectors",
+        "tests/vectors/",
+        "--output-dir",
+        str(tmp_path),
+        "--ignore-vector",
+        "TRY_no_exception",
+    ])
+
+    assert strict_exit == 1
+    assert ignored_exit == 0

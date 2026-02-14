@@ -254,13 +254,15 @@ jobs:
 
       - name: Run strict triplet compatibility vectors (optional C#/NeoGo/neo-rs)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.neo_rs_rpc != ''
+        env:
+          NEO_RS_RPC: ${{ github.event.inputs.neo_rs_rpc }}
         run: |
           set -euo pipefail
           timeout 60m neo-multicompat \
             --vectors tests/vectors/ \
             --csharp-rpc "$CSHARP_RPC" \
             --neogo-rpc "$NEOGO_RPC" \
-            --neo-rs-rpc "${{ github.event.inputs.neo_rs_rpc }}" \
+            --neo-rs-rpc "$NEO_RS_RPC" \
             --output-dir reports \
             --prefix "compat-${{ matrix.network }}-triplet"
 

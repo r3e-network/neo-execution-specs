@@ -6,10 +6,13 @@ import io
 import json
 import urllib.error
 from pathlib import Path
+from types import SimpleNamespace
 
+from neo.tools.diff.cli import run_diff_tests
 from neo.tools.diff.models import TestVector
 from neo.tools.diff.runner import CSharpExecutor, PythonExecutor, VectorLoader
 import neo.tools.diff.runner as diff_runner
+from neo.vm.opcode import OpCode
 
 
 class _DummyResponse:
@@ -204,6 +207,18 @@ def test_parse_stack_item_normalizes_rpc_types_and_buffer_base64():
     assert parsed_buffer.value == "00000000"
 
 
+def test_parse_stack_reverses_rpc_bottom_to_top_order():
+    """Neo RPC stack payload is bottom-to-top and should be normalized to top-first."""
+    executor = CSharpExecutor("http://seed1.neo.org:10332")
+    parsed = executor._parse_stack(
+        [
+            {"type": "Integer", "value": "1"},
+            {"type": "Integer", "value": "2"},
+        ]
+    )
+    assert [item.value for item in parsed] == [2, 1]
+
+
 def test_python_executor_tracks_opcode_gas_for_vm_vectors():
     """Python executor should report Neo v3.9.1 opcode gas for VM scripts."""
     executor = PythonExecutor()
@@ -214,6 +229,12 @@ def test_python_executor_tracks_opcode_gas_for_vm_vectors():
 
     assert result.state == "HALT"
     assert result.gas_consumed == 10
+
+
+def test_csharp_executor_parses_integer_and_fixed_point_gas_formats():
+    """RPC gasconsumed may be integer-like or fixed-point decimal."""
+    assert CSharpExecutor._parse_gas_consumed("10") == 10
+    assert CSharpExecutor._parse_gas_consumed("0.00000010") == 10
 
 
 def test_vector_loader_supports_non_vm_collection_formats():
@@ -367,3 +388,59 @@ def test_vector_loader_ignores_non_vector_metadata_files(tmp_path: Path, capsys)
 
     assert [vector.name for vector in vectors] == ["VM_simple"]
     assert "Warning: Failed to load" not in capsys.readouterr().out
+
+
+def test_vector_loader_maps_error_field_to_fault_expected_state(tmp_path: Path) -> None:
+    vector_path = tmp_path / "vm_vectors.json"
+    vector_path.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "halt_vector",
+                    "script": bytes([OpCode.PUSH1]).hex(),
+                },
+                {
+                    "name": "fault_vector",
+                    "script": bytes([OpCode.ABORT]).hex(),
+                    "error": "FAULT",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    vectors = VectorLoader.load_file(vector_path)
+
+    assert vectors[0].expected_state == "HALT"
+    assert vectors[1].expected_state == "FAULT"
+
+
+def test_run_diff_tests_python_only_accepts_expected_fault_vectors(tmp_path: Path) -> None:
+    vector_path = tmp_path / "vm_vectors.json"
+    vector_path.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "halt_vector",
+                    "script": bytes([OpCode.PUSH1]).hex(),
+                },
+                {
+                    "name": "fault_vector",
+                    "script": bytes([OpCode.ABORT]).hex(),
+                    "error": "FAULT",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    args = SimpleNamespace(
+        vectors=vector_path,
+        csharp_rpc=None,
+        output=None,
+        python_only=True,
+        gas_tolerance=0,
+        verbose=False,
+    )
+
+    assert run_diff_tests(args) == 0

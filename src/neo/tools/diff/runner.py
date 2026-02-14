@@ -828,14 +828,18 @@ class CSharpExecutor:
         return ExecutionResult(
             source=ExecutionSource.CSHARP_CLI,
             state=result.get("state", "UNKNOWN"),
-            gas_consumed=int(result.get("gasconsumed", "0").replace(".", "")),
+            gas_consumed=self._parse_gas_consumed(result.get("gasconsumed", "0")),
             stack=stack,
             notifications=result.get("notifications", []),
             raw_response=response,
         )
 
     def _parse_stack(self, stack_data: list) -> list[StackValue]:
-        """Parse stack from RPC response."""
+        """Parse stack from RPC response to top-first order.
+
+        Neo RPC returns evaluation stacks in bottom-to-top order.
+        PythonExecutor normalizes to top-to-bottom, so reverse here.
+        """
         result = []
         for item in reversed(stack_data):
             result.append(self._parse_stack_item(item))
@@ -870,22 +874,39 @@ class CSharpExecutor:
             return StackValue(type=item_type, value=value)
 
     @staticmethod
+    def _parse_gas_consumed(raw_gas: str) -> int:
+        """Parse gasconsumed into comparable integer opcode-fee units.
+
+        Neo nodes may return either:
+        - integer-like strings (e.g. "10"), already in opcode-fee units
+        - fixed-point GAS strings (e.g. "0.00000010"), requiring 10^8 scaling
+        """
+        try:
+            from decimal import Decimal
+            parsed = Decimal(raw_gas)
+            if parsed == parsed.to_integral_value():
+                return int(parsed)
+            return int(parsed * 10**8)
+        except Exception:
+            return 0
+
+    @staticmethod
     def _normalize_rpc_type(item_type: str) -> str:
         """Normalize RPC type casing to internal canonical names."""
         mapping = {
-            "Any": "ANY",
-            "Boolean": "Boolean",
-            "Integer": "Integer",
-            "ByteString": "ByteString",
-            "Buffer": "Buffer",
-            "Array": "Array",
-            "Struct": "Struct",
-            "Map": "Map",
-            "Pointer": "Pointer",
-            "InteropInterface": "InteropInterface",
-            "Null": "Null",
+            "any": "ANY",
+            "boolean": "Boolean",
+            "integer": "Integer",
+            "bytestring": "ByteString",
+            "buffer": "Buffer",
+            "array": "Array",
+            "struct": "Struct",
+            "map": "Map",
+            "pointer": "Pointer",
+            "interopinterface": "InteropInterface",
+            "null": "Null",
         }
-        return mapping.get(item_type, item_type)
+        return mapping.get(item_type.lower(), item_type)
 
     @staticmethod
     def _decode_bytes_payload(value: str | None) -> bytes:

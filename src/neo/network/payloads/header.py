@@ -84,7 +84,11 @@ class Header:
         next_consensus = reader.read_bytes(20)
         
         witness_count = reader.read_var_int(1)
-        witness = Witness.deserialize(reader) if witness_count > 0 else None
+        if witness_count != 1:
+            raise ValueError(
+                f"Block header must have exactly 1 witness, got {witness_count}"
+            )
+        witness = Witness.deserialize(reader)
         
         return cls(
             version=version,

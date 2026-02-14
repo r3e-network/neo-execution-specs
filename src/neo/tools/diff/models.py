@@ -80,11 +80,14 @@ class TestVector:
         expected_stack = None
         if data.get("expected_stack"):
             expected_stack = [StackValue.from_dict(s) for s in data["expected_stack"]]
+        expected_state = data.get("expected_state")
+        if expected_state is None:
+            expected_state = "FAULT" if data.get("error") else "HALT"
         return cls(
             name=data["name"],
             script=bytes.fromhex(data["script"].removeprefix("0x").removeprefix("0X")),
             description=data.get("description", ""),
-            expected_state=data.get("expected_state"),
+            expected_state=expected_state,
             expected_stack=expected_stack,
             metadata=data.get("metadata", {}),
         )

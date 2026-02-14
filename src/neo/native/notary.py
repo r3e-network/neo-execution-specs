@@ -4,12 +4,12 @@ Reference: Neo.SmartContract.Native.Notary
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any, Optional, cast
 
+from neo.native.native_contract import CallFlags, NativeContract, StorageItem
 from neo.types import UInt160
-from neo.native.native_contract import NativeContract, CallFlags, StorageItem
-
 
 # Storage prefixes
 PREFIX_DEPOSIT = 1
@@ -23,6 +23,7 @@ DEFAULT_DEPOSIT_DELTA_TILL = 5760
 @dataclass
 class Deposit:
     """Notary deposit data."""
+
     amount: int = 0
     till: int = 0
     
@@ -128,8 +129,8 @@ class Notary(NativeContract):
                 return False
 
             # Verify signature against each notary node's public key
-            from neo.crypto.ecc.signature import verify_signature
             from neo.crypto.ecc.curve import SECP256R1
+            from neo.crypto.ecc.signature import verify_signature
             message = getattr(engine.script_container, 'hash', None)
             if message is None:
                 return False
@@ -234,11 +235,12 @@ class Notary(NativeContract):
         # Remove deposit first
         self._remove_deposit(snapshot, from_account)
 
-        # Transfer GAS to recipient
+        # Mint GAS to recipient (deposits are virtual; no token-ledger
+        # balance exists under self.hash, so we mint instead of transfer)
         if amount > 0:
             gas = NativeContract.get_contract_by_name("GasToken")
-            if gas is not None and hasattr(gas, 'transfer'):
-                gas.transfer(engine, self.hash, receive, amount, None)
+            if gas is not None and hasattr(gas, 'mint'):
+                gas.mint(engine, receive, amount)
 
         return True
     
@@ -281,6 +283,13 @@ class Notary(NativeContract):
             amount: Amount of GAS sent
             data: [to, till] array
         """
+        # Validate caller is GasToken — mandatory check
+        gas = NativeContract.get_contract_by_name("GasToken")
+        if gas is None:
+            raise ValueError("GasToken not found")
+        if engine.calling_script_hash != gas.hash:
+            raise ValueError("Only GAS transfers are accepted")
+
         if amount <= 0:
             raise ValueError("Amount must be positive")
 

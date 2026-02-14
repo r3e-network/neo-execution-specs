@@ -7,9 +7,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from neo.tools.diff.compat import compare_report_results, run_neo_diff
-import json
-
+from neo.tools.diff.compat import (
+    _load_report,
+    _summary,
+    compare_report_results,
+    load_ignored_vectors,
+    run_neo_diff,
+)
 
 DEFAULT_CSHARP_RPC = "http://seed1.neo.org:10332"
 DEFAULT_NEOGO_RPC = "http://rpc3.n3.nspcc.ru:10332"
@@ -71,39 +75,25 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Return success when all pairwise deltas are zero, even if vectors fail on all endpoints.",
     )
+    parser.add_argument(
+        "--ignore-vector",
+        action="append",
+        default=[],
+        help="Vector name to ignore during compatibility comparison (repeatable).",
+    )
+    parser.add_argument(
+        "--ignore-vectors-file",
+        type=Path,
+        default=None,
+        help="Path to newline-delimited vector names to ignore ('#' comments allowed).",
+    )
     return parser
 
 
-def _load_report(path: Path) -> dict[str, Any]:
-    with open(path) as report_file:
-        raw_report = json.load(report_file)
-    if not isinstance(raw_report, dict):
-        raise ValueError(f"Invalid report structure in {path}")
-    return raw_report
-
-
-def _summary(report: dict[str, Any]) -> dict[str, int]:
-    summary_raw = report.get("summary")
-    if not isinstance(summary_raw, dict):
-        return {"total": 0, "passed": 0, "failed": 0, "errors": 0}
-
-    def _as_int(name: str) -> int:
-        value = summary_raw.get(name, 0)
-        if isinstance(value, int):
-            return value
-        if isinstance(value, str) and value.isdigit():
-            return int(value)
-        return 0
-
-    return {
-        "total": _as_int("total"),
-        "passed": _as_int("passed"),
-        "failed": _as_int("failed"),
-        "errors": _as_int("errors"),
-    }
-
-
-def compare_triplet_reports(reports: dict[str, dict[str, Any]]) -> dict[str, list[str]]:
+def compare_triplet_reports(
+    reports: dict[str, dict[str, Any]],
+    ignored_vectors: set[str] | None = None,
+) -> dict[str, list[str]]:
     """Return pairwise vector deltas for three client reports."""
     labels = sorted(reports)
     deltas: dict[str, list[str]] = {}
@@ -111,7 +101,11 @@ def compare_triplet_reports(reports: dict[str, dict[str, Any]]) -> dict[str, lis
     for index, left_label in enumerate(labels):
         for right_label in labels[index + 1 :]:
             key = f"{left_label}_vs_{right_label}"
-            deltas[key] = compare_report_results(reports[left_label], reports[right_label])
+            deltas[key] = compare_report_results(
+                reports[left_label],
+                reports[right_label],
+                ignored_vectors,
+            )
 
     return deltas
 
@@ -149,6 +143,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = create_parser()
     args = parser.parse_args(argv)
 
+    try:
+        ignored_vectors = load_ignored_vectors(args.ignore_vector, args.ignore_vectors_file)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     clients = {
@@ -156,10 +156,7 @@ def main(argv: list[str] | None = None) -> int:
         "neogo": args.neogo_rpc,
         "neo_rs": args.neo_rs_rpc,
     }
-    outputs = {
-        label: args.output_dir / f"{args.prefix}-{label}.json"
-        for label in clients
-    }
+    outputs = {label: args.output_dir / f"{args.prefix}-{label}.json" for label in clients}
 
     exit_codes: dict[str, int] = {}
     for label, endpoint in clients.items():
@@ -181,8 +178,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     reports = {label: _load_report(path) for label, path in outputs.items()}
-    summaries = {label: _summary(report) for label, report in reports.items()}
-    pairwise_deltas = compare_triplet_reports(reports)
+    summaries = {label: _summary(report, ignored_vectors) for label, report in reports.items()}
+    pairwise_deltas = compare_triplet_reports(reports, ignored_vectors)
 
     print("\nTriplet summaries:")
     for label in sorted(summaries):
@@ -191,6 +188,8 @@ def main(argv: list[str] | None = None) -> int:
     print("\nPairwise vector deltas:")
     for pair in sorted(pairwise_deltas):
         print(f"  - {pair}: {len(pairwise_deltas[pair])}")
+    if ignored_vectors:
+        print(f"\nIgnored vectors: {len(ignored_vectors)}")
 
     if args.allow_shared_failures:
         return 0 if all(len(deltas) == 0 for deltas in pairwise_deltas.values()) else 1

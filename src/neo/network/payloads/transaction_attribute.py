@@ -63,6 +63,8 @@ class TransactionAttribute(ABC):
             return ConflictsAttribute.deserialize_body(reader)
         elif attr_type == TransactionAttributeType.ORACLE_RESPONSE:
             return OracleResponseAttribute.deserialize_body(reader)
+        elif attr_type == TransactionAttributeType.NOTARY_ASSISTED:
+            return NotaryAssistedAttribute.deserialize_body(reader)
         else:
             raise ValueError(f"Unknown attribute type: {attr_type}")
 
@@ -171,3 +173,24 @@ class OracleResponseAttribute(TransactionAttribute):
         if code != OracleResponseCode.SUCCESS and len(result) > 0:
             raise ValueError("Result must be empty for non-success")
         return OracleResponseAttribute(id=id, code=code, result=result)
+
+
+@dataclass
+class NotaryAssistedAttribute(TransactionAttribute):
+    """Notary assisted transaction attribute."""
+    nkeys: int = 0
+
+    @property
+    def type(self) -> TransactionAttributeType:
+        return TransactionAttributeType.NOTARY_ASSISTED
+
+    @property
+    def size(self) -> int:
+        return 1 + 1  # type + nkeys
+
+    def _serialize_without_type(self, writer: "BinaryWriter") -> None:
+        writer.write_byte(self.nkeys)
+
+    @staticmethod
+    def deserialize_body(reader: "BinaryReader") -> "NotaryAssistedAttribute":
+        return NotaryAssistedAttribute(nkeys=reader.read_byte())

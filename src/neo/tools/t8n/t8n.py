@@ -108,8 +108,8 @@ class T8N:
             vm_state = "FAULT"
             exception = str(e)
         
-        # Get gas consumed (simplified)
-        gas_consumed = tx.system_fee if tx.system_fee > 0 else 1000000
+        # Use actual system_fee + network_fee from the transaction
+        gas_consumed = tx.system_fee + tx.network_fee
         self.total_gas_used += gas_consumed
         
         # Build receipt
@@ -125,11 +125,19 @@ class T8N:
     def _extract_post_alloc(self) -> Dict[str, Dict[str, Any]]:
         """Extract post-state allocation from snapshot."""
         result: Dict[str, Dict[str, Any]] = {}
-        
-        # Copy pre-state and update with changes
+
+        # Start with pre-state
         for addr, state in self.pre_alloc.items():
             result[addr] = state.to_dict()
-        
+
+        # Apply storage changes from snapshot
+        if hasattr(self.snapshot, '_store'):
+            for key, value in self.snapshot._store.items():
+                key_hex = key.hex()
+                if key_hex not in result:
+                    result[key_hex] = {}
+                result[key_hex]['storage'] = value.hex() if isinstance(value, bytes) else str(value)
+
         return result
     
     def _compute_state_root(self) -> str:

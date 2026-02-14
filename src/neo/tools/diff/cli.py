@@ -99,14 +99,15 @@ def _execute_tests(runner, comparator, reporter, vectors, args) -> int:
         
         if args.python_only or cs_result is None:
             # Python-only mode
+            expected_state = vector.expected_state or "HALT"
             result = ComparisonResult(
                 vector_name=vector.name,
-                is_match=py_result.state == "HALT",
+                is_match=py_result.state == expected_state,
                 python_result=py_result,
             )
             reporter.add_result(result)
             if args.verbose:
-                status = "OK" if py_result.state == "HALT" else "FAULT"
+                status = "OK" if py_result.state == expected_state else py_result.state
                 print(status)
         else:
             # Compare results

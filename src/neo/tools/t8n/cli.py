@@ -68,10 +68,6 @@ def add_output_args(parser: argparse.ArgumentParser) -> None:
         help="Output allocation file (default: alloc-out.json)",
     )
     parser.add_argument(
-        "--output-body",
-        help="Output body file (optional)",
-    )
-    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",

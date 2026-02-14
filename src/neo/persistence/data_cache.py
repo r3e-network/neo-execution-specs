@@ -4,17 +4,9 @@ DataCache - Caching layer for storage.
 Reference: Neo.Persistence.DataCache
 """
 
-from enum import Enum
 from typing import Callable, Dict, Iterator, Optional, Tuple
 from neo.persistence.store import IReadOnlyStore, IStore
-
-
-class TrackState(Enum):
-    """Track state for cached items."""
-    NONE = 0
-    ADDED = 1
-    CHANGED = 2
-    DELETED = 3
+from neo.persistence.track_state import TrackState
 
 
 class Trackable:
@@ -212,6 +204,9 @@ class ClonedCache(DataCache):
             t.value = value
             if t.state == TrackState.DELETED:
                 t.state = TrackState.CHANGED
+            elif t.state == TrackState.NONE:
+                t.state = TrackState.CHANGED
+            # ADDED state stays ADDED
         else:
             exists = self._parent.contains(key)
             state = TrackState.CHANGED if exists else TrackState.ADDED
@@ -228,6 +223,29 @@ class ClonedCache(DataCache):
         elif self._parent.contains(key):
             self._cache[key] = Trackable(key, b"", TrackState.DELETED)
     
+    def find(self, prefix: bytes = b"") -> Iterator[Tuple[bytes, bytes]]:
+        """Find all key-value pairs with given prefix, merging parent and local."""
+        results: Dict[bytes, bytes] = {}
+        # Get results from parent
+        for key, value in self._parent.find(prefix):
+            results[key] = value
+        # Apply local changes
+        for key, entry in self._cache.items():
+            if key.startswith(prefix):
+                if entry.state == TrackState.DELETED:
+                    results.pop(key, None)
+                elif entry.state in (TrackState.ADDED, TrackState.CHANGED):
+                    results[key] = entry.value
+        for key in sorted(results):
+            yield key, results[key]
+
+    def seek(self, prefix: bytes, direction: int = 1) -> Iterator[Tuple[bytes, bytes]]:
+        """Seek with direction, merging parent and local."""
+        items = list(self.find(prefix))
+        if direction < 0:
+            items.reverse()
+        yield from items
+
     def commit(self) -> None:
         """Commit changes to parent cache."""
         for t in self._cache.values():

@@ -1,17 +1,21 @@
 """Evaluation stack for NeoVM."""
 
 from __future__ import annotations
-from typing import List
+from typing import List, TYPE_CHECKING
 from neo.vm.types import StackItem
 from neo.exceptions import InvalidOperationException, StackOverflowException
+
+if TYPE_CHECKING:
+    from neo.vm.reference_counter import ReferenceCounter
 
 
 class EvaluationStack:
     """Stack for VM execution."""
-    
-    def __init__(self, max_size: int = 2048) -> None:
+
+    def __init__(self, max_size: int = 2048, reference_counter: ReferenceCounter | None = None) -> None:
         self._items: List[StackItem] = []
         self._max_size = max_size
+        self._reference_counter = reference_counter
     
     def __len__(self) -> int:
         return len(self._items)
@@ -21,16 +25,21 @@ class EvaluationStack:
         if len(self._items) >= self._max_size:
             raise StackOverflowException("Stack overflow")
         self._items.append(item)
-    
+        if self._reference_counter is not None:
+            self._reference_counter.add_reference(item)
+
     def pop(self) -> StackItem:
         """Pop item from stack.
-        
+
         Raises:
             Exception: If stack is empty (stack underflow)
         """
         if not self._items:
             raise InvalidOperationException("Stack underflow")
-        return self._items.pop()
+        item = self._items.pop()
+        if self._reference_counter is not None:
+            self._reference_counter.remove_reference(item)
+        return item
     
     def peek(self, index: int = 0) -> StackItem:
         """Peek at item without removing."""
@@ -40,6 +49,9 @@ class EvaluationStack:
     
     def clear(self) -> None:
         """Clear the stack."""
+        if self._reference_counter is not None:
+            for item in self._items:
+                self._reference_counter.remove_reference(item)
         self._items.clear()
     
     def copy_to(self, target: 'EvaluationStack') -> None:
@@ -65,13 +77,18 @@ class EvaluationStack:
             raise InvalidOperationException(f"Insert index out of range: {index}")
         pos = len(self._items) - index
         self._items.insert(pos, item)
-    
+        if self._reference_counter is not None:
+            self._reference_counter.add_reference(item)
+
     def remove(self, index: int) -> StackItem:
         """Remove and return item at index (from top)."""
         if index < 0 or index >= len(self._items):
             raise InvalidOperationException(f"Remove index out of range: {index}")
         pos = -(index + 1)
-        return self._items.pop(pos)
+        item = self._items.pop(pos)
+        if self._reference_counter is not None:
+            self._reference_counter.remove_reference(item)
+        return item
     
     def reverse(self, n: int) -> None:
         """Reverse the top n items on the stack.

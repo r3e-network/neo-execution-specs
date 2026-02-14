@@ -4,7 +4,9 @@ In-memory store implementation.
 Reference: Neo.Persistence.Providers.MemoryStore
 """
 
-from typing import Dict, Iterator, Optional, Tuple
+from collections.abc import Iterator
+from typing import Dict, Optional, Tuple
+
 from neo.persistence.store import IStore
 
 
@@ -32,10 +34,17 @@ class MemoryStore(IStore):
         """
         items = sorted(self._data.items())
         if direction < 0:
-            items = list(reversed(items))
-        for k, v in items:
-            if k.startswith(prefix):
+            # Backward: find entries with key >= prefix, iterate in reverse.
+            # This matches C# IStore.Seek(prefix, SeekDirection.Backward).
+            result = [(k, v) for k, v in items if k >= prefix]
+            result.reverse()
+            for k, v in result:
                 yield k, v
+        else:
+            # Forward: return items starting with prefix in ascending order
+            for k, v in items:
+                if k.startswith(prefix):
+                    yield k, v
     
     def put(self, key: bytes, value: bytes) -> None:
         self._data[key] = value

@@ -91,6 +91,12 @@ neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
 
+# Same check with known NeoGo 0.116.0 TRY deltas ignored
+neo-compat --vectors tests/vectors/ \
+           --csharp-rpc http://seed1.neo.org:10332 \
+           --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
+           --ignore-vectors-file docs/verification/neogo-0.116-known-deltas.txt
+
 # Compare C# vs NeoGo compatibility (strict, TestNet)
 neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1t5.neo.org:20332 \
@@ -101,6 +107,13 @@ neo-multicompat --vectors tests/vectors/ \
                 --csharp-rpc http://seed1.neo.org:10332 \
                 --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
                 --neo-rs-rpc http://127.0.0.1:40332
+
+# Triplet with explicit ignore list
+neo-multicompat --vectors tests/vectors/ \
+                --csharp-rpc http://seed1.neo.org:10332 \
+                --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
+                --neo-rs-rpc http://127.0.0.1:40332 \
+                --ignore-vectors-file docs/verification/neogo-0.116-known-deltas.txt
 
 # CI matrix parity gate lives in .github/workflows/diff.yml
 # (validates protocol fields + vector compatibility for MainNet/TestNet)

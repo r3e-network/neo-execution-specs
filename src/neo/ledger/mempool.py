@@ -122,10 +122,9 @@ class MemoryPool:
     def __iter__(self) -> Iterator["Transaction"]:
         """Iterate over all transactions."""
         with self._lock:
-            for item in self._verified.values():
-                yield item.tx
-            for item in self._unverified.values():
-                yield item.tx
+            items = list(self._verified.values()) + list(self._unverified.values())
+        for item in items:
+            yield item.tx
     
     def __len__(self) -> int:
         """Get total count."""

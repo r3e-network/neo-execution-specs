@@ -38,6 +38,8 @@ class ECPoint:
     
     def encode(self, compressed: bool = True) -> bytes:
         """Encode to bytes."""
+        if self.x == 0 and self.y == 0:
+            return b'\x00'  # Infinity point encoding
         if compressed:
             prefix = 0x02 if self.y % 2 == 0 else 0x03
             return bytes([prefix]) + self.x.to_bytes(32, 'big')

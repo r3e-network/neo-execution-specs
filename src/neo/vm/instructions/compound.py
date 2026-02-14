@@ -35,7 +35,7 @@ def packmap(engine: ExecutionEngine, instruction: Instruction) -> None:
         raise InvalidOperationException(f"Invalid map size: {size}")
     result = Map(engine.reference_counter)
     for _ in range(size):
-        # C# pops key first (top), then value: stack = [key, value, ...]
+        # C# pops key first (top of stack), then value below it.
         key = engine.pop()
         value = engine.pop()
         if not isinstance(key, (Integer, ByteString, Boolean)):

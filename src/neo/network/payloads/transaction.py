@@ -133,6 +133,17 @@ class Transaction:
             raise ValueError("Signers cannot be empty")
         signers = [Signer.deserialize(reader) for _ in range(signer_count)]
 
+        # Check for duplicate signer accounts
+        seen_accounts: set[bytes] = set()
+        for signer in signers:
+            account = signer.account
+            if account is None:
+                continue
+            account_key = account.data if hasattr(account, "data") else bytes(account)
+            if account_key in seen_accounts:
+                raise ValueError("Duplicate signer account")
+            seen_accounts.add(account_key)
+
         attr_count = reader.read_var_int(MAX_TRANSACTION_ATTRIBUTES - signer_count)
         attributes = [TransactionAttribute.deserialize(reader) for _ in range(attr_count)]
 

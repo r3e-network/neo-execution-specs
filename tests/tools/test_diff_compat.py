@@ -74,6 +74,35 @@ def test_compare_report_results_detects_vector_delta() -> None:
     assert compare_report_results(csharp, neogo) == ["A"]
 
 
+def test_compare_report_results_can_ignore_named_vectors() -> None:
+    csharp = _report(
+        total=1,
+        passed=1,
+        failed=0,
+        errors=0,
+        results=[{"vector": "TRY_no_exception", "match": True, "differences": []}],
+    )
+    neogo = _report(
+        total=1,
+        passed=0,
+        failed=1,
+        errors=0,
+        results=[
+            {
+                "vector": "TRY_no_exception",
+                "match": False,
+                "differences": [{"type": "state_mismatch", "path": "state"}],
+            }
+        ],
+    )
+
+    assert compare_report_results(csharp, neogo) == ["TRY_no_exception"]
+    assert (
+        compare_report_results(csharp, neogo, ignored_vectors={"TRY_no_exception"})
+        == []
+    )
+
+
 def test_is_strictly_compatible_requires_clean_summaries() -> None:
     summary = {"total": 1, "passed": 1, "failed": 0, "errors": 0}
     assert is_strictly_compatible(summary, summary, []) is True
@@ -159,3 +188,55 @@ def test_main_returns_one_when_reports_differ(tmp_path: Path, monkeypatch) -> No
     )
 
     assert exit_code == 1
+
+
+def test_main_ignore_vector_allows_known_single_sided_delta(tmp_path: Path, monkeypatch) -> None:
+    csharp_report = _report(
+        total=1,
+        passed=1,
+        failed=0,
+        errors=0,
+        results=[{"vector": "TRY_no_exception", "match": True, "differences": []}],
+    )
+    neogo_report = _report(
+        total=1,
+        passed=0,
+        failed=1,
+        errors=0,
+        results=[
+            {
+                "vector": "TRY_no_exception",
+                "match": False,
+                "differences": [{"type": "state_mismatch", "path": "state"}],
+            }
+        ],
+    )
+
+    def fake_run(vectors: Path, rpc_url: str, output_path: Path, gas_tolerance: int) -> int:
+        report = csharp_report if "seed1" in rpc_url else neogo_report
+        output_path.write_text(__import__("json").dumps(report))
+        return 1
+
+    monkeypatch.setattr("neo.tools.diff.compat.run_neo_diff", fake_run)
+
+    strict_exit = main(
+        [
+            "--vectors",
+            "tests/vectors/",
+            "--output-dir",
+            str(tmp_path),
+        ]
+    )
+    ignored_exit = main(
+        [
+            "--vectors",
+            "tests/vectors/",
+            "--output-dir",
+            str(tmp_path),
+            "--ignore-vector",
+            "TRY_no_exception",
+        ]
+    )
+
+    assert strict_exit == 1
+    assert ignored_exit == 0

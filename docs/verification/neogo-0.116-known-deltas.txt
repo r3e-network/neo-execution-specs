@@ -1,0 +1,7 @@
+# Known NeoGo 0.116.0 deltas vs Neo C# 3.9.1 on MainNet RPC.
+# Cause: NeoGo faults on ENDTRY*/ENDFINALLY jump targets that C# treats as valid
+#        end-of-script control flow in these vectors.
+TRY_no_exception
+TRY_with_throw_catch
+TRY_L_no_exception
+TRY_finally_no_exception

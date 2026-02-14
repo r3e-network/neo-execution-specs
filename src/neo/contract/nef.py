@@ -160,19 +160,43 @@ class NefFile:
         # Reserved (2 bytes)
         offset += 2
 
+        # Source URL length validation (max 256 bytes)
+        MAX_SOURCE_URL_LENGTH = 256
+        if len(source_bytes) > MAX_SOURCE_URL_LENGTH:
+            raise ValueError(
+                f"NEF source URL too long: {len(source_bytes)} > {MAX_SOURCE_URL_LENGTH}"
+            )
+
         # Script (var_bytes)
         script, offset = read_var_bytes(data, offset)
 
-        # Checksum
-        checksum = struct.unpack_from('<I', data, offset)[0]
+        # Script size validation
+        MAX_SCRIPT_LENGTH = 512 * 1024  # 512 KB
+        if len(script) == 0:
+            raise ValueError("NEF script cannot be empty")
+        if len(script) > MAX_SCRIPT_LENGTH:
+            raise ValueError(
+                f"NEF script too large: {len(script)} > {MAX_SCRIPT_LENGTH}"
+            )
 
-        return cls(
+        # Checksum
+        stored_checksum = struct.unpack_from('<I', data, offset)[0]
+
+        nef = cls(
             compiler=compiler,
             source=source,
             tokens=tokens,
             script=script,
-            checksum=checksum,
+            checksum=stored_checksum,
         )
+
+        computed = nef.compute_checksum()
+        if stored_checksum != computed:
+            raise ValueError(
+                f"NEF checksum mismatch: stored={stored_checksum}, computed={computed}"
+            )
+
+        return nef
 
 
 def write_var_int(value: int) -> bytes:

@@ -1,24 +1,25 @@
 """NeoVM Execution Engine."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import List, Optional, Callable, Dict
+from typing import Callable, Dict, List, Optional
 
+from neo.exceptions import InvalidOperationException, StackOverflowException, VMAbortException
 from neo.vm.evaluation_stack import EvaluationStack
-from neo.vm.gas import get_price
-from neo.vm.limits import ExecutionEngineLimits
-from neo.vm.opcode import OpCode
-from neo.vm.execution_context import ExecutionContext, Instruction
 from neo.vm.exception_handling import (
     ExceptionHandlingContext,
     ExceptionHandlingState,
     TryStack,
 )
-from neo.vm.slot import Slot
+from neo.vm.execution_context import ExecutionContext, Instruction
+from neo.vm.gas import get_price
+from neo.vm.limits import ExecutionEngineLimits
+from neo.vm.opcode import OpCode
 from neo.vm.reference_counter import ReferenceCounter
+from neo.vm.slot import Slot
 from neo.vm.types import StackItem
-from neo.exceptions import InvalidOperationException, StackOverflowException, VMAbortException
 
 
 class VMState(IntEnum):
@@ -48,35 +49,36 @@ class ExecutionEngine:
     syscall_handler: Optional[Callable[[ExecutionEngine, int], None]] = None
     token_handler: Optional[Callable[[ExecutionEngine, int], None]] = None
     _handlers: Dict[int, Callable] = field(default_factory=dict, repr=False)
-    
+
     def __post_init__(self):
         if self.reference_counter is None:
             self.reference_counter = ReferenceCounter()
         self._init_handlers()
-    
+
     @property
     def current_context(self) -> ExecutionContext:
         if not self.invocation_stack:
             raise InvalidOperationException("No current execution context")
         return self.invocation_stack[-1]
-    
+
     def load_script(self, script: bytes, rv_count: int = -1) -> ExecutionContext:
-        ctx = ExecutionContext(script=script, rv_count=rv_count, 
-                               reference_counter=self.reference_counter)
+        ctx = ExecutionContext(
+            script=script, rv_count=rv_count, reference_counter=self.reference_counter
+        )
         self.load_context(ctx)
         return ctx
-    
+
     def load_context(self, context: ExecutionContext) -> None:
         if len(self.invocation_stack) >= self.limits.max_invocation_stack_size:
             raise StackOverflowException("Invocation stack overflow")
         self.invocation_stack.append(context)
-    
+
     def execute(self) -> VMState:
         self.state = VMState.NONE
         while self.state == VMState.NONE:
             self.execute_next()
         return self.state
-    
+
     def execute_next(self) -> None:
         if not self.invocation_stack:
             self.state = VMState.HALT
@@ -84,9 +86,17 @@ class ExecutionEngine:
         ctx = self.invocation_stack[-1]
         instr = ctx.current_instruction
         if instr is None:
-            # Copy evaluation stack to target before popping
             ctx_pop = self.invocation_stack.pop()
-            target = self.invocation_stack[-1].evaluation_stack if self.invocation_stack else self.result_stack
+            if ctx_pop.rv_count >= 0 and len(ctx_pop.evaluation_stack) != ctx_pop.rv_count:
+                raise InvalidOperationException(
+                    f"Return value count mismatch: expected {ctx_pop.rv_count}, "
+                    f"got {len(ctx_pop.evaluation_stack)}"
+                )
+            target = (
+                self.invocation_stack[-1].evaluation_stack
+                if self.invocation_stack
+                else self.result_stack
+            )
             if ctx_pop.evaluation_stack is not target:
                 ctx_pop.evaluation_stack.copy_to(target)
             if not self.invocation_stack:
@@ -108,58 +118,69 @@ class ExecutionEngine:
             # ABORT is uncatchable — bypass VM try/catch, fault immediately.
             self.state = VMState.FAULT
         except Exception as e:
+            from neo.exceptions import OutOfGasException
+
+            if isinstance(e, OutOfGasException):
+                raise
             # Route through VM try/catch before faulting.
             # C# reference: ExecutionEngine.ExecuteInstruction catches
             # exceptions and calls HandleException, which searches the
             # try-stack for a matching catch/finally handler.
             from neo.vm.types import ByteString
-            ex_item = ByteString(str(e).encode('utf-8'))
+
+            ex_item = ByteString(str(e).encode("utf-8"))
             try:
                 self.execute_throw(ex_item)
             except VMUnhandledException:
                 self.uncaught_exception = ex_item
                 self.state = VMState.FAULT
-    
+
     def add_gas(self, gas: int) -> None:
         """Add gas consumed and check against limit.
 
-        Raises InvalidOperationException if gas_limit is exceeded.
+        Raises OutOfGasException if gas_limit is exceeded.
         gas_limit == -1 means unlimited (pure VM mode).
         """
         self.gas_consumed += gas
         if self.gas_limit >= 0 and self.gas_consumed > self.gas_limit:
-            raise InvalidOperationException("Insufficient GAS")
+            from neo.exceptions import OutOfGasException
+
+            raise OutOfGasException("Insufficient GAS")
 
     def push(self, item: StackItem) -> None:
         self.current_context.evaluation_stack.push(item)
-    
+
     def pop(self) -> StackItem:
         return self.current_context.evaluation_stack.pop()
-    
+
     def peek(self, index: int = 0) -> StackItem:
         return self.current_context.evaluation_stack.peek(index)
-    
+
     def create_slot(self, count: int) -> Slot:
         return Slot(count, self.reference_counter)
-    
+
     def create_slot_from_items(self, items: List[StackItem]) -> Slot:
         return Slot.from_items(items, self.reference_counter)
-    
+
     def execute_jump(self, position: int) -> None:
         if position < 0 or position >= len(self.current_context.script):
-            raise InvalidOperationException(f"Jump out of range: {position}")
+            raise InvalidOperationException(f"Jump target {position} out of range")
         self.current_context.ip = position
         self.is_jumping = True
-    
+
     def execute_jump_offset(self, offset: int) -> None:
         self.execute_jump(self.current_context.ip + offset)
-    
+
     def execute_call(self, position: int) -> None:
         self.load_context(self.current_context.clone(position))
-    
+
     def execute_ret(self) -> None:
         ctx_pop = self.invocation_stack.pop()
-        target = self.invocation_stack[-1].evaluation_stack if self.invocation_stack else self.result_stack
+        target = (
+            self.invocation_stack[-1].evaluation_stack
+            if self.invocation_stack
+            else self.result_stack
+        )
         if ctx_pop.evaluation_stack is not target:
             if ctx_pop.rv_count >= 0 and len(ctx_pop.evaluation_stack) != ctx_pop.rv_count:
                 raise InvalidOperationException("Return value count mismatch")
@@ -167,7 +188,7 @@ class ExecutionEngine:
         if not self.invocation_stack:
             self.state = VMState.HALT
         self.is_jumping = True
-    
+
     def execute_try(self, catch_offset: int, finally_offset: int) -> None:
         if catch_offset == 0 and finally_offset == 0:
             raise InvalidOperationException("Both offsets can't be 0")
@@ -179,7 +200,7 @@ class ExecutionEngine:
         catch_ptr = -1 if catch_offset == 0 else ctx.ip + catch_offset
         finally_ptr = -1 if finally_offset == 0 else ctx.ip + finally_offset
         ctx.try_stack.push(ExceptionHandlingContext(catch_ptr, finally_ptr))
-    
+
     def execute_endtry(self, end_offset: int) -> None:
         ctx = self.current_context
         if ctx.try_stack is None or len(ctx.try_stack) == 0:
@@ -196,7 +217,7 @@ class ExecutionEngine:
             ctx.try_stack.pop()
             ctx.ip = end_ptr
         self.is_jumping = True
-    
+
     def execute_endfinally(self) -> None:
         ctx = self.current_context
         if ctx.try_stack is None or len(ctx.try_stack) == 0:
@@ -207,7 +228,7 @@ class ExecutionEngine:
         else:
             self.execute_throw(self.uncaught_exception)
         self.is_jumping = True
-    
+
     def execute_throw(self, ex: StackItem) -> None:
         self.uncaught_exception = ex
         pop_count = 0
@@ -238,12 +259,20 @@ class ExecutionEngine:
                     return
             pop_count += 1
         raise VMUnhandledException(self.uncaught_exception)
-    
+
     def _init_handlers(self) -> None:
-        from neo.vm.instructions import constants, control_flow, stack
-        from neo.vm.instructions import numeric, bitwise, compound, types
-        from neo.vm.instructions import slot, splice
-        
+        from neo.vm.instructions import (
+            bitwise,
+            compound,
+            constants,
+            control_flow,
+            numeric,
+            slot,
+            splice,
+            stack,
+            types,
+        )
+
         # Constants
         self._handlers[OpCode.PUSHINT8] = constants.pushint8
         self._handlers[OpCode.PUSHINT16] = constants.pushint16
@@ -260,8 +289,8 @@ class ExecutionEngine:
         self._handlers[OpCode.PUSHDATA4] = constants.pushdata4
         self._handlers[OpCode.PUSHM1] = constants.pushm1
         for i in range(17):
-            self._handlers[OpCode.PUSH0 + i] = getattr(constants, f'push{i}')
-        
+            self._handlers[OpCode.PUSH0 + i] = getattr(constants, f"push{i}")
+
         # Control flow
         self._handlers[OpCode.NOP] = control_flow.nop
         self._handlers[OpCode.JMP] = control_flow.jmp
@@ -296,7 +325,7 @@ class ExecutionEngine:
         self._handlers[OpCode.ENDFINALLY] = control_flow.endfinally
         self._handlers[OpCode.RET] = control_flow.ret
         self._handlers[OpCode.SYSCALL] = control_flow.syscall
-        
+
         # Stack
         self._handlers[OpCode.DEPTH] = stack.depth
         self._handlers[OpCode.DROP] = stack.drop
@@ -313,24 +342,24 @@ class ExecutionEngine:
         self._handlers[OpCode.REVERSE3] = stack.reverse3
         self._handlers[OpCode.REVERSE4] = stack.reverse4
         self._handlers[OpCode.REVERSEN] = stack.reversen
-        
+
         # Slot
         self._handlers[OpCode.INITSSLOT] = slot.initsslot
         self._handlers[OpCode.INITSLOT] = slot.initslot
         for i in range(7):
-            self._handlers[OpCode.LDSFLD0 + i] = getattr(slot, f'ldsfld{i}')
-            self._handlers[OpCode.STSFLD0 + i] = getattr(slot, f'stsfld{i}')
-            self._handlers[OpCode.LDLOC0 + i] = getattr(slot, f'ldloc{i}')
-            self._handlers[OpCode.STLOC0 + i] = getattr(slot, f'stloc{i}')
-            self._handlers[OpCode.LDARG0 + i] = getattr(slot, f'ldarg{i}')
-            self._handlers[OpCode.STARG0 + i] = getattr(slot, f'starg{i}')
+            self._handlers[OpCode.LDSFLD0 + i] = getattr(slot, f"ldsfld{i}")
+            self._handlers[OpCode.STSFLD0 + i] = getattr(slot, f"stsfld{i}")
+            self._handlers[OpCode.LDLOC0 + i] = getattr(slot, f"ldloc{i}")
+            self._handlers[OpCode.STLOC0 + i] = getattr(slot, f"stloc{i}")
+            self._handlers[OpCode.LDARG0 + i] = getattr(slot, f"ldarg{i}")
+            self._handlers[OpCode.STARG0 + i] = getattr(slot, f"starg{i}")
         self._handlers[OpCode.LDSFLD] = slot.ldsfld
         self._handlers[OpCode.STSFLD] = slot.stsfld
         self._handlers[OpCode.LDLOC] = slot.ldloc
         self._handlers[OpCode.STLOC] = slot.stloc
         self._handlers[OpCode.LDARG] = slot.ldarg
         self._handlers[OpCode.STARG] = slot.starg
-        
+
         # Splice
         self._handlers[OpCode.NEWBUFFER] = splice.newbuffer
         self._handlers[OpCode.MEMCPY] = splice.memcpy
@@ -338,7 +367,7 @@ class ExecutionEngine:
         self._handlers[OpCode.SUBSTR] = splice.substr
         self._handlers[OpCode.LEFT] = splice.left
         self._handlers[OpCode.RIGHT] = splice.right
-        
+
         # Bitwise
         self._handlers[OpCode.INVERT] = bitwise.invert
         self._handlers[OpCode.AND] = bitwise.and_
@@ -346,7 +375,7 @@ class ExecutionEngine:
         self._handlers[OpCode.XOR] = bitwise.xor
         self._handlers[OpCode.EQUAL] = bitwise.equal
         self._handlers[OpCode.NOTEQUAL] = bitwise.notequal
-        
+
         # Numeric
         self._handlers[OpCode.SIGN] = numeric.sign
         self._handlers[OpCode.ABS] = numeric.abs_
@@ -377,7 +406,7 @@ class ExecutionEngine:
         self._handlers[OpCode.MIN] = numeric.min_
         self._handlers[OpCode.MAX] = numeric.max_
         self._handlers[OpCode.WITHIN] = numeric.within
-        
+
         # Compound types
         self._handlers[OpCode.PACKMAP] = compound.packmap
         self._handlers[OpCode.PACKSTRUCT] = compound.packstruct
@@ -400,7 +429,7 @@ class ExecutionEngine:
         self._handlers[OpCode.REMOVE] = compound.remove
         self._handlers[OpCode.CLEARITEMS] = compound.clearitems
         self._handlers[OpCode.POPITEM] = compound.popitem
-        
+
         # Types
         self._handlers[OpCode.ISNULL] = types.isnull
         self._handlers[OpCode.ISTYPE] = types.istype
@@ -408,9 +437,10 @@ class ExecutionEngine:
         self._handlers[OpCode.ABORTMSG] = types.abortmsg
         self._handlers[OpCode.ASSERTMSG] = types.assertmsg
 
+
 __all__ = [
     "ExecutionEngine",
+    "Instruction",
     "VMState",
     "VMUnhandledException",
-    "Instruction",
 ]

@@ -155,51 +155,123 @@ def validate_vm_vector(vector: dict) -> tuple[bool, str]:
         return False, f"Exception: {type(e).__name__}: {e}"
 
 
+def validate_crypto_vector(vector: dict) -> tuple[bool, str]:
+    """Validate a single crypto vector for structural correctness."""
+    try:
+        required = ("name", "input", "output")
+        for field in required:
+            if field not in vector:
+                return False, f"Missing required field: {field}"
+
+        inp = vector["input"]
+        if not isinstance(inp, dict):
+            return False, "Input must be a dict"
+
+        out = vector["output"]
+        if not isinstance(out, dict) or not out:
+            return False, "Output must be a non-empty dict"
+
+        if "operation" not in vector:
+            return False, "Missing required field: operation"
+
+        return True, "OK (crypto)"
+    except Exception as e:
+        return False, f"Exception: {type(e).__name__}: {e}"
+
+
+def validate_native_vector(vector: dict) -> tuple[bool, str]:
+    """Validate a single native-contract vector for structural correctness."""
+    try:
+        required = ("name", "contract", "method")
+        for field in required:
+            if field not in vector:
+                return False, f"Missing required field: {field}"
+
+        if "result" not in vector and "post_state" not in vector:
+            return False, "Missing expected output: need 'result' or 'post_state'"
+
+        if "args" in vector and not isinstance(vector["args"], list):
+            return False, "Field 'args' must be a list"
+
+        return True, "OK (native)"
+    except Exception as e:
+        return False, f"Exception: {type(e).__name__}: {e}"
+
+
+def validate_state_vector(vector: dict) -> tuple[bool, str]:
+    """Validate a single state-transition vector for structural correctness."""
+    try:
+        required = ("name", "transaction", "pre_state", "post_state")
+        for field in required:
+            if field not in vector:
+                return False, f"Missing required field: {field}"
+
+        tx = vector["transaction"]
+        if not isinstance(tx, dict) or not tx:
+            return False, "Transaction must be a non-empty dict"
+
+        if not isinstance(vector["pre_state"], dict):
+            return False, "pre_state must be a dict"
+
+        if not isinstance(vector["post_state"], dict):
+            return False, "post_state must be a dict"
+
+        return True, "OK (state)"
+    except Exception as e:
+        return False, f"Exception: {type(e).__name__}: {e}"
+
+
 def validate_file(filepath: Path) -> tuple[int, int]:
     """Validate all vectors in a file."""
     with open(filepath) as f:
         data = json.load(f)
-    
+
     passed = 0
     failed = 0
-    
+
     print(f"\n{data['name']} ({len(data['vectors'])} vectors)")
     print("-" * 40)
-    
+
     for vector in data["vectors"]:
         if data["category"] == "vm":
             success, msg = validate_vm_vector(vector)
+        elif data["category"] == "crypto":
+            success, msg = validate_crypto_vector(vector)
+        elif data["category"] == "native":
+            success, msg = validate_native_vector(vector)
+        elif data["category"] == "state":
+            success, msg = validate_state_vector(vector)
         else:
-            success, msg = True, "Skipped (non-VM)"
-        
+            success, msg = False, f"Unknown category: {data['category']}"
+
         status = "✓" if success else "✗"
         print(f"  {status} {vector['name']}: {msg}")
-        
+
         if success:
             passed += 1
         else:
             failed += 1
-    
+
     return passed, failed
 
 
 def main():
     vectors_dir = Path(__file__).parent
-    
+
     total_passed = 0
     total_failed = 0
-    
-    # Validate VM vectors
-    vm_dir = vectors_dir / "vm"
-    if vm_dir.exists():
-        for json_file in sorted(vm_dir.glob("*.json")):
-            passed, failed = validate_file(json_file)
-            total_passed += passed
-            total_failed += failed
-    
+
+    for subdir in ("vm", "crypto", "native", "state"):
+        category_dir = vectors_dir / subdir
+        if category_dir.exists():
+            for json_file in sorted(category_dir.glob("*.json")):
+                passed, failed = validate_file(json_file)
+                total_passed += passed
+                total_failed += failed
+
     print("\n" + "=" * 40)
     print(f"Results: {total_passed} passed, {total_failed} failed")
-    
+
     return 0 if total_failed == 0 else 1
 
 

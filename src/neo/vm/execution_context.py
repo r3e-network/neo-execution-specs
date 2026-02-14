@@ -209,7 +209,7 @@ class ExecutionContext:
             initial_position = self._ip
         return ExecutionContext(
             script=self.script,
-            rv_count=0,
+            rv_count=-1,
             _shared_states=self._shared_states,
             _initial_position=initial_position,
         )

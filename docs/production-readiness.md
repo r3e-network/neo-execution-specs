@@ -14,8 +14,10 @@ This checklist defines the minimum bar for calling a release "production-ready" 
 
 - Validate C# and NeoGo parity:
   - `neo-compat --vectors tests/vectors/ --csharp-rpc <csharp> --neogo-rpc <neogo>`
+  - Optional: ignore documented external deltas with `--ignore-vectors-file <file>`
 - Optional tri-client parity (with neo-rs endpoint):
   - `neo-multicompat --vectors tests/vectors/ --csharp-rpc <csharp> --neogo-rpc <neogo> --neo-rs-rpc <neo-rs>`
+  - Optional: ignore documented external deltas with `--ignore-vectors-file <file>`
 
 ## 3) Tooling and Packaging Integrity
 

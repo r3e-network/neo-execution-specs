@@ -54,5 +54,13 @@ class UInt256:
     def __hash__(self) -> int:
         return hash(self._data)
 
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, UInt256):
+            return NotImplemented
+        return self._data < other._data
+
+    def __repr__(self) -> str:
+        return f"UInt256(0x{self._data[::-1].hex()})"
+
 
 UInt256.ZERO = UInt256(bytes(32))

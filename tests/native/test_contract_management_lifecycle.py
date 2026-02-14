@@ -31,6 +31,7 @@ from neo.native.native_contract import NativeContract, StorageKey
 # Mock infrastructure
 # ---------------------------------------------------------------------------
 
+
 class MockSnapshot:
     """In-memory snapshot that accepts StorageKey objects."""
 
@@ -90,7 +91,7 @@ class MockEngine:
     ) -> None:
         self.snapshot = snapshot
         self.storage_price = storage_price
-        self._sender = sender or UInt160(b'\x01' * 20)
+        self._sender = sender or UInt160(b"\x01" * 20)
         self._calling_hash = calling_hash
         self._is_committee = is_committee
         self.script_container = _MockTx(self._sender)
@@ -107,6 +108,10 @@ class MockEngine:
     def add_fee(self, fee: int) -> None:
         self.fees_added.append(fee)
 
+    def add_gas(self, amount: int) -> None:
+        """Track gas consumption for testing."""
+        self.fees_added.append(amount)
+
     def send_notification(self, contract_hash, event_name, state) -> None:
         self.notifications.append((contract_hash, event_name, state))
 
@@ -119,6 +124,7 @@ class _MockTx:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_manifest(name: str = "TestContract", methods: list = None) -> bytes:
     """Build a minimal manifest JSON."""
@@ -137,8 +143,8 @@ def _make_manifest(name: str = "TestContract", methods: list = None) -> bytes:
 
 def _make_nef(size: int = 64) -> bytes:
     """Build a minimal NEF-like byte blob with a 4-byte checksum tail."""
-    body = b'\x00' * (size - 4)
-    checksum = (0x12345678).to_bytes(4, 'little')
+    body = b"\x00" * (size - 4)
+    checksum = (0x12345678).to_bytes(4, "little")
     return body + checksum
 
 
@@ -155,29 +161,30 @@ def _fresh_cm() -> ContractManagement:
 # Tests
 # ===========================================================================
 
+
 class TestContractStateSerialization:
     """ContractState to_bytes / from_bytes round-trip."""
 
     def test_round_trip_basic(self):
-        h = UInt160(b'\xab' * 20)
-        state = ContractState(id=7, update_counter=3, hash=h, nef=b'\xde\xad', manifest=b'\xbe\xef')
+        h = UInt160(b"\xab" * 20)
+        state = ContractState(id=7, update_counter=3, hash=h, nef=b"\xde\xad", manifest=b"\xbe\xef")
         restored = ContractState.from_bytes(state.to_bytes())
 
         assert restored.id == 7
         assert restored.update_counter == 3
         assert restored.hash == h
-        assert restored.nef == b'\xde\xad'
-        assert restored.manifest == b'\xbe\xef'
+        assert restored.nef == b"\xde\xad"
+        assert restored.manifest == b"\xbe\xef"
 
     def test_round_trip_empty_data(self):
-        state = ContractState(id=0, update_counter=0, hash=UInt160.ZERO, nef=b'', manifest=b'')
+        state = ContractState(id=0, update_counter=0, hash=UInt160.ZERO, nef=b"", manifest=b"")
         restored = ContractState.from_bytes(state.to_bytes())
         assert restored.id == 0
-        assert restored.nef == b''
-        assert restored.manifest == b''
+        assert restored.nef == b""
+        assert restored.manifest == b""
 
     def test_from_bytes_empty(self):
-        state = ContractState.from_bytes(b'')
+        state = ContractState.from_bytes(b"")
         assert state.id == 0
 
 
@@ -221,7 +228,7 @@ class TestContractManagementDeploy:
         cm.initialize(engine)
 
         with pytest.raises(ValueError, match="NEF file cannot be empty"):
-            cm.deploy(engine, b'', _make_manifest())
+            cm.deploy(engine, b"", _make_manifest())
 
     def test_deploy_empty_manifest_raises(self):
         cm = _fresh_cm()
@@ -230,7 +237,7 @@ class TestContractManagementDeploy:
         cm.initialize(engine)
 
         with pytest.raises(ValueError, match="Manifest cannot be empty"):
-            cm.deploy(engine, _make_nef(), b'')
+            cm.deploy(engine, _make_nef(), b"")
 
     def test_deploy_duplicate_raises(self):
         cm = _fresh_cm()
@@ -272,7 +279,7 @@ class TestContractManagementGetContract:
         manifest = _make_manifest()
         deployed = cm.deploy(engine, nef, manifest)
 
-        found = cm.get_contract(snap, deployed.hash)
+        found = cm.get_contract_state(snap, deployed.hash)
         assert found is not None
         assert found.id == deployed.id
         assert found.hash == deployed.hash
@@ -280,7 +287,7 @@ class TestContractManagementGetContract:
     def test_get_contract_missing_returns_none(self):
         cm = _fresh_cm()
         snap = MockSnapshot()
-        result = cm.get_contract(snap, UInt160(b'\xff' * 20))
+        result = cm.get_contract_state(snap, UInt160(b"\xff" * 20))
         assert result is None
 
     def test_get_contract_by_id(self):
@@ -290,14 +297,14 @@ class TestContractManagementGetContract:
         cm.initialize(engine)
 
         deployed = cm.deploy(engine, _make_nef(), _make_manifest())
-        found = cm.get_contract_by_id(snap, deployed.id)
+        found = cm.get_contract_state_by_id(snap, deployed.id)
         assert found is not None
         assert found.hash == deployed.hash
 
     def test_get_contract_by_id_missing(self):
         cm = _fresh_cm()
         snap = MockSnapshot()
-        result = cm.get_contract_by_id(snap, 9999)
+        result = cm.get_contract_state_by_id(snap, 9999)
         assert result is None
 
 
@@ -311,8 +318,12 @@ class TestContractManagementHasMethod:
         cm.initialize(engine)
 
         methods = [
-            {"name": "transfer", "parameters": [{"name": "from"}, {"name": "to"}, {"name": "amount"}],
-             "returntype": "Boolean", "safe": False},
+            {
+                "name": "transfer",
+                "parameters": [{"name": "from"}, {"name": "to"}, {"name": "amount"}],
+                "returntype": "Boolean",
+                "safe": False,
+            },
         ]
         deployed = cm.deploy(engine, _make_nef(), _make_manifest(methods=methods))
         assert cm.has_method(snap, deployed.hash, "transfer", 3) is True
@@ -323,14 +334,16 @@ class TestContractManagementHasMethod:
         engine = MockEngine(snap)
         cm.initialize(engine)
 
-        methods = [{"name": "transfer", "parameters": [{"name": "a"}], "returntype": "Void", "safe": False}]
+        methods = [
+            {"name": "transfer", "parameters": [{"name": "a"}], "returntype": "Void", "safe": False}
+        ]
         deployed = cm.deploy(engine, _make_nef(), _make_manifest(methods=methods))
         assert cm.has_method(snap, deployed.hash, "transfer", 3) is False
 
     def test_has_method_missing_contract(self):
         cm = _fresh_cm()
         snap = MockSnapshot()
-        assert cm.has_method(snap, UInt160(b'\xff' * 20), "foo", 0) is False
+        assert cm.has_method(snap, UInt160(b"\xff" * 20), "foo", 0) is False
 
 
 class TestContractManagementUpdate:
@@ -353,7 +366,7 @@ class TestContractManagementUpdate:
         new_nef = _make_nef(size=128)
         cm.update(engine, new_nef, None)
 
-        updated = cm.get_contract(snap, deployed.hash)
+        updated = cm.get_contract_state(snap, deployed.hash)
         assert updated.nef == new_nef
         assert updated.update_counter == 1
 
@@ -362,7 +375,7 @@ class TestContractManagementUpdate:
         new_manifest = _make_manifest(name="UpdatedContract")
         cm.update(engine, None, new_manifest)
 
-        updated = cm.get_contract(snap, deployed.hash)
+        updated = cm.get_contract_state(snap, deployed.hash)
         assert updated.manifest == new_manifest
         assert updated.update_counter == 1
 
@@ -372,7 +385,7 @@ class TestContractManagementUpdate:
         new_manifest = _make_manifest(name="V2")
         cm.update(engine, new_nef, new_manifest)
 
-        updated = cm.get_contract(snap, deployed.hash)
+        updated = cm.get_contract_state(snap, deployed.hash)
         assert updated.nef == new_nef
         assert updated.manifest == new_manifest
         assert updated.update_counter == 1
@@ -385,19 +398,19 @@ class TestContractManagementUpdate:
     def test_update_empty_nef_raises(self):
         cm, snap, engine, deployed = self._deploy_and_get_engine()
         with pytest.raises(ValueError, match="NEF file cannot be empty"):
-            cm.update(engine, b'', None)
+            cm.update(engine, b"", None)
 
     def test_update_empty_manifest_raises(self):
         cm, snap, engine, deployed = self._deploy_and_get_engine()
         with pytest.raises(ValueError, match="Manifest cannot be empty"):
-            cm.update(engine, None, b'')
+            cm.update(engine, None, b"")
 
     def test_update_increments_counter_twice(self):
         cm, snap, engine, deployed = self._deploy_and_get_engine()
         cm.update(engine, _make_nef(size=80), None)
         cm.update(engine, _make_nef(size=96), None)
 
-        updated = cm.get_contract(snap, deployed.hash)
+        updated = cm.get_contract_state(snap, deployed.hash)
         assert updated.update_counter == 2
 
     def test_update_sends_notification(self):
@@ -421,8 +434,8 @@ class TestContractManagementDestroy:
 
         cm.destroy(engine)
 
-        assert cm.get_contract(snap, deployed.hash) is None
-        assert cm.get_contract_by_id(snap, deployed.id) is None
+        assert cm.get_contract_state(snap, deployed.hash) is None
+        assert cm.get_contract_state_by_id(snap, deployed.id) is None
 
     def test_destroy_sends_notification(self):
         cm = _fresh_cm()
@@ -441,7 +454,7 @@ class TestContractManagementDestroy:
         cm = _fresh_cm()
         snap = MockSnapshot()
         engine = MockEngine(snap)
-        engine._calling_hash = UInt160(b'\xff' * 20)
+        engine._calling_hash = UInt160(b"\xff" * 20)
 
         # Should not raise
         cm.destroy(engine)

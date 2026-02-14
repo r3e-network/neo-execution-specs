@@ -60,7 +60,7 @@ class DiffReporter:
     
     def write_json(self, path: Path) -> None:
         """Write report as JSON file."""
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(self.report.to_dict(), f, indent=2)
     
     def write_text(self, output: TextIO) -> None:

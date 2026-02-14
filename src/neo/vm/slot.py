@@ -19,7 +19,7 @@ class Slot:
     """
     
     def __init__(
-        self, 
+        self,
         count_or_items: int | List["StackItem"] | None = None,
         reference_counter: Optional["ReferenceCounter"] = None
     ) -> None:
@@ -32,6 +32,16 @@ class Slot:
         else:
             self._items = list(count_or_items)
         self._reference_counter = reference_counter
+        for item in self._items:
+            self._ref_add(item)
+
+    def _ref_add(self, item: "StackItem") -> None:
+        if self._reference_counter is not None:
+            self._reference_counter.add_reference(item)
+
+    def _ref_remove(self, item: "StackItem") -> None:
+        if self._reference_counter is not None:
+            self._reference_counter.remove_reference(item)
     
     @classmethod
     def from_items(cls, items: List["StackItem"], 
@@ -45,5 +55,8 @@ class Slot:
     def __getitem__(self, index: int) -> StackItem:
         return self._items[index]
     
-    def __setitem__(self, index: int, value: StackItem) -> None:
+    def __setitem__(self, index: int, value: "StackItem") -> None:
+        old = self._items[index]
+        self._ref_remove(old)
         self._items[index] = value
+        self._ref_add(value)

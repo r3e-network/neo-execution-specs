@@ -41,7 +41,7 @@ class ByteString(StackItem):
     
     def get_string(self) -> str:
         """Get as UTF-8 string."""
-        return self._value.decode('utf-8', errors='replace')
+        return self._value.decode('utf-8')
     
     def __len__(self) -> int:
         return len(self._value)

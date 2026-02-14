@@ -84,22 +84,32 @@ class Blockchain:
     def persist(self, block: "Block") -> List[ApplicationExecuted]:
         """Persist a block to the blockchain."""
         with self._lock:
+            # Validate block index continuity
+            if block.index != self.height + 1:
+                raise ValueError(
+                    f"Block index {block.index} does not follow current height {self.height}"
+                )
+
             results: List[ApplicationExecuted] = []
-            
+
             # Cache the block
             self._block_cache[block.hash] = block
-            
+
             # Update current block
             self._current_block = block
-            
+
             # Set genesis if first block
             if block.index == 0:
                 self._genesis_block = block
-            
+
             # Fire persist callbacks
             for callback in self._on_persist:
                 callback(block)
-            
+
+            # Fire committed callbacks
+            for callback in self._on_committed:
+                callback(block)
+
             return results
     
     def on_persist(self, callback: Callable[["Block"], None]) -> None:

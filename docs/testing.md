@@ -30,6 +30,8 @@ pytest tests/vm/test_numeric.py::test_add_basic
 
 # Run tests matching pattern
 pytest -k "add"
+```
+
 ### Coverage
 
 ```bash
@@ -38,6 +40,8 @@ pytest --cov=neo --cov-report=html
 
 # View coverage report
 open htmlcov/index.html
+```
+
 ### Test Categories
 
 ```bash
@@ -252,11 +256,24 @@ neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
 
+# Ignore known external deltas (newline-delimited file)
+neo-compat --vectors tests/vectors/ \
+           --csharp-rpc http://seed1.neo.org:10332 \
+           --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
+           --ignore-vectors-file docs/verification/neogo-0.116-known-deltas.txt
+
 # Compare C# vs NeoGo vs neo-rs using shared vectors
 neo-multicompat --vectors tests/vectors/ \
                 --csharp-rpc http://seed1.neo.org:10332 \
                 --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
                 --neo-rs-rpc http://127.0.0.1:40332
+
+# Triplet mode also supports ignore lists
+neo-multicompat --vectors tests/vectors/ \
+                --csharp-rpc http://seed1.neo.org:10332 \
+                --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
+                --neo-rs-rpc http://127.0.0.1:40332 \
+                --ignore-vectors-file docs/verification/neogo-0.116-known-deltas.txt
 ```
 
 ### Local neo-rs Helper Scripts

@@ -5,16 +5,19 @@ Reference: Neo.Network.P2P.Payloads.Block
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import List, Optional, TYPE_CHECKING
 
-from neo.types.uint256 import UInt256
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, List, Optional
+
 from neo.network.payloads.header import Header
 from neo.network.payloads.transaction import Transaction
+from neo.types.uint256 import UInt256
 
 if TYPE_CHECKING:
     from neo.io.binary_reader import BinaryReader
     from neo.io.binary_writer import BinaryWriter
+
+MAX_TRANSACTIONS_PER_BLOCK = 512
 
 
 @dataclass
@@ -39,7 +42,7 @@ class Block(Header):
         self._serialize_unsigned(writer)
         return writer.to_bytes()
     
-    def serialize(self, writer: "BinaryWriter") -> None:
+    def serialize(self, writer: BinaryWriter) -> None:
         """Serialize the block."""
         super().serialize(writer)
         writer.write_var_int(len(self.transactions))
@@ -47,10 +50,10 @@ class Block(Header):
             tx.serialize(writer)
     
     @classmethod
-    def deserialize(cls, reader: "BinaryReader") -> "Block":
+    def deserialize(cls, reader: BinaryReader) -> Block:
         """Deserialize a block."""
         header = Header.deserialize(reader)
-        tx_count = reader.read_var_int(0xFFFF)
+        tx_count = reader.read_var_int(MAX_TRANSACTIONS_PER_BLOCK)
         transactions = [Transaction.deserialize(reader) for _ in range(tx_count)]
         
         return cls(

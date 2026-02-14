@@ -15,6 +15,10 @@ if TYPE_CHECKING:
     from neo.io.binary_writer import BinaryWriter
 
 
+MAX_NESTING_DEPTH = 2
+MAX_SUBITEMS = 16
+
+
 class WitnessConditionType(IntEnum):
     """Types of witness conditions."""
     BOOLEAN = 0x00
@@ -47,8 +51,12 @@ class WitnessCondition(ABC):
         pass
     
     @staticmethod
-    def deserialize(reader: "BinaryReader") -> "WitnessCondition":
+    def deserialize(reader: "BinaryReader", depth: int = 0) -> "WitnessCondition":
         """Deserialize a condition."""
+        if depth > MAX_NESTING_DEPTH:
+            raise ValueError(
+                f"WitnessCondition nesting depth exceeds {MAX_NESTING_DEPTH}"
+            )
         ctype = WitnessConditionType(reader.read_byte())
         if ctype == WitnessConditionType.BOOLEAN:
             return BooleanCondition.deserialize_body(reader)
@@ -63,11 +71,11 @@ class WitnessCondition(ABC):
         elif ctype == WitnessConditionType.CALLED_BY_GROUP:
             return CalledByGroupCondition.deserialize_body(reader)
         elif ctype == WitnessConditionType.NOT:
-            return NotCondition.deserialize_body(reader)
+            return NotCondition.deserialize_body(reader, depth)
         elif ctype == WitnessConditionType.AND:
-            return AndCondition.deserialize_body(reader)
+            return AndCondition.deserialize_body(reader, depth)
         elif ctype == WitnessConditionType.OR:
-            return OrCondition.deserialize_body(reader)
+            return OrCondition.deserialize_body(reader, depth)
         else:
             raise ValueError(f"Unknown condition type: {ctype}")
 
@@ -217,8 +225,8 @@ class NotCondition(WitnessCondition):
             self.expression.serialize(writer)
     
     @staticmethod
-    def deserialize_body(reader: "BinaryReader") -> "NotCondition":
-        expr = WitnessCondition.deserialize(reader)
+    def deserialize_body(reader: "BinaryReader", depth: int = 0) -> "NotCondition":
+        expr = WitnessCondition.deserialize(reader, depth + 1)
         return NotCondition(expression=expr)
 
 
@@ -244,9 +252,9 @@ class AndCondition(WitnessCondition):
             expr.serialize(writer)
     
     @staticmethod
-    def deserialize_body(reader: "BinaryReader") -> "AndCondition":
-        count = reader.read_var_int(16)
-        exprs = [WitnessCondition.deserialize(reader) for _ in range(count)]
+    def deserialize_body(reader: "BinaryReader", depth: int = 0) -> "AndCondition":
+        count = reader.read_var_int(MAX_SUBITEMS)
+        exprs = [WitnessCondition.deserialize(reader, depth + 1) for _ in range(count)]
         return AndCondition(expressions=exprs)
 
 
@@ -272,7 +280,7 @@ class OrCondition(WitnessCondition):
             expr.serialize(writer)
     
     @staticmethod
-    def deserialize_body(reader: "BinaryReader") -> "OrCondition":
-        count = reader.read_var_int(16)
-        exprs = [WitnessCondition.deserialize(reader) for _ in range(count)]
+    def deserialize_body(reader: "BinaryReader", depth: int = 0) -> "OrCondition":
+        count = reader.read_var_int(MAX_SUBITEMS)
+        exprs = [WitnessCondition.deserialize(reader, depth + 1) for _ in range(count)]
         return OrCondition(expressions=exprs)
