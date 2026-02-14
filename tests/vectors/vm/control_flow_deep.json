@@ -238,6 +238,20 @@
       }
     },
     {
+      "name": "JMPGT_false",
+      "description": "JMPGT false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x13192c031411",
+      "post": {
+        "stack": [
+          4,
+          1
+        ]
+      }
+    },
+    {
       "name": "JMPGT_L_true",
       "description": "JMPGT_L true branch",
       "pre": {
@@ -246,6 +260,20 @@
       "script": "0x19132d060000001411",
       "post": {
         "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPGT_L_false",
+      "description": "JMPGT_L false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x13192d060000001411",
+      "post": {
+        "stack": [
+          4,
           1
         ]
       }
@@ -264,6 +292,20 @@
       }
     },
     {
+      "name": "JMPGE_false",
+      "description": "JMPGE false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x13142e031911",
+      "post": {
+        "stack": [
+          9,
+          1
+        ]
+      }
+    },
+    {
       "name": "JMPGE_L_equal",
       "description": "JMPGE_L equal branch",
       "pre": {
@@ -272,6 +314,20 @@
       "script": "0x14142f060000001911",
       "post": {
         "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPGE_L_false",
+      "description": "JMPGE_L false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x13142f060000001911",
+      "post": {
+        "stack": [
+          9,
           1
         ]
       }
@@ -290,6 +346,20 @@
       }
     },
     {
+      "name": "JMPLT_false",
+      "description": "JMPLT false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x131230031411",
+      "post": {
+        "stack": [
+          4,
+          1
+        ]
+      }
+    },
+    {
       "name": "JMPLT_L_true",
       "description": "JMPLT_L true branch",
       "pre": {
@@ -298,6 +368,20 @@
       "script": "0x121331060000001411",
       "post": {
         "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPLT_L_false",
+      "description": "JMPLT_L false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x131231060000001411",
+      "post": {
+        "stack": [
+          4,
           1
         ]
       }
@@ -316,6 +400,20 @@
       }
     },
     {
+      "name": "JMPLE_false",
+      "description": "JMPLE false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x151432031911",
+      "post": {
+        "stack": [
+          9,
+          1
+        ]
+      }
+    },
+    {
       "name": "JMPLE_L_equal",
       "description": "JMPLE_L equal branch",
       "pre": {
@@ -324,6 +422,20 @@
       "script": "0x141433060000001911",
       "post": {
         "stack": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "JMPLE_L_false",
+      "description": "JMPLE_L false branch",
+      "pre": {
+        "stack": []
+      },
+      "script": "0x151433060000001911",
+      "post": {
+        "stack": [
+          9,
           1
         ]
       }

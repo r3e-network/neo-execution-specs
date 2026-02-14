@@ -204,10 +204,22 @@
       "JMPIFNOT_L_false",
       "JMPEQ_L_true",
       "JMPNE_L_true",
+      "JMPGT_true",
+      "JMPGT_false",
       "JMPGT_L_true",
+      "JMPGT_L_false",
+      "JMPGE_equal",
+      "JMPGE_false",
       "JMPGE_L_equal",
+      "JMPGE_L_false",
+      "JMPLT_true",
+      "JMPLT_false",
       "JMPLT_L_true",
-      "JMPLE_L_equal"
+      "JMPLT_L_false",
+      "JMPLE_equal",
+      "JMPLE_false",
+      "JMPLE_L_equal",
+      "JMPLE_L_false"
     ],
     "evidence": []
   },
@@ -339,7 +351,13 @@
     ]
   },
   "vm/runtime/exception_handling": {
-    "vectors": [],
+    "vectors": [
+      "TRY_with_throw_catch",
+      "ABORTMSG_fault",
+      "ASSERTMSG_false_fault",
+      "ASSERTMSG_true",
+      "CONTROL_THROW_fault"
+    ],
     "evidence": [
       "pytest tests/vm/test_exception_handling.py -q"
     ]
@@ -757,7 +775,11 @@
       "STATE_exec_try_l_no_exception",
       "STATE_exec_memcpy_basic",
       "STATE_exec_newarray_t_integer",
-      "STATE_exec_abortmsg_fault"
+      "STATE_exec_abortmsg_fault",
+      "STATE_exec_jmpgt_l_false",
+      "STATE_exec_packmap_size2",
+      "STATE_exec_initslot_starg0_roundtrip",
+      "STATE_exec_assertmsg_true"
     ],
     "evidence": []
   },

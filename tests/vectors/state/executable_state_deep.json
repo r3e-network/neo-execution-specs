@@ -118,6 +118,98 @@
         }
       },
       "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_jmpgt_l_false",
+      "description": "Script-backed state vector: JMPGT_L false-path branch",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x13192d060000001411",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_packmap_size2",
+      "description": "Script-backed state vector: PACKMAP with two key/value pairs",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x1112131412be4aca",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_initslot_starg0_roundtrip",
+      "description": "Script-backed state vector: INITSLOT + STARG0 roundtrip",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x11570001138078",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
+    },
+    {
+      "name": "STATE_exec_assertmsg_true",
+      "description": "Script-backed state vector: ASSERTMSG success path",
+      "transaction": {
+        "type": "InvocationTransaction",
+        "script": "0x110c026f6be1",
+        "sender": "NdzDummyStateSender11111111111111111111",
+        "signers": [
+          "NdzDummyStateSender11111111111111111111"
+        ]
+      },
+      "pre_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "post_state": {
+        "balances": {
+          "sender": 1
+        }
+      },
+      "gas_consumed": 0
     }
   ]
 }
