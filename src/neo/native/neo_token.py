@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple
+from typing import Any, Iterator, List, Optional, Tuple
 
+from neo.crypto import hash160
+from neo.crypto.ecc.point import ECPoint
+from neo.hardfork import Hardfork
 from neo.types import UInt160
 from neo.native.fungible_token import FungibleToken, AccountState, PREFIX_ACCOUNT
 from neo.native.native_contract import CallFlags, StorageItem
@@ -124,9 +127,11 @@ class NeoToken(FungibleToken):
         """NEO has a fixed initial supply of 100 million."""
         return self.TOTAL_AMOUNT
 
-    @property
-    def total_supply(self) -> int:  # type: ignore[override]
-        """Total supply of NEO - returns initial supply (100 million)."""
+    def total_supply(self, snapshot: Any = None) -> int:  # type: ignore[override]
+        """Total supply of NEO.
+
+        NEO has a fixed total supply, so this remains constant regardless of snapshot.
+        """
         return self.initial_supply
 
     def _register_methods(self) -> None:
@@ -157,20 +162,38 @@ class NeoToken(FungibleToken):
             call_flags=CallFlags.STATES,
         )
         self._register_method(
-            "registerCandidate", self.register_candidate, call_flags=CallFlags.STATES
+            "registerCandidate", self.register_candidate, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY
         )
         self._register_method(
             "unregisterCandidate",
             self.unregister_candidate,
             cpu_fee=1 << 16,
-            call_flags=CallFlags.STATES,
+            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
         )
-        self._register_method("vote", self.vote, cpu_fee=1 << 16, call_flags=CallFlags.STATES)
+        self._register_method("vote", self.vote, cpu_fee=1 << 16, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
         self._register_method(
             "getCandidates", self.get_candidates, cpu_fee=1 << 22, call_flags=CallFlags.READ_STATES
         )
         self._register_method(
+            "getAllCandidates",
+            self.get_all_candidates,
+            cpu_fee=1 << 22,
+            call_flags=CallFlags.READ_STATES,
+        )
+        self._register_method(
+            "getCandidateVote",
+            self.get_candidate_vote,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.READ_STATES,
+        )
+        self._register_method(
             "getCommittee", self.get_committee, cpu_fee=1 << 16, call_flags=CallFlags.READ_STATES
+        )
+        self._register_method(
+            "getCommitteeAddress",
+            self.get_committee_address,
+            cpu_fee=1 << 16,
+            call_flags=CallFlags.READ_STATES,
         )
         self._register_method(
             "getNextBlockValidators",
@@ -184,6 +207,41 @@ class NeoToken(FungibleToken):
             cpu_fee=1 << 15,
             call_flags=CallFlags.READ_STATES,
         )
+        self._register_method(
+            "onNEP17Payment", self.on_nep17_payment, cpu_fee=0, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY
+        )
+
+    def _register_events(self) -> None:
+        """Register NEO-specific events."""
+        super()._register_events()
+        self._register_event(
+            "CandidateStateChanged",
+            [("pubkey", "PublicKey"), ("registered", "Boolean"), ("votes", "Integer")],
+            order=1,
+        )
+        self._register_event(
+            "Vote",
+            [
+                ("account", "Hash160"),
+                ("from", "PublicKey"),
+                ("to", "PublicKey"),
+                ("amount", "Integer"),
+            ],
+            order=2,
+        )
+        self._register_event(
+            "CommitteeChanged",
+            [("old", "Array"), ("new", "Array")],
+            order=3,
+            active_in=Hardfork.HF_COCKATRICE,
+        )
+
+    def _native_supported_standards(self, context: Any) -> list[str]:
+        standards = ["NEP-17"]
+        settings, _ = self._hardfork_context(context)
+        if settings is not None and self.is_hardfork_enabled(context, Hardfork.HF_ECHIDNA):
+            standards.append("NEP-27")
+        return standards
 
     def get_total_supply(self, snapshot: Any) -> int:
         """NEO has fixed supply."""
@@ -273,15 +331,34 @@ class NeoToken(FungibleToken):
 
         return neo_holder_reward + vote_reward
 
-    def register_candidate(self, engine: Any, pubkey: bytes) -> bool:
+    @staticmethod
+    def _pubkey_bytes(pubkey: ECPoint | bytes | None) -> bytes | None:
+        if pubkey is None:
+            return None
+        if isinstance(pubkey, bytes):
+            return pubkey
+        encoder = getattr(pubkey, "encode", None)
+        if callable(encoder):
+            try:
+                encoded = encoder(compressed=True)
+            except TypeError:
+                encoded = encoder()
+            if isinstance(encoded, (bytes, bytearray, memoryview)):
+                return bytes(encoded)
+        return bytes(pubkey)
+
+    def register_candidate(self, engine: Any, pubkey: ECPoint) -> bool:
         """Register as a candidate."""
-        if not engine.check_witness_pubkey(pubkey):
+        pubkey_bytes = self._pubkey_bytes(pubkey)
+        if pubkey_bytes is None:
+            return False
+        if not engine.check_witness_pubkey(pubkey_bytes):
             return False
 
         # Charge registration fee
         engine.add_fee(self.get_register_price(engine.snapshot))
 
-        key = self._create_storage_key(PREFIX_CANDIDATE, pubkey)
+        key = self._create_storage_key(PREFIX_CANDIDATE, pubkey_bytes)
         item = engine.snapshot.get_and_change(key, lambda: StorageItem(CandidateState().to_bytes()))
         state = CandidateState.from_bytes(item.value)
 
@@ -291,15 +368,18 @@ class NeoToken(FungibleToken):
         state.registered = True
         item.value = state.to_bytes()
 
-        engine.send_notification(self.hash, "CandidateStateChanged", [pubkey, True, state.votes])
+        engine.send_notification(self.hash, "CandidateStateChanged", [pubkey_bytes, True, state.votes])
         return True
 
-    def unregister_candidate(self, engine: Any, pubkey: bytes) -> bool:
+    def unregister_candidate(self, engine: Any, pubkey: ECPoint) -> bool:
         """Unregister as a candidate."""
-        if not engine.check_witness_pubkey(pubkey):
+        pubkey_bytes = self._pubkey_bytes(pubkey)
+        if pubkey_bytes is None:
+            return False
+        if not engine.check_witness_pubkey(pubkey_bytes):
             return False
 
-        key = self._create_storage_key(PREFIX_CANDIDATE, pubkey)
+        key = self._create_storage_key(PREFIX_CANDIDATE, pubkey_bytes)
         item = engine.snapshot.get(key)
         if item is None:
             return True
@@ -311,9 +391,9 @@ class NeoToken(FungibleToken):
 
         state.registered = False
         item.value = state.to_bytes()
-        self._check_candidate(engine.snapshot, pubkey, state)
+        self._check_candidate(engine.snapshot, pubkey_bytes, state)
 
-        engine.send_notification(self.hash, "CandidateStateChanged", [pubkey, False, state.votes])
+        engine.send_notification(self.hash, "CandidateStateChanged", [pubkey_bytes, False, state.votes])
         return True
 
     def _check_candidate(self, snapshot: Any, pubkey: bytes, candidate: CandidateState) -> None:
@@ -324,11 +404,15 @@ class NeoToken(FungibleToken):
             reward_key = self._create_storage_key(PREFIX_VOTER_REWARD_PER_COMMITTEE, pubkey)
             snapshot.delete(reward_key)
 
-    def vote(self, engine: Any, account: UInt160, vote_to: Optional[bytes]) -> bool:
+    def vote(self, engine: Any, account: UInt160, vote_to: Optional[ECPoint]) -> bool:
         """Vote for a candidate."""
         if not engine.check_witness(account):
             return False
+        return self.vote_internal(engine, account, vote_to)
 
+    def vote_internal(self, engine: Any, account: UInt160, vote_to: Optional[ECPoint]) -> bool:
+        """Internal vote update that skips witness checks."""
+        vote_to_bytes = self._pubkey_bytes(vote_to)
         key = self._create_storage_key(PREFIX_ACCOUNT, account.data)
         item = engine.snapshot.get_and_change(key)
         if item is None:
@@ -339,8 +423,8 @@ class NeoToken(FungibleToken):
             return False
 
         # Validate new candidate
-        if vote_to is not None:
-            cand_key = self._create_storage_key(PREFIX_CANDIDATE, vote_to)
+        if vote_to_bytes is not None:
+            cand_key = self._create_storage_key(PREFIX_CANDIDATE, vote_to_bytes)
             cand_item = engine.snapshot.get(cand_key)
             if cand_item is None:
                 return False
@@ -350,7 +434,7 @@ class NeoToken(FungibleToken):
 
         # Update voters count
         voters_key = self._create_storage_key(PREFIX_VOTERS_COUNT)
-        if (state.vote_to is None) != (vote_to is None):
+        if (state.vote_to is None) != (vote_to_bytes is None):
             voters_item = engine.snapshot.get_and_change(voters_key, lambda: StorageItem())
             if state.vote_to is None:
                 voters_item.add(state.balance)
@@ -369,16 +453,16 @@ class NeoToken(FungibleToken):
                 self._check_candidate(engine.snapshot, state.vote_to, old_cand)
 
         # Add votes to new candidate
-        state.vote_to = vote_to
-        if vote_to is not None:
-            new_key = self._create_storage_key(PREFIX_CANDIDATE, vote_to)
+        state.vote_to = vote_to_bytes
+        if vote_to_bytes is not None:
+            new_key = self._create_storage_key(PREFIX_CANDIDATE, vote_to_bytes)
             new_item = engine.snapshot.get_and_change(new_key)
             new_cand = CandidateState.from_bytes(new_item.value)
             new_cand.votes += state.balance
             new_item.value = new_cand.to_bytes()
 
         item.value = state.to_bytes()
-        engine.send_notification(self.hash, "Vote", [account, old_vote, vote_to, state.balance])
+        engine.send_notification(self.hash, "Vote", [account, old_vote, vote_to_bytes, state.balance])
         return True
 
     def get_candidates(self, snapshot: Any) -> List[Tuple[bytes, int]]:
@@ -392,6 +476,22 @@ class NeoToken(FungibleToken):
                 candidates.append((pubkey, state.votes))
         return candidates[:256]  # Max 256 candidates
 
+    def get_all_candidates(self, snapshot: Any) -> Iterator[Tuple[bytes, int]]:
+        """Get an iterator over registered candidates and votes."""
+        return iter(self.get_candidates(snapshot))
+
+    def get_candidate_vote(self, snapshot: Any, pubkey: ECPoint) -> int:
+        """Get vote count for a candidate, or -1 if candidate is not registered."""
+        pubkey_bytes = self._pubkey_bytes(pubkey)
+        if pubkey_bytes is None:
+            return -1
+        key = self._create_storage_key(PREFIX_CANDIDATE, pubkey_bytes)
+        item = snapshot.get(key)
+        if item is None:
+            return -1
+        state = CandidateState.from_bytes(item.value)
+        return state.votes if state.registered else -1
+
     def get_committee(self, snapshot: Any) -> List[bytes]:
         """Get the current committee members."""
         key = self._create_storage_key(PREFIX_COMMITTEE)
@@ -399,6 +499,18 @@ class NeoToken(FungibleToken):
         if item is None:
             return []
         return self._parse_committee(item.value)
+
+    def get_committee_address(self, snapshot: Any) -> UInt160:
+        """Get committee multisig address from current committee membership."""
+        committee = self.get_committee(snapshot)
+        if not committee:
+            return UInt160.ZERO
+
+        threshold = len(committee) - (len(committee) - 1) // 3
+        from neo.protocol_settings import ProtocolSettings
+
+        script = ProtocolSettings._create_multisig_redeem_script(threshold, committee)
+        return UInt160(hash160(script))
 
     def _parse_committee(self, data: bytes) -> List[bytes]:
         """Parse committee from serialized data."""
@@ -427,6 +539,18 @@ class NeoToken(FungibleToken):
         if item is None:
             return None
         return self._get_account_state(item)
+
+    def on_nep17_payment(
+        self, engine: Any, from_account: Optional[UInt160], amount: int, data: Any
+    ) -> None:
+        """NEO accepts NEP-17 payments only from GAS contract."""
+        gas_contract = self.get_contract_by_name("GasToken")
+        if gas_contract is None:
+            return
+
+        caller = getattr(engine, "calling_script_hash", None)
+        if caller != gas_contract.hash:
+            raise ValueError("Only GAS contract can call this method")
 
     def initialize(self, engine: Any) -> None:
         """Initialize NEO token on genesis."""

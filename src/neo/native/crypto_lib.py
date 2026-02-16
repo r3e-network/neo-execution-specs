@@ -20,6 +20,10 @@ class NamedCurveHash(IntEnum):
     secp256r1Keccak256 = 25
 
 
+class _BlsPoint:
+    """Manifest marker type for BLS interop objects."""
+
+
 class CryptoLib(NativeContract):
     """Cryptographic functions native contract.
 
@@ -307,7 +311,7 @@ class CryptoLib(NativeContract):
 
     # ========== BLS12-381 Operations ==========
 
-    def bls12381_serialize(self, point: Any) -> bytes:
+    def bls12381_serialize(self, point: _BlsPoint) -> bytes:
         """Serialize a BLS12-381 point.
 
         Args:
@@ -327,7 +331,7 @@ class CryptoLib(NativeContract):
         else:
             raise ValueError("BLS12-381 type mismatch")
 
-    def bls12381_deserialize(self, data: bytes) -> Any:
+    def bls12381_deserialize(self, data: bytes) -> _BlsPoint:
         """Deserialize a BLS12-381 point.
 
         Args:
@@ -345,7 +349,7 @@ class CryptoLib(NativeContract):
         else:
             raise ValueError("Invalid BLS12-381 point length")
 
-    def bls12381_equal(self, x: Any, y: Any) -> bool:
+    def bls12381_equal(self, x: _BlsPoint, y: _BlsPoint) -> bool:
         """Check if two BLS12-381 points are equal.
 
         Args:
@@ -368,7 +372,7 @@ class CryptoLib(NativeContract):
         else:
             raise ValueError("BLS12-381 type mismatch")
 
-    def bls12381_add(self, x: Any, y: Any) -> Any:
+    def bls12381_add(self, x: _BlsPoint, y: _BlsPoint) -> _BlsPoint:
         """Add two BLS12-381 points.
 
         Args:
@@ -390,7 +394,7 @@ class CryptoLib(NativeContract):
         else:
             raise ValueError("BLS12-381 type mismatch")
 
-    def bls12381_mul(self, x: Any, mul: bytes, neg: bool) -> Any:
+    def bls12381_mul(self, x: _BlsPoint, mul: bytes, neg: bool) -> _BlsPoint:
         """Multiply a BLS12-381 point by a scalar.
 
         Args:
@@ -417,7 +421,7 @@ class CryptoLib(NativeContract):
         else:
             raise ValueError("BLS12-381 type mismatch")
 
-    def bls12381_pairing(self, g1: Any, g2: Any) -> Any:
+    def bls12381_pairing(self, g1: _BlsPoint, g2: _BlsPoint) -> _BlsPoint:
         """Compute BLS12-381 pairing.
 
         Args:
@@ -438,8 +442,8 @@ class CryptoLib(NativeContract):
         return self._compute_pairing(g1, g2)
 
     # ========== BLS12-381 Internal Methods ==========
-    # These are placeholder implementations. Full BLS12-381 requires
-    # a proper cryptographic library like py_ecc or blspy.
+    # These wrappers delegate to BLS types. Cryptographic arithmetic
+    # requires py_ecc and fails closed when unavailable.
 
     def _g1_to_compressed(self, point: Any) -> bytes:
         """Compress G1 point to 48 bytes."""

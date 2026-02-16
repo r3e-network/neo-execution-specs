@@ -6,6 +6,8 @@ from typing import Any, Optional, List
 
 from neo.types import UInt256
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
+from neo.network.payloads.block import Block
+from neo.network.payloads.transaction import Transaction
 
 
 # Storage prefixes
@@ -43,9 +45,31 @@ class TransactionState:
     state: int = 0  # VMState: 0=NONE, 1=HALT, 2=FAULT
     
     def to_bytes(self) -> bytes:
-        data = self.block_index.to_bytes(4, 'little')
-        data += bytes([self.state])
-        return data
+        from neo.io.binary_writer import BinaryWriter
+
+        writer = BinaryWriter()
+        writer.write_uint32(self.block_index)
+        writer.write_byte(self.state)
+        writer.write_var_bytes(self._serialize_transaction(self.transaction))
+        return writer.to_bytes()
+
+    @staticmethod
+    def _serialize_transaction(transaction: Optional[Any]) -> bytes:
+        if transaction is None:
+            return b""
+        if isinstance(transaction, (bytes, bytearray)):
+            return bytes(transaction)
+        to_bytes = getattr(transaction, "to_bytes", None)
+        if callable(to_bytes):
+            return bytes(to_bytes())
+        serialize = getattr(transaction, "serialize", None)
+        if callable(serialize):
+            from neo.io.binary_writer import BinaryWriter
+
+            writer = BinaryWriter()
+            serialize(writer)
+            return writer.to_bytes()
+        return b""
     
     @classmethod
     def from_bytes(cls, data: bytes) -> 'TransactionState':
@@ -54,6 +78,22 @@ class TransactionState:
             state.block_index = int.from_bytes(data[:4], 'little')
             if len(data) > 4:
                 state.state = data[4]
+            if len(data) > 5:
+                from neo.io.binary_reader import BinaryReader
+                from neo.network.payloads.transaction import Transaction
+
+                try:
+                    reader = BinaryReader(data[5:])
+                    tx_bytes = reader.read_var_bytes(max_length=len(data) - 5)
+                except Exception:
+                    # Backwards compatibility with older storage format.
+                    tx_bytes = b""
+                if tx_bytes:
+                    try:
+                        tx_reader = BinaryReader(tx_bytes)
+                        state.transaction = Transaction.deserialize(tx_reader)
+                    except Exception:
+                        state.transaction = tx_bytes
         return state
 
 
@@ -134,7 +174,7 @@ class LedgerContract(NativeContract):
             return None
         return TransactionState.from_bytes(item.value)
     
-    def get_block(self, engine: Any, index_or_hash: bytes) -> Optional[Any]:
+    def get_block(self, engine: Any, index_or_hash: bytes) -> Optional[Block]:
         """Get a block by index or hash."""
         if len(index_or_hash) < 32:
             index = int.from_bytes(index_or_hash, 'little')
@@ -149,7 +189,7 @@ class LedgerContract(NativeContract):
         item = engine.snapshot.get(key)
         return item.value if item else None
     
-    def get_transaction(self, engine: Any, hash: UInt256) -> Optional[Any]:
+    def get_transaction(self, engine: Any, hash: UInt256) -> Optional[Transaction]:
         """Get a transaction by hash."""
         state = self.get_transaction_state(engine.snapshot, hash)
         if state is None:
@@ -177,9 +217,13 @@ class LedgerContract(NativeContract):
             return 0  # NONE
         return state.state
     
-    def get_transaction_from_block(self, engine: Any, block_index_or_hash: bytes, 
-                                   tx_index: int) -> Optional[Any]:
+    def get_transaction_from_block(
+        self, engine: Any, block_index_or_hash: bytes, tx_index: int
+    ) -> Optional[Transaction]:
         """Get a transaction from a block by index."""
+        if tx_index < 0:
+            return None
+
         if len(block_index_or_hash) < 32:
             index = int.from_bytes(block_index_or_hash, 'little')
             hash = self.get_block_hash(engine.snapshot, index)
@@ -193,30 +237,72 @@ class LedgerContract(NativeContract):
         block = self.get_block(engine, hash.data)
         if block is None:
             return None
-        
-        # In real impl, would parse block and get tx at index
+
+        txs = self._extract_block_transactions(block)
+        if txs is None or tx_index >= len(txs):
+            return None
+        return txs[tx_index]
+
+    @staticmethod
+    def _extract_block_transactions(block: Any) -> Optional[List[Any]]:
+        txs = getattr(block, "transactions", None)
+        if txs is not None:
+            return list(txs)
+
+        if isinstance(block, (bytes, bytearray)):
+            from neo.io.binary_reader import BinaryReader
+            from neo.network.payloads.block import Block
+
+            try:
+                reader = BinaryReader(bytes(block))
+                parsed = Block.deserialize(reader)
+                return list(parsed.transactions)
+            except Exception:
+                return None
+
         return None
+
+    @staticmethod
+    def _serialize_block(block: Any) -> bytes:
+        if isinstance(block, (bytes, bytearray)):
+            return bytes(block)
+
+        to_bytes = getattr(block, "to_bytes", None)
+        if callable(to_bytes):
+            return bytes(to_bytes())
+
+        serialize = getattr(block, "serialize", None)
+        if callable(serialize):
+            from neo.io.binary_writer import BinaryWriter
+
+            writer = BinaryWriter()
+            serialize(writer)
+            return writer.to_bytes()
+
+        raise TypeError("Block does not support byte serialization")
     
     def on_persist(self, engine: Any) -> None:
         """Store block and transactions when persisting."""
         block = engine.persisting_block
+        block_hash = block.hash.data if hasattr(block.hash, "data") else bytes(block.hash)
         
         # Store block hash by index
         hash_key = self._create_storage_key(PREFIX_BLOCK_HASH, block.index)
-        engine.snapshot.add(hash_key, StorageItem(block.hash.data))
+        engine.snapshot.add(hash_key, StorageItem(block_hash))
         
         # Store block
-        block_key = self._create_storage_key(PREFIX_BLOCK, block.hash.data)
-        engine.snapshot.add(block_key, StorageItem(block.to_bytes()))
+        block_key = self._create_storage_key(PREFIX_BLOCK, block_hash)
+        engine.snapshot.add(block_key, StorageItem(self._serialize_block(block)))
         
         # Store transactions
         for tx in block.transactions:
+            tx_hash = tx.hash.data if hasattr(tx.hash, "data") else bytes(tx.hash)
             tx_state = TransactionState(
                 block_index=block.index,
                 transaction=tx,
                 state=0  # NONE initially
             )
-            tx_key = self._create_storage_key(PREFIX_TRANSACTION, tx.hash.data)
+            tx_key = self._create_storage_key(PREFIX_TRANSACTION, tx_hash)
             engine.snapshot.add(tx_key, StorageItem(tx_state.to_bytes()))
     
     def post_persist(self, engine: Any) -> None:

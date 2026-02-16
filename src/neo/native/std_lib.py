@@ -8,6 +8,7 @@ from typing import Any, List
 
 import regex  # type: ignore[import-untyped]
 
+from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract
 
 # Base58 alphabet
@@ -40,7 +41,9 @@ class StdLib(NativeContract):
         self._register_method(
             "jsonDeserialize", self.json_deserialize, cpu_fee=1 << 14, call_flags=CallFlags.NONE
         )
+        self._register_method("itoa", self.itoa_base10, cpu_fee=1 << 12, call_flags=CallFlags.NONE)
         self._register_method("itoa", self.itoa, cpu_fee=1 << 12, call_flags=CallFlags.NONE)
+        self._register_method("atoi", self.atoi_base10, cpu_fee=1 << 6, call_flags=CallFlags.NONE)
         self._register_method("atoi", self.atoi, cpu_fee=1 << 6, call_flags=CallFlags.NONE)
         self._register_method(
             "base64Encode", self.base64_encode, cpu_fee=1 << 5, call_flags=CallFlags.NONE
@@ -70,7 +73,16 @@ class StdLib(NativeContract):
             "memoryCompare", self.memory_compare, cpu_fee=1 << 5, call_flags=CallFlags.NONE
         )
         self._register_method(
+            "memorySearch", self.memory_search_from_start, cpu_fee=1 << 6, call_flags=CallFlags.NONE
+        )
+        self._register_method(
+            "memorySearch", self.memory_search_with_start, cpu_fee=1 << 6, call_flags=CallFlags.NONE
+        )
+        self._register_method(
             "memorySearch", self.memory_search, cpu_fee=1 << 6, call_flags=CallFlags.NONE
+        )
+        self._register_method(
+            "stringSplit", self.string_split_keep_empty, cpu_fee=1 << 8, call_flags=CallFlags.NONE
         )
         self._register_method(
             "stringSplit", self.string_split, cpu_fee=1 << 8, call_flags=CallFlags.NONE
@@ -78,17 +90,33 @@ class StdLib(NativeContract):
         self._register_method("strLen", self.str_len, cpu_fee=1 << 8, call_flags=CallFlags.NONE)
         # Hardfork HF_Echidna methods
         self._register_method(
-            "base64UrlEncode", self.base64_url_encode, cpu_fee=1 << 5, call_flags=CallFlags.NONE
+            "base64UrlEncode",
+            self.base64_url_encode,
+            cpu_fee=1 << 5,
+            call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_ECHIDNA,
         )
         self._register_method(
-            "base64UrlDecode", self.base64_url_decode, cpu_fee=1 << 5, call_flags=CallFlags.NONE
+            "base64UrlDecode",
+            self.base64_url_decode,
+            cpu_fee=1 << 5,
+            call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_ECHIDNA,
         )
         # Hardfork HF_Faun methods
         self._register_method(
-            "hexEncode", self.hex_encode, cpu_fee=1 << 5, call_flags=CallFlags.NONE
+            "hexEncode",
+            self.hex_encode,
+            cpu_fee=1 << 5,
+            call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_FAUN,
         )
         self._register_method(
-            "hexDecode", self.hex_decode, cpu_fee=1 << 5, call_flags=CallFlags.NONE
+            "hexDecode",
+            self.hex_decode,
+            cpu_fee=1 << 5,
+            call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_FAUN,
         )
 
     def serialize(self, item: Any) -> bytes:
@@ -251,22 +279,34 @@ class StdLib(NativeContract):
     def itoa(self, value: int, base: int = 10) -> str:
         """Convert an integer to a string.
 
-        For base 16 with negative numbers, uses two's complement representation
-        matching C# BigInteger.ToString("X") behavior.
+        For base 16, follows Neo/.NET BigInteger formatting semantics.
         """
         if base == 10:
             return str(value)
         elif base == 16:
-            if value < 0:
-                # Use two's complement representation, matching C# BigInteger.ToString("X")
-                # Convert to bytes then to hex
-                byte_len = (value.bit_length() + 8) // 8  # Include sign bit
-                bytes_val = value.to_bytes(byte_len, "big", signed=True)
-                return bytes_val.hex().upper()
-            else:
-                return format(value, "X")
+            if value >= 0:
+                text = format(value, "x")
+                # Keep positive values positive when parsed back from hex.
+                if text and text[0] in "89abcdef":
+                    return f"0{text}"
+                return text
+
+            # Encode negatives using minimal 2's-complement nibble width.
+            nbits = 4
+            while value < -(1 << (nbits - 1)):
+                nbits += 4
+            twos = (1 << nbits) + value
+            text = format(twos, "x")
+            # Trim redundant sign-extension nibbles.
+            while len(text) > 1 and text[0] == "f" and text[1] in "89abcdef":
+                text = text[1:]
+            return text
         else:
             raise ValueError(f"Invalid base: {base}")
+
+    def itoa_base10(self, value: int) -> str:
+        """Overload shim for itoa(value)."""
+        return self.itoa(value, 10)
 
     def atoi(self, value: str, base: int = 10) -> int:
         """Convert a string to an integer."""
@@ -276,10 +316,24 @@ class StdLib(NativeContract):
         if base == 10:
             return int(value, 10)
         elif base == 16:
-            # Hex conversion - use unsigned interpretation
-            return int(value, 16)
+            if value.startswith(("-", "+")):
+                return int(value, 16)
+
+            normalized = value.lower().removeprefix("0x")
+            if not normalized:
+                return 0
+
+            unsigned = int(normalized, 16)
+            bits = len(normalized) * 4
+            if normalized[0] in "89abcdef":
+                return unsigned - (1 << bits)
+            return unsigned
         else:
             raise ValueError(f"Invalid base: {base}")
+
+    def atoi_base10(self, value: str) -> int:
+        """Overload shim for atoi(value)."""
+        return self.atoi(value, 10)
 
     def base64_encode(self, data: bytes) -> str:
         """Encode bytes to base64 string."""
@@ -408,6 +462,14 @@ class StdLib(NativeContract):
 
         return idx
 
+    def memory_search_from_start(self, mem: bytes, value: bytes) -> int:
+        """Overload shim for memorySearch(mem, value)."""
+        return self.memory_search(mem, value, 0, False)
+
+    def memory_search_with_start(self, mem: bytes, value: bytes, start: int) -> int:
+        """Overload shim for memorySearch(mem, value, start)."""
+        return self.memory_search(mem, value, start, False)
+
     def string_split(self, s: str, separator: str, remove_empty_entries: bool = False) -> List[str]:
         """Split a string by separator."""
         if len(s) > MAX_INPUT_LENGTH:
@@ -417,6 +479,10 @@ class StdLib(NativeContract):
         if remove_empty_entries:
             parts = [p for p in parts if p]
         return parts
+
+    def string_split_keep_empty(self, s: str, separator: str) -> List[str]:
+        """Overload shim for stringSplit(s, separator)."""
+        return self.string_split(s, separator, False)
 
     def str_len(self, s: str) -> int:
         """Get the length of a string in grapheme clusters.
@@ -429,7 +495,43 @@ class StdLib(NativeContract):
         # Use regex \X pattern for grapheme cluster matching
         return len(regex.findall(r"\X", s))
 
-    def base64_url_encode(self, data: str) -> str:
+    @staticmethod
+    def _extract_context_and_value(
+        value_or_context: Any, context: Any | None = None
+    ) -> tuple[Any | None, Any]:
+        """Support direct calls and native-engine dispatch for unary methods."""
+        if context is not None:
+            return context, value_or_context
+        if hasattr(value_or_context, "pop") and hasattr(value_or_context, "snapshot"):
+            engine = value_or_context
+            return engine, engine.pop()
+        return None, value_or_context
+
+    @staticmethod
+    def _as_str(value: Any) -> str:
+        if isinstance(value, str):
+            return value
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        if hasattr(value, "get_string"):
+            return value.get_string()
+        if hasattr(value, "get_bytes_unsafe"):
+            return value.get_bytes_unsafe().decode("utf-8")
+        return str(value)
+
+    @staticmethod
+    def _as_bytes(value: Any) -> bytes:
+        if isinstance(value, bytes):
+            return value
+        if isinstance(value, str):
+            return value.encode("utf-8")
+        if hasattr(value, "get_bytes_unsafe"):
+            return value.get_bytes_unsafe()
+        if hasattr(value, "get_string"):
+            return value.get_string().encode("utf-8")
+        raise TypeError(f"Unsupported byte input type: {type(value)!r}")
+
+    def base64_url_encode(self, data: str, context: Any | None = None) -> str:
         """Encode string to base64url format.
 
         Base64url is URL-safe base64 encoding that replaces:
@@ -443,15 +545,20 @@ class StdLib(NativeContract):
         Returns:
             Base64url encoded string
         """
-        if len(data) > MAX_INPUT_LENGTH:
+        context, data_value = self._extract_context_and_value(data, context)
+        if context is not None:
+            NativeContract.require_hardfork(context, Hardfork.HF_ECHIDNA, "base64UrlEncode")
+
+        text = self._as_str(data_value)
+        if len(text) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
 
         # Encode to base64 and convert to URL-safe format
-        encoded = base64.urlsafe_b64encode(data.encode("utf-8")).decode("ascii")
+        encoded = base64.urlsafe_b64encode(text.encode("utf-8")).decode("ascii")
         # Remove padding
         return encoded.rstrip("=")
 
-    def base64_url_decode(self, s: str) -> str:
+    def base64_url_decode(self, s: str, context: Any | None = None) -> str:
         """Decode base64url string.
 
         Args:
@@ -460,17 +567,22 @@ class StdLib(NativeContract):
         Returns:
             Decoded string
         """
-        if len(s) > MAX_INPUT_LENGTH:
+        context, s_value = self._extract_context_and_value(s, context)
+        if context is not None:
+            NativeContract.require_hardfork(context, Hardfork.HF_ECHIDNA, "base64UrlDecode")
+
+        text = self._as_str(s_value)
+        if len(text) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
 
         # Add padding if needed
-        padding = 4 - (len(s) % 4)
+        padding = 4 - (len(text) % 4)
         if padding != 4:
-            s += "=" * padding
+            text += "=" * padding
 
-        return base64.urlsafe_b64decode(s).decode("utf-8")
+        return base64.urlsafe_b64decode(text).decode("utf-8")
 
-    def hex_encode(self, data: bytes) -> str:
+    def hex_encode(self, data: bytes, context: Any | None = None) -> str:
         """Encode bytes to hexadecimal string.
 
         Args:
@@ -479,11 +591,16 @@ class StdLib(NativeContract):
         Returns:
             Hexadecimal string (lowercase)
         """
-        if len(data) > MAX_INPUT_LENGTH:
-            raise ValueError("Input too long")
-        return data.hex()
+        context, data_value = self._extract_context_and_value(data, context)
+        if context is not None:
+            NativeContract.require_hardfork(context, Hardfork.HF_FAUN, "hexEncode")
 
-    def hex_decode(self, s: str) -> bytes:
+        payload = self._as_bytes(data_value)
+        if len(payload) > MAX_INPUT_LENGTH:
+            raise ValueError("Input too long")
+        return payload.hex()
+
+    def hex_decode(self, s: str, context: Any | None = None) -> bytes:
         """Decode hexadecimal string to bytes.
 
         Args:
@@ -492,6 +609,11 @@ class StdLib(NativeContract):
         Returns:
             Decoded bytes
         """
-        if len(s) > MAX_INPUT_LENGTH:
+        context, s_value = self._extract_context_and_value(s, context)
+        if context is not None:
+            NativeContract.require_hardfork(context, Hardfork.HF_FAUN, "hexDecode")
+
+        text = self._as_str(s_value)
+        if len(text) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
-        return bytes.fromhex(s)
+        return bytes.fromhex(text)

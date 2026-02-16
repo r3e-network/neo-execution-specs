@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
+import collections.abc
+import dataclasses
 from dataclasses import dataclass, field
 from enum import IntFlag
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+import inspect
+import json
+import types
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Union, get_args, get_origin
 
 from neo.types import UInt160
 from neo.crypto import hash160
@@ -36,6 +41,20 @@ class ContractMethodDescriptor:
 
 
 @dataclass
+class ContractEventParameter:
+    """Descriptor for an event parameter."""
+    name: str
+    type: str
+
+
+@dataclass
+class ContractEventDescriptor:
+    """Descriptor for a contract event."""
+    name: str
+    parameters: List[ContractEventParameter] = field(default_factory=list)
+
+
+@dataclass
 class ContractMethodMetadata:
     """Metadata for a native contract method."""
     name: str
@@ -43,12 +62,24 @@ class ContractMethodMetadata:
     cpu_fee: int = 0
     storage_fee: int = 0
     required_call_flags: CallFlags = CallFlags.NONE
+    active_in: Any = None
+    deprecated_in: Any = None
     descriptor: ContractMethodDescriptor = field(default_factory=ContractMethodDescriptor)
     
     def __post_init__(self):
         """Set descriptor name if not set."""
         if not self.descriptor.name:
             self.descriptor.name = self.name
+
+
+@dataclass
+class ContractEventMetadata:
+    """Metadata for a native contract event."""
+    name: str
+    descriptor: ContractEventDescriptor
+    order: int = 0
+    active_in: Any = None
+    deprecated_in: Any = None
 
 
 class StorageKey:
@@ -121,14 +152,28 @@ class NativeContract(ABC):
     _contracts_by_id: Dict[int, 'NativeContract'] = {}
     _contracts_by_name: Dict[str, 'NativeContract'] = {}
     _id_counter: int = 0
+    _CALLNATIVE_PUSH_SIZE: int = 1
+    _CALLNATIVE_SYSCALL_SIZE: int = 5
+    _CALLNATIVE_RET_SIZE: int = 1
+    _CALLNATIVE_STUB_SIZE: int = (
+        _CALLNATIVE_PUSH_SIZE + _CALLNATIVE_SYSCALL_SIZE + _CALLNATIVE_RET_SIZE
+    )
+    _CALLNATIVE_SYSCALL_OFFSET: int = _CALLNATIVE_PUSH_SIZE
     
     def __init__(self) -> None:
         self._id = self._get_next_id()
         self._hash = self._calculate_hash()
         self._methods: Dict[str, ContractMethodMetadata] = {}
+        self._method_entries: list[ContractMethodMetadata] = []
+        self._ordered_method_entries: list[ContractMethodMetadata] = []
         self._methods_by_offset: Dict[int, ContractMethodMetadata] = {}
+        self._method_order: list[str] = []
         self._next_method_offset: int = 0
+        self._events: list[ContractEventMetadata] = []
+        self._next_event_order: int = 0
         self._register_methods()
+        self._register_events()
+        self._finalize_method_order()
 
         # Register contract
         NativeContract._contracts[self._hash] = self
@@ -177,6 +222,10 @@ class NativeContract(ABC):
     def _register_methods(self) -> None:
         """Register contract methods. Override in subclasses."""
         pass
+
+    def _register_events(self) -> None:
+        """Register contract events. Override in subclasses."""
+        pass
     
     def _register_method(
         self,
@@ -184,18 +233,26 @@ class NativeContract(ABC):
         handler: Callable,
         cpu_fee: int = 0,
         storage_fee: int = 0,
-        call_flags: CallFlags = CallFlags.NONE
+        call_flags: CallFlags = CallFlags.NONE,
+        active_in: Any = None,
+        deprecated_in: Any = None,
     ) -> None:
         """Register a contract method.
 
-        Each method is assigned a sequential offset (multiples of 5,
-        matching the C# reference where each native stub is 5 bytes:
-        ``PUSH<version> + SYSCALL CallNative``).  The offset is stored
-        in the method descriptor and in ``_methods_by_offset`` for
-        reverse lookup during ``System.Contract.CallNative`` dispatch.
+        Each method is assigned a sequential descriptor offset matching
+        Neo native-script stub layout:
+
+            PUSH0 (version) + SYSCALL CallNative + RET
+
+        So descriptor offsets advance by 7 bytes (1 + 5 + 1). CallNative
+        dispatch itself resolves at the SYSCALL instruction pointer
+        (descriptor offset + 1) via ``get_active_methods_by_offset``.
+
+        Note: Neo core builds native scripts dynamically from active
+        methods at runtime; this registry is a simplified local model.
         """
         offset = self._next_method_offset
-        self._next_method_offset += 5
+        self._next_method_offset += self._CALLNATIVE_STUB_SIZE
 
         descriptor = ContractMethodDescriptor(name=name, offset=offset)
         metadata = ContractMethodMetadata(
@@ -204,26 +261,399 @@ class NativeContract(ABC):
             cpu_fee=cpu_fee,
             storage_fee=storage_fee,
             required_call_flags=call_flags,
+            active_in=active_in,
+            deprecated_in=deprecated_in,
             descriptor=descriptor,
         )
         self._methods[name] = metadata
+        self._method_entries.append(metadata)
         self._methods_by_offset[offset] = metadata
+        self._method_order.append(name)
+
+    def _register_event(
+        self,
+        name: str,
+        parameters: list[tuple[str, str]],
+        *,
+        order: int | None = None,
+        active_in: Any = None,
+        deprecated_in: Any = None,
+    ) -> None:
+        """Register a contract event descriptor."""
+        event_order = self._next_event_order if order is None else int(order)
+        if event_order >= self._next_event_order:
+            self._next_event_order = event_order + 1
+
+        descriptor = ContractEventDescriptor(
+            name=name,
+            parameters=[
+                ContractEventParameter(name=param_name, type=param_type)
+                for param_name, param_type in parameters
+            ],
+        )
+        metadata = ContractEventMetadata(
+            name=name,
+            descriptor=descriptor,
+            order=event_order,
+            active_in=active_in,
+            deprecated_in=deprecated_in,
+        )
+        self._events.append(metadata)
+
+    @staticmethod
+    def _method_parameter_count(method: ContractMethodMetadata) -> int:
+        """Get ABI parameter count excluding context (engine/snapshot)."""
+        signature = inspect.signature(method.handler)
+        parameters = list(signature.parameters.values())
+        count = 0
+        for index, parameter in enumerate(parameters):
+            if index == 0 and parameter.name in {"engine", "snapshot", "context"}:
+                continue
+            if NativeContract._is_compat_context_parameter(parameters, index, parameter):
+                continue
+            count += 1
+        return count
+
+    def _finalize_method_order(self) -> None:
+        """Apply Neo native-method canonical ordering and descriptor offsets."""
+        ordered = sorted(
+            self._method_entries,
+            key=lambda method: (method.name, self._method_parameter_count(method)),
+        )
+        self._ordered_method_entries = ordered
+        self._method_order = [method.name for method in ordered]
+        self._methods_by_offset = {}
+        for index, method in enumerate(ordered):
+            offset = index * self._CALLNATIVE_STUB_SIZE
+            method.descriptor.offset = offset
+            self._methods_by_offset[offset] = method
     
     def _create_storage_key(self, prefix: int, *args) -> StorageKey:
         """Create a storage key for this contract."""
         return StorageKey.create(self._id, prefix, *args)
 
+    def _get_active_method_entries(
+        self,
+        context: Any,
+    ) -> list[tuple[int, int, ContractMethodMetadata]]:
+        """Return active methods with descriptor + SYSCALL offsets."""
+        entries: list[tuple[int, int, ContractMethodMetadata]] = []
+        descriptor_offset = 0
+        for method in self._ordered_method_entries:
+            if not self._is_method_active(context, method):
+                continue
+            syscall_offset = descriptor_offset + self._CALLNATIVE_SYSCALL_OFFSET
+            entries.append((descriptor_offset, syscall_offset, method))
+            descriptor_offset += self._CALLNATIVE_STUB_SIZE
+        return entries
+
     def get_method_by_offset(self, offset: int) -> Optional[ContractMethodMetadata]:
         """Look up a registered method by its script offset.
 
-        Used by ``System.Contract.CallNative`` to resolve which method
-        the native contract stub is invoking.
+        This offset corresponds to the method descriptor offset (the
+        start of the native stub, before PUSH0).
         """
         return self._methods_by_offset.get(offset)
+
+    def get_method_if_active(
+        self,
+        name: str,
+        context: Any,
+    ) -> Optional[ContractMethodMetadata]:
+        """Look up a method by name and ensure it is active in *context*."""
+        method = self._methods.get(name)
+        if method is None:
+            return None
+        if not self._is_method_active(context, method):
+            return None
+        return method
+
+    def _is_method_active(self, context: Any, method: ContractMethodMetadata) -> bool:
+        """Check whether a method is active in the given hardfork context."""
+        if method.active_in is not None and not self.is_hardfork_enabled(context, method.active_in):
+            return False
+        if method.deprecated_in is not None and self.is_hardfork_enabled(context, method.deprecated_in):
+            return False
+        return True
+
+    def get_active_methods_by_offset(self, context: Any) -> Dict[int, ContractMethodMetadata]:
+        """Build the callnative offset map for methods active in *context*."""
+        return {
+            syscall_offset: method
+            for _, syscall_offset, method in self._get_active_method_entries(context)
+        }
+
+    def get_method_by_callnative_offset(
+        self,
+        context: Any,
+        instruction_pointer: int,
+    ) -> Optional[ContractMethodMetadata]:
+        """Resolve a callnative method by SYSCALL instruction pointer."""
+        if instruction_pointer < 0:
+            return None
+        return self.get_active_methods_by_offset(context).get(instruction_pointer)
 
     def get_method(self, name: str) -> Optional[ContractMethodMetadata]:
         """Look up a registered method by name."""
         return self._methods.get(name)
+
+    @staticmethod
+    def _is_context_parameter(parameter: inspect.Parameter) -> bool:
+        return parameter.name in {"engine", "snapshot", "context"}
+
+    @staticmethod
+    def _is_compat_context_parameter(
+        parameters: list[inspect.Parameter],
+        index: int,
+        parameter: inspect.Parameter,
+    ) -> bool:
+        """Detect internal ``(value, context=None)`` compatibility signatures."""
+        return (
+            len(parameters) == 2
+            and index == 1
+            and parameter.name == "context"
+            and parameter.default is not inspect._empty
+        )
+
+    @classmethod
+    def _normalize_manifest_annotation(cls, annotation: Any) -> str:
+        """Convert a Python type annotation into a Neo manifest ABI type."""
+        if annotation is inspect._empty or annotation is Any:
+            return "Any"
+        if annotation is None or annotation is type(None):  # noqa: E721
+            return "Void"
+
+        if isinstance(annotation, str):
+            value = annotation.strip().lower()
+            if value in {"none", "void"}:
+                return "Void"
+            if "uint160" in value:
+                return "Hash160"
+            if "uint256" in value:
+                return "Hash256"
+            if "bool" in value:
+                return "Boolean"
+            if "int" in value:
+                return "Integer"
+            if value in {"bytes", "bytearray"}:
+                return "ByteArray"
+            if "str" in value:
+                return "String"
+            if "list" in value or "tuple" in value or "set" in value:
+                return "Array"
+            if "dict" in value or "map" in value:
+                return "Map"
+            if "iterator" in value or "iterable" in value:
+                return "InteropInterface"
+            return "Any"
+
+        origin = get_origin(annotation)
+        if origin in (list, tuple, set, frozenset):
+            return "Array"
+        if origin is dict:
+            return "Map"
+        if origin in (
+            collections.abc.Iterator,
+            collections.abc.Iterable,
+            collections.abc.Generator,
+        ):
+            return "InteropInterface"
+        if origin in (types.UnionType, Union):
+            args = [arg for arg in get_args(annotation) if arg is not type(None)]  # noqa: E721
+            if len(args) == 1:
+                return cls._normalize_manifest_annotation(args[0])
+            return "Any"
+
+        if annotation is bool:
+            return "Boolean"
+        if annotation is int:
+            return "Integer"
+        if annotation in (bytes, bytearray):
+            return "ByteArray"
+        if annotation is str:
+            return "String"
+        if annotation in (list, tuple, set, frozenset):
+            return "Array"
+        if annotation is dict:
+            return "Map"
+        if annotation is object:
+            return "Any"
+
+        name = getattr(annotation, "__name__", "")
+        if name == "UInt160":
+            return "Hash160"
+        if name == "UInt256":
+            return "Hash256"
+        if name == "ECPoint":
+            return "PublicKey"
+        if isinstance(annotation, type):
+            from enum import Enum
+
+            if issubclass(annotation, Enum):
+                return "Integer"
+            if dataclasses.is_dataclass(annotation):
+                return "Array"
+            return "InteropInterface"
+
+        return "Any"
+
+    def _build_manifest_method(
+        self,
+        descriptor_offset: int,
+        method: ContractMethodMetadata,
+    ) -> dict[str, Any]:
+        signature = inspect.signature(method.handler)
+        parameters_spec = list(signature.parameters.values())
+        try:
+            from typing import get_type_hints
+
+            type_hints = get_type_hints(method.handler)
+        except Exception:
+            type_hints = {}
+
+        parameters: list[dict[str, str]] = []
+        for index, parameter in enumerate(parameters_spec):
+            if index == 0 and self._is_context_parameter(parameter):
+                continue
+            if self._is_compat_context_parameter(parameters_spec, index, parameter):
+                continue
+            annotation = type_hints.get(parameter.name, parameter.annotation)
+            parameters.append(
+                {
+                    "name": parameter.name,
+                    "type": self._normalize_manifest_annotation(annotation),
+                }
+            )
+
+        return_annotation = type_hints.get("return", signature.return_annotation)
+        return {
+            "name": method.name,
+            "parameters": parameters,
+            "returntype": self._normalize_manifest_annotation(return_annotation),
+            "offset": descriptor_offset,
+            "safe": bool(method.descriptor.safe),
+        }
+
+    def _is_event_active(self, context: Any, event: ContractEventMetadata) -> bool:
+        if event.active_in is not None and not self.is_hardfork_enabled(context, event.active_in):
+            return False
+        if event.deprecated_in is not None and self.is_hardfork_enabled(context, event.deprecated_in):
+            return False
+        return True
+
+    def _build_manifest_event(self, event: ContractEventMetadata) -> dict[str, Any]:
+        return {
+            "name": event.name,
+            "parameters": [
+                {"name": parameter.name, "type": parameter.type}
+                for parameter in event.descriptor.parameters
+            ],
+        }
+
+    def _active_manifest_events(self, context: Any) -> list[dict[str, Any]]:
+        active = [event for event in self._events if self._is_event_active(context, event)]
+        active.sort(key=lambda event: event.order)
+        return [self._build_manifest_event(event) for event in active]
+
+    def _native_supported_standards(self, context: Any) -> list[str]:
+        """Override in subclasses that expose supported standards."""
+        return []
+
+    def _compose_native_manifest(self, context: Any, manifest: dict[str, Any]) -> None:
+        """Hook for native contracts to customize generated manifests."""
+        return
+
+    @staticmethod
+    def _native_stub() -> bytes:
+        """Build one callnative stub: PUSH0 + SYSCALL CallNative + RET."""
+        from neo.smartcontract.interop_service import get_interop_hash
+        from neo.vm.opcode import OpCode
+
+        syscall = get_interop_hash("System.Contract.CallNative")
+        return (
+            bytes((int(OpCode.PUSH0), int(OpCode.SYSCALL)))
+            + syscall.to_bytes(4, "little")
+            + bytes((int(OpCode.RET),))
+        )
+
+    def get_contract_state(self, context: Any) -> Any:
+        """Generate the active native ``ContractState`` for this context."""
+        from neo.native.contract_management import ContractState
+
+        active = self._get_active_method_entries(context)
+        methods = [
+            self._build_manifest_method(descriptor_offset, method)
+            for descriptor_offset, _, method in active
+        ]
+        manifest = {
+            "name": self.name,
+            "groups": [],
+            "features": {},
+            "supportedstandards": self._native_supported_standards(context),
+            "abi": {
+                "methods": methods,
+                "events": self._active_manifest_events(context),
+            },
+            "permissions": [{"contract": "*", "methods": "*"}],
+            "trusts": "*",
+            "extra": None,
+        }
+        self._compose_native_manifest(context, manifest)
+
+        script = self._native_stub() * len(active)
+        manifest_bytes = json.dumps(manifest, separators=(",", ":")).encode("utf-8")
+        return ContractState(
+            id=self.id,
+            update_counter=0,
+            hash=self.hash,
+            nef=script,
+            manifest=manifest_bytes,
+        )
+
+    @staticmethod
+    def _hardfork_context(context: Any) -> tuple[Any, Any]:
+        """Extract protocol settings + snapshot from an engine/snapshot-like object."""
+        settings = getattr(context, "protocol_settings", None)
+        snapshot = getattr(context, "snapshot", None)
+        if snapshot is None and hasattr(context, "persisting_block"):
+            snapshot = context
+        if settings is None and snapshot is not None:
+            settings = getattr(snapshot, "protocol_settings", None)
+        return settings, snapshot
+
+    @classmethod
+    def is_hardfork_enabled(cls, context: Any, hardfork: Any) -> bool:
+        """Check hardfork activation from either engine or snapshot context.
+
+        If no protocol settings are available, this returns True to preserve
+        backwards compatibility with lightweight unit-test stubs.
+        """
+        settings, snapshot = cls._hardfork_context(context)
+        if settings is None:
+            return True
+
+        block = getattr(snapshot, "persisting_block", None) if snapshot is not None else None
+        if block is None:
+            checker = getattr(settings, "is_hardfork_enabled", None)
+            if callable(checker):
+                return bool(checker(hardfork, 0))
+            hardforks = getattr(settings, "hardforks", {})
+            height = hardforks.get(hardfork)
+            if height is None:
+                return False
+            return int(height) <= 0
+
+        checker = getattr(settings, "is_hardfork_enabled", None)
+        if not callable(checker):
+            return False
+        index = int(getattr(block, "index", 0))
+        return bool(checker(hardfork, index))
+
+    @classmethod
+    def require_hardfork(cls, context: Any, hardfork: Any, method_name: str) -> None:
+        """Raise when a hardfork-gated method is not active."""
+        if not cls.is_hardfork_enabled(context, hardfork):
+            raise KeyError(f"Method not active for hardfork: {method_name}")
     
     def initialize(self, engine: Any) -> None:
         """Initialize the contract. Called on genesis block."""

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Iterator
 from typing import Any, Optional
 
+from neo.hardfork import Hardfork
 from neo.crypto import hash160
 from neo.native.native_contract import CallFlags, NativeContract, StorageItem
 from neo.types import UInt160
@@ -74,14 +76,30 @@ class ContractManagement(NativeContract):
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
         self._register_method("getContractById", self.get_contract_state_by_id,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
+        self._register_method("getContractHashes", self.get_contract_hashes,
+                            cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
+        self._register_method("isContract", self.is_contract,
+                            cpu_fee=1 << 14, call_flags=CallFlags.READ_STATES,
+                            active_in=Hardfork.HF_ECHIDNA)
         self._register_method("hasMethod", self.has_method,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
+        self._register_method("deploy", self.deploy_without_data,
+                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
         self._register_method("deploy", self.deploy,
+                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
+        self._register_method("update", self.update_without_data,
                             call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
         self._register_method("update", self.update,
                             call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
         self._register_method("destroy", self.destroy,
                             cpu_fee=1 << 15, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
+
+    def _register_events(self) -> None:
+        """Register ContractManagement events."""
+        super()._register_events()
+        self._register_event("Deploy", [("Hash", "Hash160")], order=0)
+        self._register_event("Update", [("Hash", "Hash160")], order=1)
+        self._register_event("Destroy", [("Hash", "Hash160")], order=2)
     
     def get_minimum_deployment_fee(self, snapshot: Any) -> int:
         """Get minimum deployment fee."""
@@ -110,6 +128,10 @@ class ContractManagement(NativeContract):
     
     def get_contract_state(self, snapshot: Any, hash: UInt160) -> Optional[ContractState]:
         """Get a deployed contract by hash."""
+        native = NativeContract.get_contract(hash)
+        if native is not None:
+            return NativeContract.get_contract_state(native, snapshot)
+
         key = self._create_storage_key(PREFIX_CONTRACT, hash.data)
         item = snapshot.get(key)
         if item is None:
@@ -118,12 +140,38 @@ class ContractManagement(NativeContract):
     
     def get_contract_state_by_id(self, snapshot: Any, id: int) -> Optional[ContractState]:
         """Get a deployed contract by ID."""
+        native = NativeContract.get_contract_by_id(id)
+        if native is not None:
+            return NativeContract.get_contract_state(native, snapshot)
+
         key = self._create_storage_key(PREFIX_CONTRACT_HASH, id)
         item = snapshot.get(key)
         if item is None:
             return None
         hash = UInt160(item.value)
         return self.get_contract_state(snapshot, hash)
+
+    def get_contract_hashes(self, snapshot: Any) -> Iterator[tuple[int, UInt160]]:
+        """Enumerate known contract IDs and hashes."""
+        prefix = self._create_storage_key(PREFIX_CONTRACT_HASH)
+        rows: list[tuple[int, UInt160]] = []
+        if hasattr(snapshot, "find"):
+            for key, item in snapshot.find(prefix):
+                if not hasattr(key, "key"):
+                    continue
+                key_bytes = key.key
+                if len(key_bytes) < 5:
+                    continue
+                contract_id = int.from_bytes(key_bytes[1:5], "little", signed=True)
+                hash_bytes = getattr(item, "value", b"")
+                if len(hash_bytes) == 20:
+                    rows.append((contract_id, UInt160(hash_bytes)))
+        return iter(rows)
+
+    def is_contract(self, snapshot: Any, hash: UInt160) -> bool:
+        """Check whether the provided hash belongs to a deployed contract."""
+        NativeContract.require_hardfork(snapshot, Hardfork.HF_ECHIDNA, "isContract")
+        return self.get_contract_state(snapshot, hash) is not None
     
     def has_method(self, snapshot: Any, hash: UInt160, method: str, pcount: int) -> bool:
         """Check if a contract has a specific method.
@@ -156,6 +204,10 @@ class ContractManagement(NativeContract):
                     return True
 
         return False
+
+    def deploy_without_data(self, engine: Any, nef_file: bytes, manifest: bytes) -> ContractState:
+        """Overload shim for deploy(nef, manifest)."""
+        return self.deploy(engine, nef_file, manifest, None)
     
     def deploy(self, engine: Any, nef_file: bytes, manifest: bytes, 
                data: Any = None) -> ContractState:
@@ -245,6 +297,12 @@ class ContractManagement(NativeContract):
         script.extend(name_bytes)
 
         return UInt160(hash160(bytes(script)))
+
+    def update_without_data(
+        self, engine: Any, nef_file: Optional[bytes], manifest: Optional[bytes]
+    ) -> None:
+        """Overload shim for update(nef, manifest)."""
+        self.update(engine, nef_file, manifest, None)
     
     def update(self, engine: Any, nef_file: Optional[bytes], 
                manifest: Optional[bytes], data: Any = None) -> None:
