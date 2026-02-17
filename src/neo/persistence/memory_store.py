@@ -34,14 +34,12 @@ class MemoryStore(IStore):
         """
         items = sorted(self._data.items())
         if direction < 0:
-            # Backward: find entries with key >= prefix, iterate in reverse.
-            # This matches C# IStore.Seek(prefix, SeekDirection.Backward).
-            result = [(k, v) for k, v in items if k >= prefix]
-            result.reverse()
-            for k, v in result:
+            # Backward: entries with matching prefix in descending key order
+            result = [(k, v) for k, v in items if k.startswith(prefix)]
+            for k, v in reversed(result):
                 yield k, v
         else:
-            # Forward: return items starting with prefix in ascending order
+            # Forward: entries with matching prefix in ascending key order
             for k, v in items:
                 if k.startswith(prefix):
                     yield k, v
