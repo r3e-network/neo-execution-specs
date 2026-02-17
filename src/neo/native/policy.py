@@ -1,13 +1,14 @@
 """Policy contract for network settings."""
 
 from __future__ import annotations
+
 import json
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 from neo.hardfork import Hardfork
+from neo.native.native_contract import CallFlags, NativeContract, StorageItem
 from neo.types import UInt160
-from neo.native.native_contract import NativeContract, CallFlags, StorageItem
-
 
 # Storage prefixes
 PREFIX_BLOCKED_ACCOUNT = 15
@@ -78,7 +79,13 @@ class PolicyContract(NativeContract):
             cpu_fee=1 << 15,
             call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
         )
-        self._register_method("getAttributeFee", self.get_attribute_fee, cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
+        self._register_method(
+            "getAttributeFee",
+            self.get_attribute_fee,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.READ_STATES,
+            manifest_parameter_names=["attributeType"],
+        )
         self._register_method(
             "getBlockedAccounts",
             self.get_blocked_accounts,
@@ -165,8 +172,15 @@ class PolicyContract(NativeContract):
             cpu_fee=1 << 15,
             call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
             active_in=Hardfork.HF_FAUN,
+            manifest_parameter_names=["contractHash", "method", "argCount"],
         )
-        self._register_method("setAttributeFee", self.set_attribute_fee, cpu_fee=1 << 15, call_flags=CallFlags.STATES)
+        self._register_method(
+            "setAttributeFee",
+            self.set_attribute_fee,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.STATES,
+            manifest_parameter_names=["attributeType", "value"],
+        )
         self._register_method("setExecFeeFactor", self.set_exec_fee_factor, cpu_fee=1 << 15, call_flags=CallFlags.STATES)
         self._register_method("setFeePerByte", self.set_fee_per_byte, cpu_fee=1 << 15, call_flags=CallFlags.STATES)
         self._register_method(
@@ -197,6 +211,7 @@ class PolicyContract(NativeContract):
             cpu_fee=1 << 15,
             call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
             active_in=Hardfork.HF_FAUN,
+            manifest_parameter_names=["contractHash", "method", "argCount", "fixedFee"],
         )
         self._register_method("unblockAccount", self.unblock_account, cpu_fee=1 << 15, call_flags=CallFlags.STATES)
     
@@ -597,7 +612,13 @@ class PolicyContract(NativeContract):
         if request_entry is None:
             raise ValueError("Request not found.")
 
-        elapsed_time = self._current_time_ms(engine) - int(request_entry)
+        current_time = self._current_time_ms(engine)
+        if current_time == 0:
+            raise ValueError("Cannot determine current block timestamp")
+        request_time = int(request_entry)
+        if request_time <= 0:
+            raise ValueError("Invalid block request timestamp")
+        elapsed_time = current_time - request_time
         if elapsed_time < REQUIRED_TIME_FOR_RECOVER_FUND_MS:
             remaining = REQUIRED_TIME_FOR_RECOVER_FUND_MS - elapsed_time
             remaining_msg = self._format_remaining_time(max(remaining, 0))
