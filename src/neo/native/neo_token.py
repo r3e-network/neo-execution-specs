@@ -1,16 +1,17 @@
 """NEO Token native contract."""
 
 from __future__ import annotations
+
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Iterator, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from neo.crypto import hash160
 from neo.crypto.ecc.point import ECPoint
 from neo.hardfork import Hardfork
-from neo.types import UInt160
-from neo.native.fungible_token import FungibleToken, AccountState, PREFIX_ACCOUNT
+from neo.native.fungible_token import PREFIX_ACCOUNT, AccountState, FungibleToken
 from neo.native.native_contract import CallFlags, StorageItem
-
+from neo.types import UInt160
 
 # NEO initial supply: 100 million NEO
 INITIAL_SUPPLY = 100_000_000
@@ -55,7 +56,7 @@ class NeoAccountState(AccountState):
         return data
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> "NeoAccountState":
+    def from_bytes(cls, data: bytes) -> NeoAccountState:
         """Deserialize from bytes."""
         state = cls()
         if not data:
@@ -88,7 +89,7 @@ class CandidateState:
         return data
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> "CandidateState":
+    def from_bytes(cls, data: bytes) -> CandidateState:
         state = cls()
         if data:
             state.registered = data[0] == 1
@@ -109,6 +110,9 @@ class NeoToken(FungibleToken):
     @property
     def name(self) -> str:
         return "NeoToken"
+
+    def _contract_activations(self) -> tuple[Any | None, ...]:
+        return (None, Hardfork.HF_ECHIDNA)
 
     @property
     def symbol(self) -> str:
@@ -147,7 +151,11 @@ class NeoToken(FungibleToken):
             call_flags=CallFlags.READ_STATES,
         )
         self._register_method(
-            "setGasPerBlock", self.set_gas_per_block, cpu_fee=1 << 15, call_flags=CallFlags.STATES
+            "setGasPerBlock",
+            self.set_gas_per_block,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.STATES,
+            manifest_parameter_names=["gasPerBlock"],
         )
         self._register_method(
             "getRegisterPrice",
@@ -160,6 +168,7 @@ class NeoToken(FungibleToken):
             self.set_register_price,
             cpu_fee=1 << 15,
             call_flags=CallFlags.STATES,
+            manifest_parameter_names=["registerPrice"],
         )
         self._register_method(
             "registerCandidate", self.register_candidate, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY
@@ -170,7 +179,13 @@ class NeoToken(FungibleToken):
             cpu_fee=1 << 16,
             call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
         )
-        self._register_method("vote", self.vote, cpu_fee=1 << 16, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
+        self._register_method(
+            "vote",
+            self.vote,
+            cpu_fee=1 << 16,
+            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+            manifest_parameter_names=["account", "voteTo"],
+        )
         self._register_method(
             "getCandidates", self.get_candidates, cpu_fee=1 << 22, call_flags=CallFlags.READ_STATES
         )
@@ -185,6 +200,7 @@ class NeoToken(FungibleToken):
             self.get_candidate_vote,
             cpu_fee=1 << 15,
             call_flags=CallFlags.READ_STATES,
+            manifest_parameter_names=["pubKey"],
         )
         self._register_method(
             "getCommittee", self.get_committee, cpu_fee=1 << 16, call_flags=CallFlags.READ_STATES
@@ -208,7 +224,11 @@ class NeoToken(FungibleToken):
             call_flags=CallFlags.READ_STATES,
         )
         self._register_method(
-            "onNEP17Payment", self.on_nep17_payment, cpu_fee=0, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY
+            "onNEP17Payment",
+            self.on_nep17_payment,
+            cpu_fee=0,
+            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+            manifest_parameter_names=["from", "amount", "data"],
         )
 
     def _register_events(self) -> None:
@@ -345,7 +365,15 @@ class NeoToken(FungibleToken):
                 encoded = encoder()
             if isinstance(encoded, (bytes, bytearray, memoryview)):
                 return bytes(encoded)
-        return bytes(pubkey)
+        raw_data = getattr(pubkey, "data", None)
+        if isinstance(raw_data, (bytes, bytearray, memoryview)):
+            return bytes(raw_data)
+        bytes_method = getattr(pubkey, "__bytes__", None)
+        if callable(bytes_method):
+            converted = bytes_method()
+            if isinstance(converted, (bytes, bytearray, memoryview)):
+                return bytes(converted)
+        return None
 
     def register_candidate(self, engine: Any, pubkey: ECPoint) -> bool:
         """Register as a candidate."""
@@ -524,10 +552,16 @@ class NeoToken(FungibleToken):
                 offset += 33 + 32  # pubkey + votes
             else:
                 break
-        return sorted(committee)
+        return committee
 
     def get_next_block_validators(self, engine: Any) -> List[bytes]:
-        """Get validators for the next block."""
+        """Get validators for the next block.
+
+        Takes the top validators_count members (highest votes) from the
+        committee list (which is stored in votes-descending order by
+        _refresh_committee), then sorts them by public key for
+        deterministic block signing order.
+        """
         committee = self.get_committee(engine.snapshot)
         validators_count = engine.protocol_settings.validators_count
         return sorted(committee[:validators_count])
