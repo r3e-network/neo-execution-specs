@@ -4,11 +4,13 @@ Reference: Neo.SmartContract.Native.CryptoLib
 """
 
 from __future__ import annotations
+
 from enum import IntEnum
 from typing import Any, Optional
 
-from neo.native.native_contract import NativeContract, CallFlags
-from neo.crypto import sha256, ripemd160, murmur32, ed25519_verify
+from neo.crypto import ed25519_verify, murmur32, ripemd160, sha256
+from neo.hardfork import Hardfork
+from neo.native.native_contract import CallFlags, NativeContract
 
 
 class NamedCurveHash(IntEnum):
@@ -52,26 +54,53 @@ class CryptoLib(NativeContract):
         )
         self._register_method("murmur32", self.murmur32, cpu_fee=1 << 13, call_flags=CallFlags.NONE)
         self._register_method(
-            "keccak256", self.keccak256, cpu_fee=1 << 15, call_flags=CallFlags.NONE
+            "keccak256",
+            self.keccak256,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_COCKATRICE,
         )
 
         # Signature verification
         self._register_method(
-            "verifyWithECDsa", self.verify_with_ecdsa, cpu_fee=1 << 15, call_flags=CallFlags.NONE
+            "verifyWithECDsa",
+            self.verify_with_ecdsa_v0,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.NONE,
+            deprecated_in=Hardfork.HF_COCKATRICE,
+            manifest_parameter_names=["message", "pubkey", "signature", "curve"],
+        )
+        self._register_method(
+            "verifyWithECDsa",
+            self.verify_with_ecdsa,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_COCKATRICE,
+            manifest_parameter_names=["message", "pubkey", "signature", "curveHash"],
         )
         self._register_method(
             "verifyWithEd25519",
             self.verify_with_ed25519,
             cpu_fee=1 << 15,
             call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_ECHIDNA,
         )
         self._register_method(
-            "recoverSecp256K1", self.recover_secp256k1, cpu_fee=1 << 15, call_flags=CallFlags.NONE
+            "recoverSecp256K1",
+            self.recover_secp256k1,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_ECHIDNA,
+            manifest_parameter_names=["messageHash", "signature"],
         )
 
         # BLS12-381 operations
         self._register_method(
-            "bls12381Serialize", self.bls12381_serialize, cpu_fee=1 << 19, call_flags=CallFlags.NONE
+            "bls12381Serialize",
+            self.bls12381_serialize,
+            cpu_fee=1 << 19,
+            call_flags=CallFlags.NONE,
+            manifest_parameter_names=["g"],
         )
         self._register_method(
             "bls12381Deserialize",
@@ -175,27 +204,47 @@ class CryptoLib(NativeContract):
         Returns:
             True if signature is valid, False otherwise
         """
+        if len(signature) != 64:
+            return False
         try:
             from neo.crypto.ecc.curve import SECP256K1, SECP256R1
             from neo.crypto.ecc.point import ECPoint
 
-            # Determine curve
-            if curve_hash in (NamedCurveHash.secp256k1SHA256, NamedCurveHash.secp256k1Keccak256):
+            if curve_hash == NamedCurveHash.secp256k1SHA256:
                 curve = SECP256K1
-            else:
+                message_hash = self.sha256(message)
+            elif curve_hash == NamedCurveHash.secp256r1SHA256:
                 curve = SECP256R1
-
-            # Hash the message
-            if curve_hash in (NamedCurveHash.secp256k1Keccak256, NamedCurveHash.secp256r1Keccak256):
+                message_hash = self.sha256(message)
+            elif curve_hash == NamedCurveHash.secp256k1Keccak256:
+                curve = SECP256K1
+                message_hash = self.keccak256(message)
+            elif curve_hash == NamedCurveHash.secp256r1Keccak256:
+                curve = SECP256R1
                 message_hash = self.keccak256(message)
             else:
-                message_hash = self.sha256(message)
+                return False
 
             # Decode public key and verify
             public_key = ECPoint.decode(pubkey, curve)
             return self._verify_ecdsa_signature(message_hash, signature, public_key)
         except (ValueError, TypeError, ImportError):
             return False
+
+    def verify_with_ecdsa_v0(
+        self, message: bytes, pubkey: bytes, signature: bytes, curve_hash: NamedCurveHash
+    ) -> bool:
+        """Legacy pre-Cockatrice ECDSA verification variant.
+
+        Mirrors Neo core behavior where only SHA256 curve/hash variants are
+        accepted before HF_COCKATRICE.
+        """
+        if curve_hash not in (
+            NamedCurveHash.secp256k1SHA256,
+            NamedCurveHash.secp256r1SHA256,
+        ):
+            raise ValueError("curve_hash out of range")
+        return self.verify_with_ecdsa(message, pubkey, signature, curve_hash)
 
     def _verify_ecdsa_signature(
         self, message_hash: bytes, signature: bytes, public_key: Any
