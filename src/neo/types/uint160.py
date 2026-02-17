@@ -6,7 +6,7 @@ from __future__ import annotations
 class UInt160:
     """160-bit unsigned integer (20 bytes)."""
 
-    ZERO: "UInt160"
+    ZERO: UInt160
     LENGTH = 20
 
     __slots__ = ("_data",)
@@ -26,7 +26,7 @@ class UInt160:
         return self._data
 
     @classmethod
-    def from_string(cls, value: str) -> "UInt160":
+    def from_string(cls, value: str) -> UInt160:
         """Parse from hex string."""
         if value.startswith("0x"):
             value = value[2:]
@@ -58,7 +58,9 @@ class UInt160:
     def __hash__(self) -> int:
         return hash(self._data)
 
-    def __lt__(self, other: "UInt160") -> bool:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, UInt160):
+            return NotImplemented
         return self._data < other._data
 
 
