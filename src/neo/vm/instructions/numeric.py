@@ -11,11 +11,12 @@ This module implements all numeric opcodes (0x99-0xBB):
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import math
+from typing import TYPE_CHECKING
 
 from neo.exceptions import InvalidOperationException
-from neo.vm.types import Integer, Boolean
+from neo.vm.types import Boolean, Integer
 
 if TYPE_CHECKING:
     from neo.vm.execution_engine import ExecutionEngine, Instruction
@@ -108,9 +109,11 @@ def mod(engine: ExecutionEngine, instruction: Instruction) -> None:
 def pow_(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Raise integer to power."""
     exponent = int(engine.pop().get_integer())
+    if exponent < 0:
+        raise InvalidOperationException("Exponent must be non-negative")
     engine.limits.assert_shift(exponent)
     value = engine.pop().get_integer()
-    engine.push(Integer(value ** exponent))
+    engine.push(Integer(value**exponent))
 
 
 def sqrt(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -118,7 +121,7 @@ def sqrt(engine: ExecutionEngine, instruction: Instruction) -> None:
     x = engine.pop().get_integer()
     if x < 0:
         raise InvalidOperationException("Cannot compute square root of negative number")
-    engine.push(Integer(int(math.isqrt(x))))
+    engine.push(Integer(math.isqrt(x)))
 
 
 def modmul(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -153,8 +156,11 @@ def modpow(engine: ExecutionEngine, instruction: Instruction) -> None:
         engine.push(Integer(0))
         return
     if exponent == -1:
-        # Modular inverse
-        result = pow(value, -1, modulus)
+        # Modular inverse — fails if value and modulus are not coprime
+        try:
+            result = pow(value, -1, modulus)
+        except ValueError:
+            raise InvalidOperationException("Modular inverse does not exist")
     else:
         result = pow(value, exponent, modulus)
     engine.push(Integer(result))
