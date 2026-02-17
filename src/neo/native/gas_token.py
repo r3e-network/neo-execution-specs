@@ -1,10 +1,11 @@
 """GAS Token native contract."""
 
 from __future__ import annotations
+
 from typing import Any
 
-from neo.types import UInt160
 from neo.native.fungible_token import FungibleToken
+from neo.types import UInt160
 
 
 class GasToken(FungibleToken):
@@ -63,12 +64,11 @@ class GasToken(FungibleToken):
                 self.burn(engine, tx.sender, total_fee)
             total_network_fee += tx.network_fee
             
-            # Handle NotaryAssisted attribute (matches C# behavior)
-            notary_assisted = getattr(tx, 'get_attribute', lambda t: None)('NotaryAssisted')
+            # Handle NotaryAssisted attribute (type 0x22)
+            notary_assisted = self._find_attribute(tx, 0x22)
             if notary_assisted is not None:
                 n_keys = getattr(notary_assisted, 'n_keys', 0)
-                attr_type = getattr(notary_assisted, 'type', 0)
-                attr_fee = engine.policy.get_attribute_fee(attr_type) if hasattr(engine, 'policy') else 0
+                attr_fee = self._get_attribute_fee(engine, 0x22)
                 total_network_fee -= (n_keys + 1) * attr_fee
         
         # Mint network fee to primary validator
@@ -117,3 +117,20 @@ class GasToken(FungibleToken):
             True if transfer succeeded, False otherwise
         """
         return super().transfer(engine, from_account, to_account, amount, data)
+
+    @staticmethod
+    def _find_attribute(tx: Any, attr_type: int) -> Any:
+        """Find transaction attribute by type code."""
+        for attr in getattr(tx, 'attributes', []) or []:
+            if getattr(attr, 'type', None) == attr_type:
+                return attr
+        return None
+
+    @staticmethod
+    def _get_attribute_fee(engine: Any, attr_type: int) -> int:
+        """Get attribute fee from PolicyContract."""
+        from neo.native.native_contract import NativeContract
+        policy = NativeContract.get_contract_by_name("PolicyContract")
+        if policy is not None and hasattr(policy, 'get_attribute_fee'):
+            return policy.get_attribute_fee(engine.snapshot, attr_type)
+        return 0
