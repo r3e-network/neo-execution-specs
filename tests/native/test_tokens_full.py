@@ -15,7 +15,7 @@ class TestNeoToken:
         assert self.neo.name == "NeoToken"
         assert self.neo.symbol == "NEO"
         assert self.neo.decimals == 0
-        assert self.neo.total_supply == 100_000_000
+        assert self.neo.total_supply() == 100_000_000
     
     def test_total_amount(self):
         """Test total amount constant."""

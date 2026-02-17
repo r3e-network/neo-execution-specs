@@ -118,7 +118,8 @@ class LedgerContract(NativeContract):
         self._register_method("currentIndex", self.current_index,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
         self._register_method("getBlock", self.get_block,
-                            cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
+                            cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES,
+                            manifest_parameter_names=["indexOrHash"])
         self._register_method("getTransaction", self.get_transaction,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
         self._register_method("getTransactionHeight", self.get_transaction_height,
@@ -128,7 +129,8 @@ class LedgerContract(NativeContract):
         self._register_method("getTransactionVMState", self.get_transaction_vm_state,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
         self._register_method("getTransactionFromBlock", self.get_transaction_from_block,
-                            cpu_fee=1 << 16, call_flags=CallFlags.READ_STATES)
+                            cpu_fee=1 << 16, call_flags=CallFlags.READ_STATES,
+                            manifest_parameter_names=["blockIndexOrHash", "txIndex"])
     
     def current_hash(self, snapshot: Any) -> UInt256:
         """Get the hash of the current block."""

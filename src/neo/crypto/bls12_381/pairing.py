@@ -48,9 +48,11 @@ def pairing(g1: "G1Affine | G1Projective", g2: "G2Affine | G2Projective") -> "Gt
     
     if HAS_PY_ECC:
         return _pairing_py_ecc(g1, g2)
-    else:
-        # Fallback to placeholder (not cryptographically secure)
-        return _pairing_placeholder(g1, g2)
+
+    raise RuntimeError(
+        "BLS12-381 pairing requires py_ecc. "
+        "Install with: pip install neo-execution-specs[crypto]"
+    )
 
 
 def _pairing_py_ecc(g1: "G1Affine", g2: "G2Affine") -> "Gt":
@@ -87,22 +89,3 @@ def _fq12_to_bytes(fq12) -> bytes:
     
     return bytes(result)
 
-
-def _pairing_placeholder(g1: "G1Affine", g2: "G2Affine") -> "Gt":
-    """Placeholder pairing when py_ecc is not available.
-    
-    WARNING: This is NOT cryptographically secure!
-    """
-    from .gt import Gt
-    import hashlib
-    
-    g1_bytes = g1.to_compressed()
-    g2_bytes = g2.to_compressed()
-    
-    # Hash inputs to create 576-byte output
-    result = bytearray(576)
-    for i in range(12):
-        h = hashlib.sha384(g1_bytes + g2_bytes + bytes([i]))
-        result[i*48:(i+1)*48] = h.digest()
-    
-    return Gt(bytes(result))

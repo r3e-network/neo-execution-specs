@@ -28,7 +28,7 @@ class Gt:
     """Element of the target group Gt (subgroup of Fp12*).
     
     When py_ecc is available, uses proper Fp12 arithmetic.
-    Otherwise falls back to byte representation with placeholder operations.
+    Without py_ecc, only serialization/equality helpers are available.
     """
     
     __slots__ = ('_data', '_fq12')
@@ -123,11 +123,10 @@ class Gt:
         if HAS_PY_ECC and self._fq12 is not None and other._fq12 is not None:
             result_fq12 = self._fq12 * other._fq12
             return Gt(fq12=result_fq12)
-        # Fallback: XOR (not cryptographically correct)
-        result = bytearray(576)
-        for i in range(576):
-            result[i] = self._data[i] ^ other._data[i]
-        return Gt(bytes(result))
+        raise RuntimeError(
+            "BLS12-381 Gt arithmetic requires py_ecc. "
+            "Install with: pip install neo-execution-specs[crypto]"
+        )
     
     def __add__(self, other: Gt) -> Gt:
         """Add in additive notation (same as multiply)."""

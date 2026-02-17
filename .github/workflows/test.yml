@@ -97,6 +97,7 @@ jobs:
           neo-multicompat --help
           neo-coverage --help
           neo-t8n --help
+          python3 scripts/neogo_endpoint_matrix.py --help
 
   vectors:
     runs-on: ubuntu-latest

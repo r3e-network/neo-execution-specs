@@ -2,6 +2,9 @@
 
 This document covers the main APIs of neo-execution-specs.
 
+For normative protocol profile and transition semantics, see
+`docs/execution-spec.md`.
+
 ## Virtual Machine
 
 ### ExecutionEngine
@@ -245,7 +248,11 @@ base64 = stdlib.base64_encode(data)
 base58 = stdlib.base58_encode(data)
 
 # String operations
-result = stdlib.str_split(text, separator)
+result = stdlib.string_split(text, separator)
+
+# Hardfork-gated encoding helpers (require active protocol context)
+base64url = stdlib.base64_url_encode("hello", context=engine)
+hexed = stdlib.hex_encode(b"\xde\xad\xbe\xef", context=engine)
 ```
 
 ## Persistence
@@ -364,6 +371,27 @@ neo-compat --vectors tests/vectors/ \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
 ```
 
+### neo-multicompat
+
+Run `neo-diff` against C#, NeoGo, and neo-rs endpoints, then compare pairwise deltas.
+
+```bash
+neo-multicompat --vectors tests/vectors/ \
+                --csharp-rpc http://seed1.neo.org:10332 \
+                --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
+                --neo-rs-rpc http://127.0.0.1:40332
+```
+
+### Endpoint Matrix Helper
+
+For repeatable public NeoGo endpoint drift probes against expected delta vectors:
+
+```bash
+python3 scripts/neogo_endpoint_matrix.py \
+  --output-dir reports/compat-endpoint-matrix \
+  --prefix neogo-0.116-endpoint-matrix
+```
+
 ### neo-coverage
 
 Validate protocol checklist coverage mappings against vector fixtures.
@@ -376,7 +404,7 @@ neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-templat
 
 ### neo-t8n
 
-State transition tool (Ethereum-style).
+State transition tool (Ethereum-style) for deterministic execution-spec transitions.
 
 ```bash
 # Run state transition
@@ -385,3 +413,36 @@ neo-t8n --input-alloc alloc.json \
         --input-env env.json \
         --output-result result.json
 ```
+
+Input model:
+- `alloc.json`: account map keyed by 20-byte hex address with optional `neoBalance`, `gasBalance`, `storage`, `nef`, `manifest`.
+- `txs.json`: transaction array with `script` hex plus optional `signers`, `systemFee`, `networkFee`, `validUntilBlock`, `nonce`.
+  - transaction array length is bounded by active profile `max_transactions_per_block` (`512` mainnet profile, `5000` testnet profile).
+  - `script` must be valid hex and non-empty.
+  - unsigned tx envelope size (header + signers + `attributes` varint count `0` + script var-size encoding) is capped at `102400` bytes.
+  - `nonce` and `validUntilBlock` are validated as uint32 fields.
+  - numeric tx fields also accept numeric strings (including `0x` prefixes) and are normalized for deterministic `txHash` materialization.
+  - signer fields: `account`, `scopes`, `allowedContracts`, `allowedGroups`, optional `rules`.
+  - signer array max length: 16.
+  - `allowedContracts` / `allowedGroups` max length: 16 each.
+  - `allowedContracts` requires `CUSTOM_CONTRACTS` scope; `allowedGroups` requires `CUSTOM_GROUPS` scope.
+  - each `allowedGroups` entry must be a 33-byte compressed ECPoint key.
+  - witness-rule fields: `action` (`0/1` or `Deny/Allow`) and `condition`.
+  - witness-condition `type` accepts numeric tags or names (`Boolean`, `Not`, `And`, `Or`, `ScriptHash`, `Group`, `CalledByEntry`, `CalledByContract`, `CalledByGroup`).
+- `env.json`: block context (`currentBlockNumber`, `timestamp`, `network`, `nonce`, `primaryIndex`).
+
+`result.json` receipt model:
+- `txHash`, `vmState`, `gasConsumed`, optional `exception`,
+- `stack`: top-first projected VM stack items (`type` + `value`),
+- `notifications`: projected runtime notifications with `contract`, `eventName`, and typed `state`.
+- invalid tx input (bad/empty/oversized script, out-of-range `nonce`, negative/out-of-range fees, invalid `validUntilBlock`, signer count/list bound violations, duplicate signers, malformed signer scope/hash/group/rule fields, witness-rule depth/subitem/count limit violations, or malformed tx object/field types) is surfaced as a per-tx `FAULT` receipt.
+- tx-list overflow (`len(txs)` exceeds `max_transactions_per_block`) produces per-tx `FAULT` receipts in default mode.
+- processing continues across transaction lists even when one tx faults during validation/execution.
+- `--strict` changes behavior to fail-fast and return non-zero exit on first tx validation/execution error.
+
+`alloc-out.json`:
+- post-state allocation in the same account-oriented schema as `alloc.json`.
+
+Scope note:
+- `neo-t8n` executes scripts with runtime context and state projection, but it is not a full mempool/consensus transaction validator.
+- `result.receipts[*].txHash` is a deterministic `neo-t8n` receipt identifier, not a canonical network transaction hash.

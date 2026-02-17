@@ -64,6 +64,7 @@ class ContractMethodMetadata:
     required_call_flags: CallFlags = CallFlags.NONE
     active_in: Any = None
     deprecated_in: Any = None
+    manifest_parameter_names: list[str] | None = None
     descriptor: ContractMethodDescriptor = field(default_factory=ContractMethodDescriptor)
     
     def __post_init__(self):
@@ -164,6 +165,7 @@ class NativeContract(ABC):
         self._id = self._get_next_id()
         self._hash = self._calculate_hash()
         self._methods: Dict[str, ContractMethodMetadata] = {}
+        self._methods_by_name: Dict[str, list[ContractMethodMetadata]] = {}
         self._method_entries: list[ContractMethodMetadata] = []
         self._ordered_method_entries: list[ContractMethodMetadata] = []
         self._methods_by_offset: Dict[int, ContractMethodMetadata] = {}
@@ -218,6 +220,87 @@ class NativeContract(ABC):
     def hash(self) -> UInt160:
         """Contract script hash."""
         return self._hash
+
+    def _contract_activations(self) -> tuple[Any | None, ...]:
+        """Hardfork activations for contract deployment/availability.
+
+        Mirrors Neo's ``Activations`` list semantics where the first
+        activation controls when the contract becomes active.
+        """
+        return (None,)
+
+    def contract_active_in(self) -> Any | None:
+        """Return the hardfork that activates this contract, if any."""
+        activations = self._contract_activations()
+        return activations[0] if activations else None
+
+    def is_contract_active(self, context: Any) -> bool:
+        """Whether this native contract is active in *context*."""
+        activation = self.contract_active_in()
+        if activation is None:
+            return True
+        return self.is_hardfork_enabled(context, activation)
+
+    @staticmethod
+    def _hardfork_height(settings: Any, hardfork: Any) -> int | None:
+        hardforks = getattr(settings, "hardforks", None)
+        if isinstance(hardforks, dict):
+            height = hardforks.get(hardfork)
+            if height is not None:
+                return int(height)
+        return None
+
+    @classmethod
+    def _context_block_index(cls, context: Any) -> int:
+        _, snapshot = cls._hardfork_context(context)
+        block = getattr(snapshot, "persisting_block", None) if snapshot is not None else None
+        if block is None:
+            block = getattr(context, "persisting_block", None)
+        if block is None:
+            return 0
+        return int(getattr(block, "index", 0))
+
+    def _used_hardforks(self) -> set[Any]:
+        used: set[Any] = set()
+        for activation in self._contract_activations():
+            if activation is not None:
+                used.add(activation)
+        for method in self._method_entries:
+            if method.active_in is not None:
+                used.add(method.active_in)
+            if method.deprecated_in is not None:
+                used.add(method.deprecated_in)
+        for event in self._events:
+            if event.active_in is not None:
+                used.add(event.active_in)
+            if event.deprecated_in is not None:
+                used.add(event.deprecated_in)
+        return used
+
+    def _native_update_counter(self, context: Any) -> int:
+        settings, _ = self._hardfork_context(context)
+        if settings is None:
+            return 0
+
+        index = self._context_block_index(context)
+        active_in = self.contract_active_in()
+        if active_in is None:
+            creation_height = 0
+        else:
+            active_height = self._hardfork_height(settings, active_in)
+            if active_height is None or active_height > index:
+                return 0
+            creation_height = active_height
+
+        init_heights: set[int] = {creation_height}
+        for hardfork in self._used_hardforks():
+            height = self._hardfork_height(settings, hardfork)
+            if height is None:
+                continue
+            if height < creation_height or height > index:
+                continue
+            init_heights.add(height)
+        return max(0, len(init_heights) - 1)
     
     def _register_methods(self) -> None:
         """Register contract methods. Override in subclasses."""
@@ -236,6 +319,7 @@ class NativeContract(ABC):
         call_flags: CallFlags = CallFlags.NONE,
         active_in: Any = None,
         deprecated_in: Any = None,
+        manifest_parameter_names: list[str] | None = None,
     ) -> None:
         """Register a contract method.
 
@@ -254,7 +338,11 @@ class NativeContract(ABC):
         offset = self._next_method_offset
         self._next_method_offset += self._CALLNATIVE_STUB_SIZE
 
-        descriptor = ContractMethodDescriptor(name=name, offset=offset)
+        descriptor = ContractMethodDescriptor(
+            name=name,
+            offset=offset,
+            safe=bool((call_flags & ~CallFlags.READ_ONLY) == 0),
+        )
         metadata = ContractMethodMetadata(
             name=name,
             handler=handler,
@@ -263,9 +351,11 @@ class NativeContract(ABC):
             required_call_flags=call_flags,
             active_in=active_in,
             deprecated_in=deprecated_in,
+            manifest_parameter_names=manifest_parameter_names,
             descriptor=descriptor,
         )
         self._methods[name] = metadata
+        self._methods_by_name.setdefault(name, []).append(metadata)
         self._method_entries.append(metadata)
         self._methods_by_offset[offset] = metadata
         self._method_order.append(name)
@@ -361,12 +451,13 @@ class NativeContract(ABC):
         context: Any,
     ) -> Optional[ContractMethodMetadata]:
         """Look up a method by name and ensure it is active in *context*."""
-        method = self._methods.get(name)
-        if method is None:
+        variants = self._methods_by_name.get(name)
+        if not variants:
             return None
-        if not self._is_method_active(context, method):
-            return None
-        return method
+        for method in reversed(variants):
+            if self._is_method_active(context, method):
+                return method
+        return None
 
     def _is_method_active(self, context: Any, method: ContractMethodMetadata) -> bool:
         """Check whether a method is active in the given hardfork context."""
@@ -395,7 +486,10 @@ class NativeContract(ABC):
 
     def get_method(self, name: str) -> Optional[ContractMethodMetadata]:
         """Look up a registered method by name."""
-        return self._methods.get(name)
+        variants = self._methods_by_name.get(name)
+        if not variants:
+            return None
+        return variants[-1]
 
     @staticmethod
     def _is_context_parameter(parameter: inspect.Parameter) -> bool:
@@ -512,18 +606,27 @@ class NativeContract(ABC):
             type_hints = {}
 
         parameters: list[dict[str, str]] = []
+        manifest_parameter_names = method.manifest_parameter_names
+        manifest_index = 0
         for index, parameter in enumerate(parameters_spec):
             if index == 0 and self._is_context_parameter(parameter):
                 continue
             if self._is_compat_context_parameter(parameters_spec, index, parameter):
                 continue
             annotation = type_hints.get(parameter.name, parameter.annotation)
+            parameter_name = parameter.name
+            if (
+                manifest_parameter_names is not None
+                and manifest_index < len(manifest_parameter_names)
+            ):
+                parameter_name = manifest_parameter_names[manifest_index]
             parameters.append(
                 {
-                    "name": parameter.name,
+                    "name": parameter_name,
                     "type": self._normalize_manifest_annotation(annotation),
                 }
             )
+            manifest_index += 1
 
         return_annotation = type_hints.get("return", signature.return_annotation)
         return {
@@ -576,8 +679,12 @@ class NativeContract(ABC):
             + bytes((int(OpCode.RET),))
         )
 
-    def get_contract_state(self, context: Any) -> Any:
-        """Generate the active native ``ContractState`` for this context."""
+    def get_contract_state(self, context: Any, hash: UInt160 | None = None) -> Any:
+        """Generate the active native ``ContractState`` for this context.
+
+        The optional ``hash`` parameter exists for ``ContractManagement``
+        compatibility helpers; non-management native contracts ignore it.
+        """
         from neo.native.contract_management import ContractState
 
         active = self._get_active_method_entries(context)
@@ -604,7 +711,7 @@ class NativeContract(ABC):
         manifest_bytes = json.dumps(manifest, separators=(",", ":")).encode("utf-8")
         return ContractState(
             id=self.id,
-            update_counter=0,
+            update_counter=self._native_update_counter(context),
             hash=self.hash,
             nef=script,
             manifest=manifest_bytes,

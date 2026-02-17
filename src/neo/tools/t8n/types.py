@@ -76,15 +76,36 @@ class SignerInput:
     scopes: int = 1  # WitnessScope.CALLED_BY_ENTRY
     allowed_contracts: List[str] = field(default_factory=list)
     allowed_groups: List[str] = field(default_factory=list)
+    rules: List[Dict[str, Any]] = field(default_factory=list)
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SignerInput":
         """Create SignerInput from dictionary."""
+        if not isinstance(data, dict):
+            return cls(account="")
+
+        account = data.get("account", "")
+        if not isinstance(account, str):
+            account = str(account)
+
+        allowed_contracts = data.get("allowedContracts", [])
+        if allowed_contracts is None:
+            allowed_contracts = []
+
+        allowed_groups = data.get("allowedGroups", [])
+        if allowed_groups is None:
+            allowed_groups = []
+
+        rules = data.get("rules", [])
+        if rules is None:
+            rules = []
+
         return cls(
-            account=data["account"],
+            account=account,
             scopes=data.get("scopes", 1),
-            allowed_contracts=data.get("allowedContracts", []),
-            allowed_groups=data.get("allowedGroups", []),
+            allowed_contracts=allowed_contracts,
+            allowed_groups=allowed_groups,
+            rules=rules,
         )
 
 
@@ -100,20 +121,47 @@ class TransactionInput:
     network_fee: int = 0
     valid_until_block: int = 0
     nonce: int = 0
+    parse_error: Optional[str] = None
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TransactionInput":
         """Create TransactionInput from dictionary."""
-        signers = [
-            SignerInput.from_dict(s) for s in data.get("signers", [])
-        ]
+        errors: List[str] = []
+
+        if not isinstance(data, dict):
+            return cls(script="", parse_error="Transaction entry must be an object")
+
+        script_value = data.get("script")
+        if script_value is None:
+            errors.append("Transaction missing required script")
+            script = ""
+        elif isinstance(script_value, str):
+            script = script_value
+        else:
+            errors.append("Transaction script must be a hex string")
+            script = str(script_value)
+
+        signers: List[SignerInput] = []
+        signers_field = data.get("signers", [])
+        if signers_field is None:
+            signers_field = []
+        if not isinstance(signers_field, list):
+            errors.append("Transaction signers must be an array")
+        else:
+            for signer in signers_field:
+                if not isinstance(signer, dict):
+                    errors.append("Transaction signer entries must be objects")
+                    continue
+                signers.append(SignerInput.from_dict(signer))
+
         return cls(
-            script=data["script"],
+            script=script,
             signers=signers,
-            system_fee=int(data.get("systemFee", 0)),
-            network_fee=int(data.get("networkFee", 0)),
-            valid_until_block=int(data.get("validUntilBlock", 0)),
-            nonce=int(data.get("nonce", 0)),
+            system_fee=data.get("systemFee", 0),
+            network_fee=data.get("networkFee", 0),
+            valid_until_block=data.get("validUntilBlock", 0),
+            nonce=data.get("nonce", 0),
+            parse_error="; ".join(errors) if errors else None,
         )
 
 
@@ -165,7 +213,7 @@ class Receipt:
     gas_consumed: int
     exception: Optional[str] = None
     stack: List[Any] = field(default_factory=list)
-    notifications: List[NotificationOutput] = field(default_factory=list)
+    notifications: List[Any] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -173,13 +221,13 @@ class Receipt:
             "txHash": self.tx_hash,
             "vmState": self.vm_state,
             "gasConsumed": str(self.gas_consumed),
+            "stack": self.stack,
+            "notifications": [
+                n.to_dict() if hasattr(n, "to_dict") else n for n in self.notifications
+            ],
         }
         if self.exception:
             result["exception"] = self.exception
-        if self.stack:
-            result["stack"] = self.stack
-        if self.notifications:
-            result["notifications"] = [n.to_dict() for n in self.notifications]
         return result
 
 

@@ -9,7 +9,7 @@ This matrix expands Neo execution-spec verification from VM-heavy coverage to fu
 - Deep control-flow semantics (short/long jump families, call variants including pointer dispatch, TRY/ENDTRY long-offset paths).
 - Deep splice/slot/compound semantics (MEMCPY bounds, static/arg slot lifecycle faults, typed arrays, pack/unpack variants).
 - Smart contract engine, interop syscall metadata, and serialization.
-- Native contracts (NEO/GAS/Policy/ContractManagement/Ledger/Oracle/Role/StdLib/CryptoLib/Notary).
+- Native contracts (NEO/GAS/Policy/ContractManagement/Ledger/Oracle/Role/StdLib/CryptoLib/Notary/Treasury).
 - Cryptography stack (hashing, ECC, ECDSA, Ed25519, BLS, Merkle, Bloom/Murmur) with payload-matrix vectors.
 - Network payload serialization and binary I/O compatibility.
 - Persistence, ledger validation paths, wallets, core types, and script-backed state vector execution.
@@ -26,6 +26,7 @@ This matrix expands Neo execution-spec verification from VM-heavy coverage to fu
 
 - Pairwise C# vs NeoGo: `neo-compat`.
 - Three-way C# vs NeoGo vs neo-rs: `neo-multicompat`.
+- Public NeoGo endpoint drift probe automation: `python3 scripts/neogo_endpoint_matrix.py`.
 - The cross-client checklist IDs remain required coverage gates.
 
 ## Depth Gates

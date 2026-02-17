@@ -73,6 +73,14 @@ def add_output_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Verbose output",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help=(
+            "Fail fast on tx validation/execution errors "
+            "(default: emit per-tx FAULT receipts and continue)"
+        ),
+    )
 
 
 def main(args: Optional[list[str]] = None) -> int:
@@ -94,8 +102,6 @@ def main(args: Optional[list[str]] = None) -> int:
             raise ValueError("env input must be a JSON object")
         if not isinstance(txs_raw, list):
             raise ValueError("txs input must be a JSON array")
-        if not all(isinstance(tx, dict) for tx in txs_raw):
-            raise ValueError("each tx entry must be a JSON object")
 
         alloc = alloc_raw
         env = env_raw
@@ -105,7 +111,7 @@ def main(args: Optional[list[str]] = None) -> int:
             print(f"Loaded {len(alloc)} accounts", file=sys.stderr)
             print(f"Loaded {len(txs)} transactions", file=sys.stderr)
 
-        t8n = T8N(alloc=alloc, env=env, txs=txs)
+        t8n = T8N(alloc=alloc, env=env, txs=txs, strict=opts.strict)
         output = t8n.run()
 
         write_json_file(opts.output_result, output.result.to_dict())

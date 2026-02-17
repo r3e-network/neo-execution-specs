@@ -9,7 +9,7 @@ def test_neo_token():
     neo = NeoToken()
     assert neo.symbol == "NEO"
     assert neo.decimals == 0
-    assert neo.total_supply == 100_000_000
+    assert neo.total_supply() == 100_000_000
 
 
 def test_gas_token():

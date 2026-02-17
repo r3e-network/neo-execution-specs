@@ -295,6 +295,48 @@ python scripts/neo_rs_batch_diff.py \
 
 See `scripts/README.md` for the full CLI options and exit-code behavior.
 
+### NeoGo Endpoint Matrix Helper
+
+For repeatable public NeoGo endpoint drift checks against the expected delta set:
+
+```bash
+python3 scripts/neogo_endpoint_matrix.py \
+  --output-dir reports/compat-endpoint-matrix \
+  --prefix neogo-0.116-endpoint-matrix
+```
+
+By default, the script:
+- loads expected deltas from `docs/verification/neogo-0.116-known-deltas.txt`,
+- builds a temporary probe vector set from `tests/vectors/`,
+- checks `rpc1..rpc7` MainNet + `rpc.t5` TestNet NeoGo endpoints,
+- verifies expected protocol identity (network magic + useragent tokens),
+- emits per-endpoint C#/NeoGo reports and a summary JSON.
+
+Use `--disable-protocol-checks` only when intentionally exploring endpoints outside
+the expected Neo v3.9.1 / NeoGo 0.116.0 baseline.
+
+### Native Surface Parity Helper
+
+For direct local-vs-RPC native contract surface checks:
+
+```bash
+python3 scripts/check_native_surface_parity.py \
+  --rpc-url http://seed1.neo.org:10332 \
+  --json-output reports/native-surface-mainnet.json
+```
+
+The script compares:
+- native contract IDs and hashes,
+- full ABI methods (name, parameter names/types, return type, `offset`, `safe`),
+- ABI events,
+- supported standards,
+- `updatecounter`.
+
+Exit codes:
+- `0`: full parity,
+- `1`: surface mismatches found,
+- `2`: RPC/config/runtime error while checking.
+
 ### CLI Options
 
 | Option | Description |

@@ -39,7 +39,11 @@ class StdLib(NativeContract):
             "jsonSerialize", self.json_serialize, cpu_fee=1 << 12, call_flags=CallFlags.NONE
         )
         self._register_method(
-            "jsonDeserialize", self.json_deserialize, cpu_fee=1 << 14, call_flags=CallFlags.NONE
+            "jsonDeserialize",
+            self.json_deserialize,
+            cpu_fee=1 << 14,
+            call_flags=CallFlags.NONE,
+            manifest_parameter_names=["json"],
         )
         self._register_method("itoa", self.itoa_base10, cpu_fee=1 << 12, call_flags=CallFlags.NONE)
         self._register_method("itoa", self.itoa, cpu_fee=1 << 12, call_flags=CallFlags.NONE)
@@ -82,12 +86,26 @@ class StdLib(NativeContract):
             "memorySearch", self.memory_search, cpu_fee=1 << 6, call_flags=CallFlags.NONE
         )
         self._register_method(
-            "stringSplit", self.string_split_keep_empty, cpu_fee=1 << 8, call_flags=CallFlags.NONE
+            "stringSplit",
+            self.string_split_keep_empty,
+            cpu_fee=1 << 8,
+            call_flags=CallFlags.NONE,
+            manifest_parameter_names=["str", "separator"],
         )
         self._register_method(
-            "stringSplit", self.string_split, cpu_fee=1 << 8, call_flags=CallFlags.NONE
+            "stringSplit",
+            self.string_split,
+            cpu_fee=1 << 8,
+            call_flags=CallFlags.NONE,
+            manifest_parameter_names=["str", "separator", "removeEmptyEntries"],
         )
-        self._register_method("strLen", self.str_len, cpu_fee=1 << 8, call_flags=CallFlags.NONE)
+        self._register_method(
+            "strLen",
+            self.str_len,
+            cpu_fee=1 << 8,
+            call_flags=CallFlags.NONE,
+            manifest_parameter_names=["str"],
+        )
         # Hardfork HF_Echidna methods
         self._register_method(
             "base64UrlEncode",
@@ -110,6 +128,7 @@ class StdLib(NativeContract):
             cpu_fee=1 << 5,
             call_flags=CallFlags.NONE,
             active_in=Hardfork.HF_FAUN,
+            manifest_parameter_names=["bytes"],
         )
         self._register_method(
             "hexDecode",
@@ -117,6 +136,7 @@ class StdLib(NativeContract):
             cpu_fee=1 << 5,
             call_flags=CallFlags.NONE,
             active_in=Hardfork.HF_FAUN,
+            manifest_parameter_names=["str"],
         )
 
     def serialize(self, item: Any) -> bytes:

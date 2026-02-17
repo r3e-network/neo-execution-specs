@@ -2,6 +2,9 @@
 
 This document describes the architecture of neo-execution-specs, a Python reference implementation of the Neo N3 protocol.
 
+For the canonical protocol profile and execution semantics, see
+`docs/execution-spec.md`.
+
 ## Overview
 
 ```
@@ -89,8 +92,8 @@ neo/crypto/
 ├── merkle_tree.py       # Merkle tree
 ├── ecc/                 # Elliptic curve cryptography
 │   ├── curve.py         # Curve definitions
-│   ├── ec_point.py      # Point operations
-│   └── ecdsa.py         # ECDSA signatures
+│   ├── point.py         # Point operations
+│   └── signature.py     # Signature verification helpers
 ├── bls12_381/           # BLS12-381 pairing
 │   ├── g1.py            # G1 group
 │   ├── g2.py            # G2 group
@@ -129,12 +132,13 @@ Built-in system contracts:
 | `GasToken` | `0xd2a4cf...` | GAS utility token |
 | `PolicyContract` | `0xcc5e4e...` | Network policies |
 | `ContractManagement` | `0xfffdc9...` | Contract lifecycle |
-| `LedgerContract` | `0xda6529...` | Blockchain data |
+| `LedgerContract` | `0xda65b6...` | Blockchain data |
 | `OracleContract` | `0xfe924b...` | Oracle service |
 | `RoleManagement` | `0x49cf4e...` | Role-based access |
 | `CryptoLib` | `0x726cb6...` | Crypto functions |
 | `StdLib` | `0xacce6f...` | Standard library |
 | `Notary` | `0xc1e14f...` | Notary service |
+| `Treasury` | `0x156326...` | Treasury operations |
 
 ### Persistence (`neo.persistence`)
 

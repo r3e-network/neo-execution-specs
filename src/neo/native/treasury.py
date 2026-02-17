@@ -16,6 +16,9 @@ class Treasury(NativeContract):
     def name(self) -> str:
         return "Treasury"
 
+    def _contract_activations(self) -> tuple[Any | None, ...]:
+        return (Hardfork.HF_FAUN,)
+
     def _register_methods(self) -> None:
         super()._register_methods()
         self._register_method(
@@ -24,6 +27,7 @@ class Treasury(NativeContract):
             cpu_fee=1 << 5,
             call_flags=CallFlags.NONE,
             active_in=Hardfork.HF_FAUN,
+            manifest_parameter_names=["from", "amount", "tokenId", "data"],
         )
         self._register_method(
             "onNEP17Payment",
@@ -31,6 +35,7 @@ class Treasury(NativeContract):
             cpu_fee=1 << 5,
             call_flags=CallFlags.NONE,
             active_in=Hardfork.HF_FAUN,
+            manifest_parameter_names=["from", "amount", "data"],
         )
         self._register_method(
             "verify",

@@ -109,6 +109,149 @@ class TestContractManagement:
         assert native_state.id == stdlib.id
         assert native_state.hash == stdlib.hash
 
+    def test_native_contract_activation_follows_hardforks(self):
+        contracts = initialize_native_contracts()
+        cm = contracts["ContractManagement"]
+        notary = contracts["Notary"]
+        treasury = contracts["Treasury"]
+
+        settings = ProtocolSettings.mainnet()
+        settings.hardforks[Hardfork.HF_ECHIDNA] = 100
+        settings.hardforks[Hardfork.HF_FAUN] = 200
+
+        snapshot_pre_echidna = SimpleNamespace(
+            get=lambda _key: None,
+            protocol_settings=settings,
+            persisting_block=SimpleNamespace(index=99),
+        )
+        snapshot_post_echidna = SimpleNamespace(
+            get=lambda _key: None,
+            protocol_settings=settings,
+            persisting_block=SimpleNamespace(index=100),
+        )
+        snapshot_pre_faun = SimpleNamespace(
+            get=lambda _key: None,
+            protocol_settings=settings,
+            persisting_block=SimpleNamespace(index=199),
+        )
+        snapshot_post_faun = SimpleNamespace(
+            get=lambda _key: None,
+            protocol_settings=settings,
+            persisting_block=SimpleNamespace(index=200),
+        )
+
+        assert cm.get_contract_state(snapshot_pre_echidna, notary.hash) is None
+        assert cm.get_contract_state(snapshot_post_echidna, notary.hash) is not None
+        assert cm.get_contract_state(snapshot_pre_faun, treasury.hash) is None
+        assert cm.get_contract_state(snapshot_post_faun, treasury.hash) is not None
+        assert cm.get_contract_state_by_id(snapshot_pre_echidna, notary.id) is None
+        assert cm.get_contract_state_by_id(snapshot_post_echidna, notary.id) is not None
+        assert cm.get_contract_state_by_id(snapshot_pre_faun, treasury.id) is None
+        assert cm.get_contract_state_by_id(snapshot_post_faun, treasury.id) is not None
+
+        assert cm.is_contract(snapshot_post_echidna, notary.hash) is True
+        assert cm.is_contract(snapshot_post_echidna, treasury.hash) is False
+        assert cm.is_contract(snapshot_post_faun, treasury.hash) is True
+
+    def test_native_update_counter_follows_hardfork_reinitialization(self):
+        contracts = initialize_native_contracts()
+        cm = contracts["ContractManagement"]
+
+        settings = ProtocolSettings.mainnet()
+        settings.hardforks[Hardfork.HF_ECHIDNA] = 100
+        settings.hardforks[Hardfork.HF_COCKATRICE] = 150
+        settings.hardforks[Hardfork.HF_FAUN] = 200
+
+        snapshot = SimpleNamespace(
+            get=lambda _key: None,
+            protocol_settings=settings,
+            persisting_block=SimpleNamespace(index=200),
+        )
+
+        expected_update_counter = {
+            "ContractManagement": 1,
+            "StdLib": 2,
+            "CryptoLib": 2,
+            "LedgerContract": 0,
+            "NeoToken": 2,
+            "GasToken": 0,
+            "PolicyContract": 2,
+            "RoleManagement": 1,
+            "OracleContract": 1,
+            "Notary": 1,
+            "Treasury": 0,
+        }
+
+        for name, expected in expected_update_counter.items():
+            contract = contracts[name]
+            state = cm.get_contract_state(snapshot, contract.hash)
+            assert state is not None, name
+            assert state.update_counter == expected, name
+
+    def test_crypto_lib_method_activation_follows_hardforks(self):
+        contracts = initialize_native_contracts()
+        cm = contracts["ContractManagement"]
+        crypto = contracts["CryptoLib"]
+
+        settings = ProtocolSettings.mainnet()
+        settings.hardforks[Hardfork.HF_ECHIDNA] = 100
+        settings.hardforks[Hardfork.HF_COCKATRICE] = 150
+
+        def _snapshot(index: int):
+            return SimpleNamespace(
+                get=lambda _key: None,
+                protocol_settings=settings,
+                persisting_block=SimpleNamespace(index=index),
+            )
+
+        snapshot_pre_echidna = _snapshot(99)
+        state_pre_echidna = cm.get_contract_state(snapshot_pre_echidna, crypto.hash)
+        assert state_pre_echidna is not None
+        methods_pre_echidna = json.loads(state_pre_echidna.manifest.decode("utf-8"))["abi"]["methods"]
+        names_pre_echidna = [method["name"] for method in methods_pre_echidna]
+        assert "verifyWithECDsa" in names_pre_echidna
+        assert names_pre_echidna.count("verifyWithECDsa") == 1
+        assert "verifyWithEd25519" not in names_pre_echidna
+        assert "recoverSecp256K1" not in names_pre_echidna
+        assert "keccak256" not in names_pre_echidna
+
+        snapshot_pre_cockatrice = _snapshot(149)
+        state_pre_cockatrice = cm.get_contract_state(snapshot_pre_cockatrice, crypto.hash)
+        assert state_pre_cockatrice is not None
+        names_pre_cockatrice = [
+            method["name"]
+            for method in json.loads(state_pre_cockatrice.manifest.decode("utf-8"))["abi"]["methods"]
+        ]
+        assert names_pre_cockatrice.count("verifyWithECDsa") == 1
+        assert "verifyWithEd25519" in names_pre_cockatrice
+        assert "recoverSecp256K1" in names_pre_cockatrice
+        assert "keccak256" not in names_pre_cockatrice
+
+        snapshot_post_cockatrice = _snapshot(150)
+        state_post_cockatrice = cm.get_contract_state(snapshot_post_cockatrice, crypto.hash)
+        assert state_post_cockatrice is not None
+        names_post_cockatrice = [
+            method["name"]
+            for method in json.loads(state_post_cockatrice.manifest.decode("utf-8"))["abi"]["methods"]
+        ]
+        assert names_post_cockatrice.count("verifyWithECDsa") == 1
+        assert "verifyWithEd25519" in names_post_cockatrice
+        assert "recoverSecp256K1" in names_post_cockatrice
+        assert "keccak256" in names_post_cockatrice
+
+        verify_pre_cockatrice = crypto.get_method_if_active(
+            "verifyWithECDsa", snapshot_pre_cockatrice
+        )
+        verify_post_cockatrice = crypto.get_method_if_active(
+            "verifyWithECDsa", snapshot_post_cockatrice
+        )
+        assert verify_pre_cockatrice is not None
+        assert verify_post_cockatrice is not None
+        assert verify_pre_cockatrice.deprecated_in == Hardfork.HF_COCKATRICE
+        assert verify_pre_cockatrice.active_in is None
+        assert verify_post_cockatrice.active_in == Hardfork.HF_COCKATRICE
+        assert verify_post_cockatrice.deprecated_in is None
+
     def test_get_contract_state_manifest_supported_standards_follow_hardforks(self):
         contracts = initialize_native_contracts()
         cm = contracts["ContractManagement"]
@@ -148,16 +291,13 @@ class TestContractManagement:
         )
         oracle_pre = cm.get_contract_state(snapshot_pre_faun, oracle.hash)
         notary_pre = cm.get_contract_state(snapshot_pre_faun, notary.hash)
-        treasury_pre = cm.get_contract_state(snapshot_pre_faun, treasury.hash)
         assert oracle_pre is not None
         assert notary_pre is not None
-        assert treasury_pre is not None
+        assert cm.get_contract_state(snapshot_pre_faun, treasury.hash) is None
         manifest_oracle_pre = json.loads(oracle_pre.manifest.decode("utf-8"))
         manifest_notary_pre = json.loads(notary_pre.manifest.decode("utf-8"))
-        manifest_treasury_pre = json.loads(treasury_pre.manifest.decode("utf-8"))
         assert manifest_oracle_pre["supportedstandards"] == []
         assert manifest_notary_pre["supportedstandards"] == ["NEP-27"]
-        assert manifest_treasury_pre["supportedstandards"] == []
 
         snapshot_post_faun = SimpleNamespace(
             get=lambda _key: None,
@@ -204,6 +344,9 @@ class TestContractManagement:
             )
             for contract in contracts.values():
                 state = cm.get_contract_state(snapshot, contract.hash)
+                if not contract.is_contract_active(snapshot):
+                    assert state is None
+                    continue
                 assert state is not None
                 manifest = json.loads(state.manifest.decode("utf-8"))
                 methods = manifest["abi"]["methods"]
@@ -333,10 +476,10 @@ class TestContractManagement:
         assert methods["base64UrlDecode"]["parameters"] == [{"name": "s", "type": "String"}]
         assert methods["base64UrlDecode"]["returntype"] == "String"
 
-        assert methods["hexEncode"]["parameters"] == [{"name": "data", "type": "ByteArray"}]
+        assert methods["hexEncode"]["parameters"] == [{"name": "bytes", "type": "ByteArray"}]
         assert methods["hexEncode"]["returntype"] == "String"
 
-        assert methods["hexDecode"]["parameters"] == [{"name": "s", "type": "String"}]
+        assert methods["hexDecode"]["parameters"] == [{"name": "str", "type": "String"}]
         assert methods["hexDecode"]["returntype"] == "ByteArray"
 
         assert sorted(
@@ -465,7 +608,7 @@ class TestContractManagement:
         ]
         assert crypto_methods["bls12381Pairing"]["returntype"] == "InteropInterface"
         assert crypto_methods["bls12381Serialize"]["parameters"] == [
-            {"name": "point", "type": "InteropInterface"}
+            {"name": "g", "type": "InteropInterface"}
         ]
         assert crypto_methods["bls12381Serialize"]["returntype"] == "ByteArray"
 
@@ -474,7 +617,7 @@ class TestContractManagement:
         ledger_manifest = json.loads(ledger_state.manifest.decode("utf-8"))
         ledger_methods = {method["name"]: method for method in ledger_manifest["abi"]["methods"]}
         assert ledger_methods["getBlock"]["parameters"] == [
-            {"name": "index_or_hash", "type": "ByteArray"}
+            {"name": "indexOrHash", "type": "ByteArray"}
         ]
         assert ledger_methods["getBlock"]["returntype"] == "Array"
         assert ledger_methods["getTransaction"]["parameters"] == [
@@ -482,8 +625,8 @@ class TestContractManagement:
         ]
         assert ledger_methods["getTransaction"]["returntype"] == "Array"
         assert ledger_methods["getTransactionFromBlock"]["parameters"] == [
-            {"name": "block_index_or_hash", "type": "ByteArray"},
-            {"name": "tx_index", "type": "Integer"},
+            {"name": "blockIndexOrHash", "type": "ByteArray"},
+            {"name": "txIndex", "type": "Integer"},
         ]
         assert ledger_methods["getTransactionFromBlock"]["returntype"] == "Array"
         assert ledger_methods["getTransactionSigners"]["returntype"] == "Array"
@@ -502,7 +645,7 @@ class TestContractManagement:
         neo_methods = {method["name"]: method for method in neo_manifest["abi"]["methods"]}
         assert neo_methods["getAllCandidates"]["returntype"] == "InteropInterface"
         assert neo_methods["getCandidateVote"]["parameters"] == [
-            {"name": "pubkey", "type": "PublicKey"}
+            {"name": "pubKey", "type": "PublicKey"}
         ]
         assert neo_methods["getCandidateVote"]["returntype"] == "Integer"
         assert neo_methods["registerCandidate"]["parameters"] == [
@@ -515,7 +658,7 @@ class TestContractManagement:
         assert neo_methods["unregisterCandidate"]["returntype"] == "Boolean"
         assert neo_methods["vote"]["parameters"] == [
             {"name": "account", "type": "Hash160"},
-            {"name": "vote_to", "type": "PublicKey"},
+            {"name": "voteTo", "type": "PublicKey"},
         ]
         assert neo_methods["vote"]["returntype"] == "Boolean"
 
@@ -524,14 +667,14 @@ class TestContractManagement:
         treasury_manifest = json.loads(treasury_state.manifest.decode("utf-8"))
         treasury_methods = {method["name"]: method for method in treasury_manifest["abi"]["methods"]}
         assert treasury_methods["onNEP11Payment"]["parameters"] == [
-            {"name": "from_account", "type": "Hash160"},
+            {"name": "from", "type": "Hash160"},
             {"name": "amount", "type": "Integer"},
-            {"name": "token_id", "type": "ByteArray"},
+            {"name": "tokenId", "type": "ByteArray"},
             {"name": "data", "type": "Any"},
         ]
         assert treasury_methods["onNEP11Payment"]["returntype"] == "Void"
         assert treasury_methods["onNEP17Payment"]["parameters"] == [
-            {"name": "from_account", "type": "Hash160"},
+            {"name": "from", "type": "Hash160"},
             {"name": "amount", "type": "Integer"},
             {"name": "data", "type": "Any"},
         ]

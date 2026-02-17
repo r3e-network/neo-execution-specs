@@ -11,6 +11,7 @@ from .policy import PolicyContract
 from .role_management import RoleManagement, Role
 from .oracle import OracleContract, OracleRequest, OracleResponseCode
 from .notary import Notary, Deposit
+from .treasury import Treasury
 
 __all__ = [
     "NativeContract",
@@ -32,6 +33,7 @@ __all__ = [
     "OracleResponseCode",
     "Notary",
     "Deposit",
+    "Treasury",
     "initialize_native_contracts",
 ]
 
@@ -63,5 +65,6 @@ def initialize_native_contracts() -> dict:
         "RoleManagement": RoleManagement(),           # -8
         "OracleContract": OracleContract(),           # -9
         "Notary": Notary(),                           # -10
+        "Treasury": Treasury(),                       # -11
     }
     return contracts

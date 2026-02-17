@@ -8,10 +8,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- _None yet._
+- Added `Treasury` native contract integration and dedicated coverage tests (`tests/native/test_treasury_contract.py`).
+- Added native v3.9.1 method-surface lock test (`tests/native/test_native_method_surface_v391.py`) to prevent ABI drift.
+- Added native v3.9.1 identity lock checks for all native contract IDs/hashes (`tests/native/test_native_method_surface_v391.py`).
+- Added NeoGo endpoint-matrix automation script (`scripts/neogo_endpoint_matrix.py`) with unit tests (`tests/tools/test_neogo_endpoint_matrix_script.py`).
+- Added scheduled/manual endpoint drift workflow (`.github/workflows/neogo-endpoint-matrix.yml`) with artifact + summary publishing.
+- Added dated compatibility verification evidence for NeoGo 0.116 (`docs/verification/neogo-0.116-validation-2026-02-16.md`).
 
 ### Changed
-- _None yet._
+- Updated Policy native defaults to match Neo v3.9.1 live baseline (`FeePerByte=20`, `ExecFeeFactor=1`, `StoragePrice=1000`).
+- Tightened Policy protocol invariants to Neo v3.9.1 limits (`MillisecondsPerBlock<=30000`, `MaxValidUntilBlockIncrement<=86400`, `MaxTraceableBlocks<=2102400`) and enforced cross-parameter constraints.
+- Corrected Policy whitelist-fee storage prefix to `16` (Neo v3.9.1).
+- Aligned Policy whitelist fee handling with Neo v3.9.1 contract/method validation by resolving ABI method offsets from ContractManagement state before set/remove.
+- Implemented Policy `recoverFund` protocol flow (1-year blocked-account timelock, NEP-17 contract validation, native-call transfer context, Treasury transfer, recovered-fund notification) and added targeted regression coverage.
+- Aligned Policy method metadata to Neo v3.9.1 `CallFlags` expectations for notify-capable methods and added metadata lock tests.
+- Aligned Policy `blockAccount` with Faun-era vote handling by clearing existing NEO votes (`NeoToken.vote_internal(..., None)`) when an account is blocked.
+- Aligned active Neo v3.9.1 native method metadata for `NeoToken` and `ContractManagement` (`CallFlags`/CPU fee), including notify-gated governance methods and `isContract`/`getCommitteeAddress` fee corrections.
+- Added `recoverFund` regression coverage for deployed NEP-17 contracts when `transfer` returns `false`, locking failure-path behavior.
+- Added Policy hardfork-aware behavior checks for Echidna/Faun-gated methods and aligned pre-Faun `blockAccount` semantics (no vote clearing, empty blocked entry value).
+- Added StdLib hardfork-aware handling for Echidna/Faun methods (`base64UrlEncode`/`base64UrlDecode`/`hexEncode`/`hexDecode`) with explicit activation checks and regression tests.
+- Hardened `LedgerContract` persistence/query behavior by storing decodable transaction payloads, supporting real `Block` serialization paths during persistence, and implementing indexed transaction retrieval from persisted block bytes (`getTransactionFromBlock`).
+- Hardened native method dispatch in `ApplicationEngine` by adding stack argument marshalling with signature-based context injection (`engine`/`snapshot`), typed conversion (`UInt160`/`UInt256`/enums/collections), and compatibility support for `(value, context=None)` handlers.
+- Added end-to-end `System.Contract.CallNative` integration coverage across native signature classes (`snapshot`, `engine`, `(value, context=None)`) and explicit call-flag rejection behavior.
+- Added hardfork-boundary `System.Contract.CallNative` regression coverage for Echidna/Faun-gated native methods (`ContractManagement.isContract`, `PolicyContract.getExecPicoFeeFactor`, `StdLib.base64UrlEncode`).
+- Expanded `System.Contract.CallNative` hardfork-boundary coverage for additional Echidna/Faun-gated methods (`PolicyContract.getMillisecondsPerBlock`, `getMaxValidUntilBlockIncrement`, `getMaxTraceableBlocks`, `getBlockedAccounts`, `getWhitelistFeeContracts`, `StdLib.hexEncode`, `StdLib.hexDecode`).
+- Added `System.Contract.CallNative` regression coverage for native return-type projection into VM stack types (Python `list` -> VM `Array`, `dict` -> VM `Map`, `UInt160/UInt256` -> `ByteString`).
+- Added integration coverage for native invocations through `System.Contract.Call` and `CALLT` (`tests/smartcontract/test_contract_call_native_integration.py`), including argument-order and caller-permission enforcement behavior.
+- Updated StdLib radix behavior to match live semantics for hex signedness/formatting (`itoa`/`atoi`).
+- Expanded native contract method coverage (ContractManagement, NeoToken, Policy, Treasury) and aligned documentation to 11 native contracts.
+- Hardened `neo-diff` native execution path to use real native contract method dispatch in compatibility runs.
+- Hardened BLS fallback behavior to fail closed when optional pairing dependencies are unavailable.
+- Refreshed production/testing/API docs to reflect current compatibility gates, known NeoGo 5-vector deltas, and endpoint matrix automation.
+- Hardened `ApplicationEngine` native return marshalling to project structured values to VM stack items while preserving iterator-like results as interop objects (prevents unintended iterator-to-bytes coercion).
+- Hardened `ApplicationEngine` native contract resolution and call-path behavior by:
+  - resolving native contracts through global native registries in `System.Contract.Call` / `CALLT` flows;
+  - dispatching native methods directly in `_call_contract_internal` with required call-flag and gas checks;
+  - enforcing caller-permission checks for native dynamic calls.
+- Hardened `System.Contract.CallNative` offset dispatch to use hardfork-aware active native method maps, and annotated Echidna/Faun-gated native methods with activation metadata so pre-/post-fork method availability and offsets follow active method sets.
+- Aligned `System.Contract.CallNative` native-script semantics with Neo v3.9.1 by modeling 7-byte stubs (`PUSH0 + SYSCALL + RET`) at SYSCALL offsets and rejecting non-zero native versions.
+- Enforced hardfork activation checks for native method-name dispatch in both `System.Contract.Call` and `CALLT`, so inactive gated methods are denied before invocation.
+- Hardened `CALLT` dispatch to enforce the same method-permission gate as `System.Contract.Call`.
+- Aligned `Treasury` native method metadata and behavior to Neo v3.9.1 (`CallFlags`/CPU fees, committee-gated `verify`) and added metadata lock coverage.
 
 ## [0.1.2] - 2026-02-12
 

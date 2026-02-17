@@ -1,0 +1,190 @@
+name: NeoGo Endpoint Matrix
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      mainnet_neogo_rpcs:
+        description: "Optional comma-delimited MainNet NeoGo RPC endpoints override"
+        required: false
+        default: ""
+      testnet_neogo_rpcs:
+        description: "Optional comma-delimited TestNet NeoGo RPC endpoints override"
+        required: false
+        default: ""
+      expected_vectors_file:
+        description: "Expected NeoGo delta vectors file"
+        required: false
+        default: "docs/verification/neogo-0.116-known-deltas.txt"
+      output_prefix:
+        description: "Report filename prefix"
+        required: false
+        default: "neogo-0.116-endpoint-matrix"
+      expected_mainnet_network:
+        description: "Expected MainNet network magic"
+        required: false
+        default: "860833102"
+      expected_testnet_network:
+        description: "Expected TestNet network magic"
+        required: false
+        default: "894710606"
+      csharp_useragent_token:
+        description: "Required token in C# endpoint useragent"
+        required: false
+        default: "Neo:3.9.1"
+      neogo_useragent_token:
+        description: "Required token in NeoGo endpoint useragent"
+        required: false
+        default: "NEO-GO:0.116.0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neogo-endpoint-matrix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  endpoint-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+
+      - name: Run NeoGo endpoint matrix probe
+        env:
+          INPUT_MAINNET_NEOGO_RPCS: ${{ github.event.inputs.mainnet_neogo_rpcs }}
+          INPUT_TESTNET_NEOGO_RPCS: ${{ github.event.inputs.testnet_neogo_rpcs }}
+          INPUT_EXPECTED_VECTORS_FILE: ${{ github.event.inputs.expected_vectors_file }}
+          INPUT_OUTPUT_PREFIX: ${{ github.event.inputs.output_prefix }}
+          INPUT_EXPECTED_MAINNET_NETWORK: ${{ github.event.inputs.expected_mainnet_network }}
+          INPUT_EXPECTED_TESTNET_NETWORK: ${{ github.event.inputs.expected_testnet_network }}
+          INPUT_CSHARP_USERAGENT_TOKEN: ${{ github.event.inputs.csharp_useragent_token }}
+          INPUT_NEOGO_USERAGENT_TOKEN: ${{ github.event.inputs.neogo_useragent_token }}
+        run: |
+          set -euo pipefail
+
+          mainnet_rpcs="${INPUT_MAINNET_NEOGO_RPCS}"
+          if [ -z "${mainnet_rpcs}" ]; then
+            mainnet_rpcs="http://rpc1.n3.nspcc.ru:10332,http://rpc2.n3.nspcc.ru:10332,http://rpc3.n3.nspcc.ru:10332,http://rpc4.n3.nspcc.ru:10332,http://rpc5.n3.nspcc.ru:10332,http://rpc6.n3.nspcc.ru:10332,http://rpc7.n3.nspcc.ru:10332"
+          fi
+
+          testnet_rpcs="${INPUT_TESTNET_NEOGO_RPCS}"
+          if [ -z "${testnet_rpcs}" ]; then
+            testnet_rpcs="http://rpc.t5.n3.nspcc.ru:20332"
+          fi
+
+          expected_vectors_file="${INPUT_EXPECTED_VECTORS_FILE}"
+          if [ -z "${expected_vectors_file}" ]; then
+            expected_vectors_file="docs/verification/neogo-0.116-known-deltas.txt"
+          fi
+
+          output_prefix="${INPUT_OUTPUT_PREFIX}"
+          if [ -z "${output_prefix}" ]; then
+            output_prefix="neogo-0.116-endpoint-matrix"
+          fi
+
+          expected_mainnet_network="${INPUT_EXPECTED_MAINNET_NETWORK}"
+          if [ -z "${expected_mainnet_network}" ]; then
+            expected_mainnet_network="860833102"
+          fi
+
+          expected_testnet_network="${INPUT_EXPECTED_TESTNET_NETWORK}"
+          if [ -z "${expected_testnet_network}" ]; then
+            expected_testnet_network="894710606"
+          fi
+
+          csharp_useragent_token="${INPUT_CSHARP_USERAGENT_TOKEN}"
+          if [ -z "${csharp_useragent_token}" ]; then
+            csharp_useragent_token="Neo:3.9.1"
+          fi
+
+          neogo_useragent_token="${INPUT_NEOGO_USERAGENT_TOKEN}"
+          if [ -z "${neogo_useragent_token}" ]; then
+            neogo_useragent_token="NEO-GO:0.116.0"
+          fi
+
+          python3 scripts/neogo_endpoint_matrix.py \
+            --expected-vectors-file "${expected_vectors_file}" \
+            --mainnet-neogo-rpcs "${mainnet_rpcs}" \
+            --testnet-neogo-rpcs "${testnet_rpcs}" \
+            --expected-mainnet-network "${expected_mainnet_network}" \
+            --expected-testnet-network "${expected_testnet_network}" \
+            --csharp-useragent-token "${csharp_useragent_token}" \
+            --neogo-useragent-token "${neogo_useragent_token}" \
+            --output-dir reports \
+            --prefix "${output_prefix}"
+
+          echo "OUTPUT_PREFIX=${output_prefix}" >> "$GITHUB_ENV"
+
+      - name: Upload endpoint matrix artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: neogo-endpoint-matrix
+          path: reports/*.json
+          retention-days: 30
+
+      - name: Summarize endpoint matrix
+        if: always()
+        env:
+          INPUT_OUTPUT_PREFIX: ${{ github.event.inputs.output_prefix }}
+        run: |
+          set -euo pipefail
+          output_prefix="${OUTPUT_PREFIX:-}"
+          if [ -z "${output_prefix}" ]; then
+            output_prefix="${INPUT_OUTPUT_PREFIX:-}"
+          fi
+          if [ -z "${output_prefix}" ]; then
+            output_prefix="neogo-0.116-endpoint-matrix"
+          fi
+
+          summary_file="reports/${output_prefix}-summary.json"
+
+          if [ ! -f "${summary_file}" ]; then
+            echo "No summary file generated." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          export output_prefix
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          from pathlib import Path
+
+          summary_file = Path(f"reports/{os.environ['output_prefix']}-summary.json")
+          payload = json.loads(summary_file.read_text(encoding="utf-8"))
+
+          print("## NeoGo Endpoint Matrix")
+          print("")
+          print(f"Summary file: `{summary_file}`")
+          print("")
+          print(f"- all_matches_expected: `{payload.get('all_matches_expected')}`")
+          print(f"- all_vector_matches_expected: `{payload.get('all_vector_matches_expected')}`")
+          print(f"- all_protocol_matches_expected: `{payload.get('all_protocol_matches_expected')}`")
+          print(f"- had_errors: `{payload.get('had_errors')}`")
+          print("")
+          print("| Network | Endpoint | UserAgent | Deltas | Vector Match | Protocol Match |")
+          print("|---|---|---|---:|---|---|")
+
+          for result in payload.get("results", []):
+              network = result.get("network", "")
+              endpoint = result.get("neogo_rpc", "")
+              useragent = result.get("neogo_useragent", "") or "unknown"
+              delta_count = len(result.get("vector_deltas", []))
+              vector_expected = result.get("matches_expected", False)
+              protocol_expected = result.get("protocol_matches_expected", False)
+              print(f"| {network} | `{endpoint}` | `{useragent}` | {delta_count} | `{vector_expected}` | `{protocol_expected}` |")
+          PY

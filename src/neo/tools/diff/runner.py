@@ -4,10 +4,12 @@ from __future__ import annotations
 import base64
 import gzip
 import hashlib
+import inspect
 import json
 import urllib.request
 import urllib.error
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional, Iterator, Any
 
 from neo.vm.opcode import OpCode
@@ -286,6 +288,65 @@ def _normalize_non_vm_result(actual: Any, vector: TestVector) -> Any:
     return actual
 
 
+class _LocalNativeSnapshot:
+    """Minimal snapshot shim for local native vector execution."""
+
+    def __init__(self) -> None:
+        self._storage: dict[Any, Any] = {}
+        self.persisting_block = SimpleNamespace(index=0)
+
+    def get(self, key: Any) -> Any | None:
+        return self._storage.get(key)
+
+    def contains(self, key: Any) -> bool:
+        return key in self._storage
+
+    def get_and_change(self, key: Any, factory: Any | None = None) -> Any | None:
+        if key not in self._storage and factory is not None:
+            self._storage[key] = factory()
+        return self._storage.get(key)
+
+    def add(self, key: Any, value: Any) -> None:
+        self._storage[key] = value
+
+    def delete(self, key: Any) -> None:
+        self._storage.pop(key, None)
+
+    def find(self, *_args: Any, **_kwargs: Any) -> Iterator[Any]:
+        return iter(())
+
+
+class _LocalNativeEngine:
+    """Minimal engine shim for local native vector execution."""
+
+    def __init__(self, snapshot: _LocalNativeSnapshot) -> None:
+        from neo.types import UInt160
+
+        self.snapshot = snapshot
+        self.storage_price = 1000
+        self.persisting_block = SimpleNamespace(index=0)
+        self.calling_script_hash = UInt160.ZERO
+        self.script_container = SimpleNamespace(sender=UInt160.ZERO)
+
+    def check_committee(self) -> bool:
+        return True
+
+    def add_gas(self, _value: int) -> None:
+        return None
+
+    def send_notification(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def is_contract(self, _hash: Any) -> bool:
+        return False
+
+    def call_contract(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def check_witness(self, _account: Any) -> bool:
+        return True
+
+
 class PythonExecutor:
     """Execute test vectors using Python spec."""
 
@@ -357,72 +418,19 @@ class PythonExecutor:
         metadata = vector.metadata
         contract = str(metadata.get("contract", ""))
         method = str(metadata.get("method", ""))
-        method_l = method.lower()
         args = [self._coerce_vector_arg(arg) for arg in metadata.get("args", [])]
+        from neo.native import initialize_native_contracts
 
-        if contract == "NeoToken":
-            if method_l == "totalsupply":
-                return 100_000_000
-            if method_l == "symbol":
-                return "NEO"
-            if method_l == "decimals":
-                return 0
+        contracts = initialize_native_contracts()
+        native = contracts.get(contract)
+        if native is None:
+            raise ValueError(f"Unsupported native contract: {contract}")
 
-        if contract == "GasToken":
-            if method_l == "symbol":
-                return "GAS"
-            if method_l == "decimals":
-                return 8
+        method_meta = native.get_method(method)
+        if method_meta is None:
+            raise ValueError(f"Unsupported native vector method: {contract}.{method}")
 
-        if contract == "PolicyContract":
-            # Neo v3.9.1 PolicyContract read-method baseline values.
-            if method_l == "getfeeperbyte":
-                return 20
-            if method_l == "getexecfeefactor":
-                return 1
-            if method_l == "getstorageprice":
-                return 1000
-
-        if contract == "StdLib":
-            if method_l == "itoa":
-                value = int(args[0])
-                base = int(args[1]) if len(args) > 1 else 10
-                return self._stdlib_itoa(value, base)
-            if method_l == "atoi":
-                text_value = str(args[0])
-                base = int(args[1]) if len(args) > 1 else 10
-                return self._stdlib_atoi(text_value, base)
-            if method_l == "base64encode":
-                data = args[0]
-                raw = data.encode("utf-8") if isinstance(data, str) else bytes(data)
-                return base64.b64encode(raw).decode("ascii")
-            if method_l == "memorycompare":
-                left = args[0].encode("utf-8") if isinstance(args[0], str) else bytes(args[0])
-                right = args[1].encode("utf-8") if isinstance(args[1], str) else bytes(args[1])
-                if left < right:
-                    return -1
-                if left > right:
-                    return 1
-                return 0
-
-        if contract == "CryptoLib":
-            if method_l == "sha256":
-                data = args[0]
-                raw = data.encode("utf-8") if isinstance(data, str) else bytes(data)
-                return hashlib.sha256(raw).digest()
-            if method_l == "ripemd160":
-                data = args[0]
-                raw = data.encode("utf-8") if isinstance(data, str) else bytes(data)
-                return hashlib.new("ripemd160", raw).digest()
-            if method_l == "murmur32":
-                from neo.crypto.murmur3 import murmur32
-
-                data = args[0]
-                raw = data.encode("utf-8") if isinstance(data, str) else bytes(data)
-                seed = int(args[1])
-                return murmur32(raw, seed).to_bytes(4, "little", signed=False)
-
-        raise ValueError(f"Unsupported native vector method: {contract}.{method}")
+        return self._invoke_local_native_method(method_meta.handler, args)
 
     def _evaluate_crypto_vector(self, vector: TestVector) -> Any:
         metadata = vector.metadata
@@ -448,42 +456,55 @@ class PythonExecutor:
         return value
 
     @staticmethod
-    def _stdlib_itoa(value: int, base: int) -> str:
-        if base == 10:
-            return str(value)
+    def _invoke_local_native_method(handler: Any, args: list[Any]) -> Any:
+        signature = inspect.signature(handler)
+        parameters = list(signature.parameters.values())
 
-        if base == 16:
-            if value < 0:
-                byte_len = max(1, (value.bit_length() + 8) // 8)
-                return value.to_bytes(byte_len, "big", signed=True).hex().lstrip("0") or "0"
+        call_prefix: list[Any] = []
+        if parameters:
+            first = parameters[0].name
+            if first == "snapshot":
+                call_prefix.append(_LocalNativeSnapshot())
+                parameters = parameters[1:]
+            elif first == "engine":
+                snapshot = _LocalNativeSnapshot()
+                call_prefix.append(_LocalNativeEngine(snapshot))
+                parameters = parameters[1:]
 
-            text = format(value, "x")
-            if text and text[0] in "89abcdef":
-                return f"0{text}"
-            return text
+        converted_args: list[Any] = []
+        for index, value in enumerate(args):
+            annotation = parameters[index].annotation if index < len(parameters) else inspect._empty
+            converted_args.append(PythonExecutor._coerce_native_arg(value, annotation))
 
-        raise ValueError(f"Invalid base: {base}")
+        return handler(*call_prefix, *converted_args)
 
     @staticmethod
-    def _stdlib_atoi(value: str, base: int) -> int:
-        if base == 10:
-            return int(value, 10)
+    def _coerce_native_arg(value: Any, annotation: Any) -> Any:
+        if annotation is inspect._empty:
+            return value
 
-        if base == 16:
-            if value.startswith(("-", "+")):
-                return int(value, 16)
+        annotation_name = annotation if isinstance(annotation, str) else getattr(annotation, "__name__", "")
 
-            normalized = value.lower().removeprefix("0x")
-            if not normalized:
-                return 0
+        if annotation is bytes or annotation_name == "bytes":
+            if isinstance(value, str):
+                return value.encode("utf-8")
+            if isinstance(value, bytearray):
+                return bytes(value)
+            return value
 
-            unsigned = int(normalized, 16)
-            bits = len(normalized) * 4
-            if normalized[0] in "89abcdef":
-                return unsigned - (1 << bits)
-            return unsigned
+        if annotation is str or annotation_name == "str":
+            if isinstance(value, (bytes, bytearray)):
+                return bytes(value).decode("utf-8")
+            return str(value)
 
-        raise ValueError(f"Invalid base: {base}")
+        if annotation is int or annotation_name == "int":
+            if isinstance(value, bool):
+                return int(value)
+            if isinstance(value, (bytes, bytearray)):
+                return int.from_bytes(bytes(value), "little", signed=False)
+            return int(value)
+
+        return value
 
     def _execute_with_gas(self, engine) -> tuple:
         """Execute while tracking opcode gas using Neo v3.9.1 prices."""

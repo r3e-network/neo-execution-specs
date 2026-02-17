@@ -21,10 +21,10 @@ This project provides an **executable specification** for Neo N3, similar to Eth
 |-----------|--------|-------|
 | NeoVM (200+ opcodes) | ✅ Complete | 400+ |
 | Cryptography | ✅ Complete | 150+ |
-| Native Contracts (10) | ✅ Complete | 200+ |
+| Native Contracts (11) | ✅ Complete | 200+ |
 | Storage Layer | ✅ Complete | 100+ |
 | Network Types | ✅ Complete | 150+ |
-| **Total** | **Production Ready** | **1400+** |
+| **Total** | **Release-Gated** | **1543+** |
 
 ## Installation
 
@@ -91,7 +91,7 @@ neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
 
-# Same check with known NeoGo 0.116.0 TRY deltas ignored
+# Same check with known NeoGo 0.116.0 TRY/ENDTRY deltas ignored (5 vectors)
 neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
@@ -117,6 +117,8 @@ neo-multicompat --vectors tests/vectors/ \
 
 # CI matrix parity gate lives in .github/workflows/diff.yml
 # (validates protocol fields + vector compatibility for MainNet/TestNet)
+# Scheduled NeoGo endpoint drift probe lives in
+# .github/workflows/neogo-endpoint-matrix.yml
 
 # Enforce Ethereum-style checklist coverage gates
 neo-coverage --checklist-template docs/verification/neo-v3.9.1-checklist-template.md \
@@ -138,6 +140,26 @@ python scripts/neo_rs_batch_diff.py --vectors-dir tests/vectors --reports-dir re
 
 See `scripts/README.md` for full options and operational guidance.
 
+### NeoGo endpoint matrix helper
+
+For repeatable public NeoGo endpoint delta checks (MainNet + TestNet):
+
+```bash
+python3 scripts/neogo_endpoint_matrix.py \
+  --output-dir reports/compat-endpoint-matrix \
+  --prefix neogo-0.116-endpoint-matrix
+```
+
+### Native surface parity helper
+
+Validate local native contract surface against live Neo C# RPC:
+
+```bash
+python3 scripts/check_native_surface_parity.py \
+  --rpc-url http://seed1.neo.org:10332 \
+  --json-output reports/native-surface-mainnet.json
+```
+
 ### neo-t8n - State Transition
 
 Ethereum-style state transition tool:
@@ -146,8 +168,13 @@ Ethereum-style state transition tool:
 neo-t8n --input-alloc alloc.json \
         --input-txs txs.json \
         --input-env env.json \
-        --output-result result.json
+        --output-result result.json \
+        --output-alloc alloc-out.json
+# Add --strict to fail fast on first tx validation/execution error
 ```
+
+`result.json` includes per-tx `vmState`, `gasConsumed`, typed `stack`, and runtime `notifications`.
+Malformed tx input (including tx-count overflow, malformed tx object/field types, bad/empty/oversized scripts, unsigned tx-size overflow, nonce/validUntil bounds, signer count/scope/list-bound errors, and witness-rule shape/limit errors) is reported as per-tx `FAULT` receipts; later txs still execute in the same run.
 
 ## Development
 
@@ -174,6 +201,18 @@ python -m build --sdist --wheel
 twine check dist/*
 ```
 
+## Production Snapshot (2026-02-16 UTC)
+
+- Baseline C# 3.9.1 alignment: `405/405` strict vectors on MainNet and TestNet.
+- NeoGo 0.116.0 strict delta set: stable 5-vector TRY/ENDTRY control-flow divergence.
+- NeoGo ignore-gated parity (`docs/verification/neogo-0.116-known-deltas.txt`): `Vector deltas: 0` on MainNet/TestNet.
+- Public endpoint matrix (`rpc1..rpc7` MainNet + `rpc.t5` TestNet): same 5/5 delta reproduction on every endpoint.
+- Tri-client status: local `neo-rs` endpoints in this environment return `ERROR` across vectors, so tri-client parity is not claimable yet.
+
+Evidence:
+- `docs/verification/neogo-0.116-validation-2026-02-16.md`
+- `docs/verification/neogo-0.116-known-deltas.txt`
+
 ## Project Structure
 
 ```
@@ -181,7 +220,7 @@ src/neo/
 ├── vm/              # NeoVM - Virtual Machine
 ├── crypto/          # Cryptography (ECC, BLS, hashes)
 ├── smartcontract/   # ApplicationEngine, syscalls
-├── native/          # 10 native contracts
+├── native/          # 11 native contracts
 ├── network/         # Block, Transaction, etc.
 ├── persistence/     # Storage layer
 ├── types/           # UInt160, UInt256, BigInteger
@@ -191,6 +230,7 @@ src/neo/
 ## Documentation
 
 - [Architecture](docs/architecture.md) - System design and module structure
+- [Execution Spec](docs/execution-spec.md) - Canonical Neo v3.9.1 execution profile and transition semantics
 - [API Reference](docs/api.md) - Main APIs and examples
 - [Testing Guide](docs/testing.md) - Test vectors and diff testing
 - [Production Readiness](docs/production-readiness.md) - Release quality gates and checklist

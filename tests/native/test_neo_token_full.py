@@ -111,7 +111,7 @@ class TestNeoToken:
     def test_total_supply(self):
         """Test total supply."""
         token = NeoToken()
-        assert token.total_supply == 100_000_000
+        assert token.total_supply() == 100_000_000
     
     def test_total_amount(self):
         """Test total amount."""

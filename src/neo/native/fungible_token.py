@@ -57,6 +57,9 @@ class FungibleToken(NativeContract):
         """Factor for converting display value to internal value."""
         return self._factor
 
+    def _native_supported_standards(self, context: Any) -> list[str]:
+        return ["NEP-17"]
+
     def _register_methods(self) -> None:
         """Register NEP-17 methods."""
         super()._register_methods()
@@ -74,6 +77,16 @@ class FungibleToken(NativeContract):
             cpu_fee=1 << 17,
             storage_fee=50,
             call_flags=CallFlags.STATES | CallFlags.ALLOW_CALL | CallFlags.ALLOW_NOTIFY,
+            manifest_parameter_names=["from", "to", "amount", "data"],
+        )
+
+    def _register_events(self) -> None:
+        """Register NEP-17 standard events."""
+        super()._register_events()
+        self._register_event(
+            "Transfer",
+            [("from", "Hash160"), ("to", "Hash160"), ("amount", "Integer")],
+            order=0,
         )
 
     def _get_symbol(self) -> str:

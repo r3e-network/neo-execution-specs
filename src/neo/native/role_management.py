@@ -7,6 +7,7 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import Any
 
+from neo.hardfork import Hardfork
 from neo.native.native_contract import NativeContract, CallFlags
 
 
@@ -53,7 +54,28 @@ class RoleManagement(NativeContract):
             "designateAsRole",
             self.designate_as_role,
             cpu_fee=1 << 15,
-            call_flags=CallFlags.STATES,
+            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+        )
+
+    def _register_events(self) -> None:
+        """Register RoleManagement events."""
+        super()._register_events()
+        self._register_event(
+            "Designation",
+            [("Role", "Integer"), ("BlockIndex", "Integer")],
+            order=0,
+            deprecated_in=Hardfork.HF_ECHIDNA,
+        )
+        self._register_event(
+            "Designation",
+            [
+                ("Role", "Integer"),
+                ("BlockIndex", "Integer"),
+                ("Old", "Array"),
+                ("New", "Array"),
+            ],
+            order=0,
+            active_in=Hardfork.HF_ECHIDNA,
         )
 
     def get_designated_by_role(self, snapshot: Any, role: Role, index: int) -> list:
