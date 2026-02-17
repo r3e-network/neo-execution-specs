@@ -1,8 +1,7 @@
 """Neo N3 Contract State."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict
-
 
 @dataclass
 class ContractState:

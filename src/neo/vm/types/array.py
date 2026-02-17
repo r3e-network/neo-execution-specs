@@ -1,12 +1,12 @@
 """Array stack item."""
 
 from __future__ import annotations
-from typing import List, Iterator, TYPE_CHECKING
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 from neo.vm.types.stack_item import StackItem, StackItemType
 
 if TYPE_CHECKING:
     from neo.vm.reference_counter import ReferenceCounter
-
 
 class Array(StackItem):
     """Mutable array on the stack."""
@@ -16,10 +16,10 @@ class Array(StackItem):
     def __init__(
         self,
         reference_counter: ReferenceCounter | None = None,
-        items: List[StackItem] | None = None
+        items: list[StackItem] | None = None
     ) -> None:
         self._reference_counter = reference_counter
-        self._items: List[StackItem] = items if items is not None else []
+        self._items: list[StackItem] = items if items is not None else []
         for item in self._items:
             self._ref_add(item)
 

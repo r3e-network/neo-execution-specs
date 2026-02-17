@@ -6,10 +6,8 @@ Points are represented in compressed form as 48 bytes.
 """
 
 from __future__ import annotations
-from typing import Union
 
-from .scalar import Scalar, SCALAR_MODULUS
-
+from .scalar import SCALAR_MODULUS, Scalar
 
 # BLS12-381 base field modulus
 P = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
@@ -21,7 +19,7 @@ B = 4
 class G1Affine:
     """G1 point in affine coordinates."""
     
-    __slots__ = ('x', 'y', '_is_infinity')
+    __slots__ = ('_is_infinity', 'x', 'y')
     
     def __init__(self, x: int = 0, y: int = 0, is_infinity: bool = False) -> None:
         self.x = x % P if not is_infinity else 0
@@ -112,13 +110,13 @@ class G1Affine:
             return G1Affine.identity()
         return G1Affine(self.x, P - self.y)
     
-    def __add__(self, other: Union[G1Affine, G1Projective]) -> G1Projective:
+    def __add__(self, other: G1Affine | G1Projective) -> G1Projective:
         return G1Projective.from_affine(self) + other
     
-    def __mul__(self, scalar: Union[int, Scalar]) -> G1Projective:
+    def __mul__(self, scalar: int | Scalar) -> G1Projective:
         return G1Projective.from_affine(self) * scalar
     
-    def __rmul__(self, scalar: Union[int, Scalar]) -> G1Projective:
+    def __rmul__(self, scalar: int | Scalar) -> G1Projective:
         return self * scalar
 
 

@@ -1,8 +1,7 @@
 """Neo N3 Addr Payload."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List
-
 
 @dataclass
 class NetworkAddress:
@@ -11,8 +10,7 @@ class NetworkAddress:
     address: str
     port: int
 
-
 @dataclass
 class AddrPayload:
     """Address list payload."""
-    addresses: List[NetworkAddress] = field(default_factory=list)
+    addresses: list[NetworkAddress] = field(default_factory=list)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 from neo.crypto import hash160
 from neo.crypto.ecc.point import ECPoint
@@ -35,13 +35,12 @@ EFFECTIVE_VOTER_TURNOUT = 0.2
 # Vote factor for precision
 VOTE_FACTOR = 100_000_000
 
-
 @dataclass
 class NeoAccountState(AccountState):
     """Account state for NEO token with voting support."""
 
     balance_height: int = 0
-    vote_to: Optional[bytes] = None  # ECPoint encoded
+    vote_to: bytes | None = None  # ECPoint encoded
     last_gas_per_vote: int = 0
 
     def to_bytes(self) -> bytes:
@@ -75,7 +74,6 @@ class NeoAccountState(AccountState):
                 )
         return state
 
-
 @dataclass
 class CandidateState:
     """State for a candidate."""
@@ -96,7 +94,6 @@ class CandidateState:
             if len(data) > 1:
                 state.votes = int.from_bytes(data[1:33], "little", signed=True)
         return state
-
 
 class NeoToken(FungibleToken):
     """NEO token - governance token for the Neo blockchain."""
@@ -432,13 +429,13 @@ class NeoToken(FungibleToken):
             reward_key = self._create_storage_key(PREFIX_VOTER_REWARD_PER_COMMITTEE, pubkey)
             snapshot.delete(reward_key)
 
-    def vote(self, engine: Any, account: UInt160, vote_to: Optional[ECPoint]) -> bool:
+    def vote(self, engine: Any, account: UInt160, vote_to: ECPoint | None) -> bool:
         """Vote for a candidate."""
         if not engine.check_witness(account):
             return False
         return self.vote_internal(engine, account, vote_to)
 
-    def vote_internal(self, engine: Any, account: UInt160, vote_to: Optional[ECPoint]) -> bool:
+    def vote_internal(self, engine: Any, account: UInt160, vote_to: ECPoint | None) -> bool:
         """Internal vote update that skips witness checks."""
         vote_to_bytes = self._pubkey_bytes(vote_to)
         key = self._create_storage_key(PREFIX_ACCOUNT, account.data)
@@ -493,7 +490,7 @@ class NeoToken(FungibleToken):
         engine.send_notification(self.hash, "Vote", [account, old_vote, vote_to_bytes, state.balance])
         return True
 
-    def get_candidates(self, snapshot: Any) -> List[Tuple[bytes, int]]:
+    def get_candidates(self, snapshot: Any) -> list[tuple[bytes, int]]:
         """Get all registered candidates with their votes."""
         candidates = []
         prefix = self._create_storage_key(PREFIX_CANDIDATE)
@@ -504,7 +501,7 @@ class NeoToken(FungibleToken):
                 candidates.append((pubkey, state.votes))
         return candidates[:256]  # Max 256 candidates
 
-    def get_all_candidates(self, snapshot: Any) -> Iterator[Tuple[bytes, int]]:
+    def get_all_candidates(self, snapshot: Any) -> Iterator[tuple[bytes, int]]:
         """Get an iterator over registered candidates and votes."""
         return iter(self.get_candidates(snapshot))
 
@@ -520,7 +517,7 @@ class NeoToken(FungibleToken):
         state = CandidateState.from_bytes(item.value)
         return state.votes if state.registered else -1
 
-    def get_committee(self, snapshot: Any) -> List[bytes]:
+    def get_committee(self, snapshot: Any) -> list[bytes]:
         """Get the current committee members."""
         key = self._create_storage_key(PREFIX_COMMITTEE)
         item = snapshot.get(key)
@@ -540,7 +537,7 @@ class NeoToken(FungibleToken):
         script = ProtocolSettings._create_multisig_redeem_script(threshold, committee)
         return UInt160(hash160(script))
 
-    def _parse_committee(self, data: bytes) -> List[bytes]:
+    def _parse_committee(self, data: bytes) -> list[bytes]:
         """Parse committee from serialized data."""
         if not data:
             return []
@@ -554,7 +551,7 @@ class NeoToken(FungibleToken):
                 break
         return committee
 
-    def get_next_block_validators(self, engine: Any) -> List[bytes]:
+    def get_next_block_validators(self, engine: Any) -> list[bytes]:
         """Get validators for the next block.
 
         Takes the top validators_count members (highest votes) from the
@@ -566,7 +563,7 @@ class NeoToken(FungibleToken):
         validators_count = engine.protocol_settings.validators_count
         return sorted(committee[:validators_count])
 
-    def get_account_state(self, snapshot: Any, account: UInt160) -> Optional[NeoAccountState]:
+    def get_account_state(self, snapshot: Any, account: UInt160) -> NeoAccountState | None:
         """Get account state for an account."""
         key = self._create_storage_key(PREFIX_ACCOUNT, account.data)
         item = snapshot.get(key)
@@ -575,7 +572,7 @@ class NeoToken(FungibleToken):
         return self._get_account_state(item)
 
     def on_nep17_payment(
-        self, engine: Any, from_account: Optional[UInt160], amount: int, data: Any
+        self, engine: Any, from_account: UInt160 | None, amount: int, data: Any
     ) -> None:
         """NEO accepts NEP-17 payments only from GAS contract."""
         gas_contract = self.get_contract_by_name("GasToken")

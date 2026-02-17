@@ -1,19 +1,18 @@
 """Evaluation stack for NeoVM."""
 
 from __future__ import annotations
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from neo.vm.types import StackItem
 from neo.exceptions import InvalidOperationException, StackOverflowException
 
 if TYPE_CHECKING:
     from neo.vm.reference_counter import ReferenceCounter
 
-
 class EvaluationStack:
     """Stack for VM execution."""
 
     def __init__(self, max_size: int = 2048, reference_counter: ReferenceCounter | None = None) -> None:
-        self._items: List[StackItem] = []
+        self._items: list[StackItem] = []
         self._max_size = max_size
         self._reference_counter = reference_counter
     

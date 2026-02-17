@@ -8,16 +8,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from neo.io.binary_reader import BinaryReader
     from neo.io.binary_writer import BinaryWriter
 
-
 MAX_NESTING_DEPTH = 2
 MAX_SUBITEMS = 16
-
 
 class WitnessConditionType(IntEnum):
     """Types of witness conditions."""
@@ -30,7 +28,6 @@ class WitnessConditionType(IntEnum):
     CALLED_BY_ENTRY = 0x20
     CALLED_BY_CONTRACT = 0x28
     CALLED_BY_GROUP = 0x29
-
 
 @dataclass
 class WitnessCondition(ABC):
@@ -79,7 +76,6 @@ class WitnessCondition(ABC):
         else:
             raise ValueError(f"Unknown condition type: {ctype}")
 
-
 @dataclass
 class BooleanCondition(WitnessCondition):
     """Boolean condition."""
@@ -101,7 +97,6 @@ class BooleanCondition(WitnessCondition):
     def deserialize_body(reader: "BinaryReader") -> "BooleanCondition":
         return BooleanCondition(expression=reader.read_bool())
 
-
 @dataclass
 class CalledByEntryCondition(WitnessCondition):
     """Called by entry condition."""
@@ -116,7 +111,6 @@ class CalledByEntryCondition(WitnessCondition):
     
     def serialize(self, writer: "BinaryWriter") -> None:
         writer.write_byte(int(self.type))
-
 
 @dataclass
 class ScriptHashCondition(WitnessCondition):
@@ -139,7 +133,6 @@ class ScriptHashCondition(WitnessCondition):
     def deserialize_body(reader: "BinaryReader") -> "ScriptHashCondition":
         return ScriptHashCondition(hash=reader.read_bytes(20))
 
-
 @dataclass
 class GroupCondition(WitnessCondition):
     """Group condition (EC point)."""
@@ -160,7 +153,6 @@ class GroupCondition(WitnessCondition):
     @staticmethod
     def deserialize_body(reader: "BinaryReader") -> "GroupCondition":
         return GroupCondition(group=reader.read_ec_point())
-
 
 @dataclass
 class CalledByContractCondition(WitnessCondition):
@@ -183,7 +175,6 @@ class CalledByContractCondition(WitnessCondition):
     def deserialize_body(reader: "BinaryReader") -> "CalledByContractCondition":
         return CalledByContractCondition(hash=reader.read_bytes(20))
 
-
 @dataclass
 class CalledByGroupCondition(WitnessCondition):
     """Called by group condition."""
@@ -204,7 +195,6 @@ class CalledByGroupCondition(WitnessCondition):
     @staticmethod
     def deserialize_body(reader: "BinaryReader") -> "CalledByGroupCondition":
         return CalledByGroupCondition(group=reader.read_ec_point())
-
 
 @dataclass
 class NotCondition(WitnessCondition):
@@ -229,11 +219,10 @@ class NotCondition(WitnessCondition):
         expr = WitnessCondition.deserialize(reader, depth + 1)
         return NotCondition(expression=expr)
 
-
 @dataclass
 class AndCondition(WitnessCondition):
     """And condition."""
-    expressions: List[WitnessCondition] = field(default_factory=list)
+    expressions: list[WitnessCondition] = field(default_factory=list)
     
     @property
     def type(self) -> WitnessConditionType:
@@ -257,11 +246,10 @@ class AndCondition(WitnessCondition):
         exprs = [WitnessCondition.deserialize(reader, depth + 1) for _ in range(count)]
         return AndCondition(expressions=exprs)
 
-
 @dataclass
 class OrCondition(WitnessCondition):
     """Or condition."""
-    expressions: List[WitnessCondition] = field(default_factory=list)
+    expressions: list[WitnessCondition] = field(default_factory=list)
     
     @property
     def type(self) -> WitnessConditionType:

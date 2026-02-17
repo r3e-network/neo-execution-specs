@@ -1,12 +1,11 @@
 """Slot for storing local variables, arguments, and static fields."""
 
 from __future__ import annotations
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from neo.vm.types.stack_item import StackItem
     from neo.vm.reference_counter import ReferenceCounter
-
 
 class Slot:
     """
@@ -20,13 +19,13 @@ class Slot:
     
     def __init__(
         self,
-        count_or_items: int | List["StackItem"] | None = None,
-        reference_counter: Optional["ReferenceCounter"] = None
+        count_or_items: int | list["StackItem"] | None = None,
+        reference_counter: "ReferenceCounter" | None = None
     ) -> None:
         from neo.vm.types import NULL
         if isinstance(count_or_items, int):
             # Create slot with count NULL items
-            self._items: List["StackItem"] = [NULL for _ in range(count_or_items)]
+            self._items: list["StackItem"] = [NULL for _ in range(count_or_items)]
         elif count_or_items is None:
             self._items = []
         else:
@@ -44,8 +43,8 @@ class Slot:
             self._reference_counter.remove_reference(item)
     
     @classmethod
-    def from_items(cls, items: List["StackItem"], 
-                   reference_counter: Optional["ReferenceCounter"] = None) -> "Slot":
+    def from_items(cls, items: list["StackItem"], 
+                   reference_counter: "ReferenceCounter" | None = None) -> "Slot":
         """Create slot from list of items."""
         return cls(items, reference_counter)
     

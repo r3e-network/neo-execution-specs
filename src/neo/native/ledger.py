@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Optional, List
+from typing import Any
 
 from neo.types import UInt256
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
 from neo.network.payloads.block import Block
 from neo.network.payloads.transaction import Transaction
-
 
 # Storage prefixes
 PREFIX_BLOCK_HASH = 9
@@ -16,11 +15,10 @@ PREFIX_CURRENT_BLOCK = 12
 PREFIX_BLOCK = 5
 PREFIX_TRANSACTION = 11
 
-
 @dataclass
 class HashIndexState:
     """Current block hash and index."""
-    hash: Optional[UInt256] = None
+    hash: UInt256 | None = None
     index: int = 0
     
     def to_bytes(self) -> bytes:
@@ -36,12 +34,11 @@ class HashIndexState:
             state.index = int.from_bytes(data[32:36], 'little')
         return state
 
-
 @dataclass
 class TransactionState:
     """State of a transaction in storage."""
     block_index: int = 0
-    transaction: Optional[Any] = None
+    transaction: Any | None = None
     state: int = 0  # VMState: 0=NONE, 1=HALT, 2=FAULT
     
     def to_bytes(self) -> bytes:
@@ -54,7 +51,7 @@ class TransactionState:
         return writer.to_bytes()
 
     @staticmethod
-    def _serialize_transaction(transaction: Optional[Any]) -> bytes:
+    def _serialize_transaction(transaction: Any | None) -> bytes:
         if transaction is None:
             return b""
         if isinstance(transaction, (bytes, bytearray)):
@@ -95,7 +92,6 @@ class TransactionState:
                     except Exception:
                         state.transaction = tx_bytes
         return state
-
 
 class LedgerContract(NativeContract):
     """Provides access to blockchain data.
@@ -150,7 +146,7 @@ class LedgerContract(NativeContract):
         state = HashIndexState.from_bytes(item.value)
         return state.index
     
-    def get_block_hash(self, snapshot: Any, index: int) -> Optional[UInt256]:
+    def get_block_hash(self, snapshot: Any, index: int) -> UInt256 | None:
         """Get block hash by index."""
         key = self._create_storage_key(PREFIX_BLOCK_HASH, index)
         item = snapshot.get(key)
@@ -168,7 +164,7 @@ class LedgerContract(NativeContract):
         state = self.get_transaction_state(snapshot, hash)
         return state is not None and state.transaction is not None
     
-    def get_transaction_state(self, snapshot: Any, hash: UInt256) -> Optional[TransactionState]:
+    def get_transaction_state(self, snapshot: Any, hash: UInt256) -> TransactionState | None:
         """Get transaction state by hash."""
         key = self._create_storage_key(PREFIX_TRANSACTION, hash.data)
         item = snapshot.get(key)
@@ -176,7 +172,7 @@ class LedgerContract(NativeContract):
             return None
         return TransactionState.from_bytes(item.value)
     
-    def get_block(self, engine: Any, index_or_hash: bytes) -> Optional[Block]:
+    def get_block(self, engine: Any, index_or_hash: bytes) -> Block | None:
         """Get a block by index or hash."""
         if len(index_or_hash) < 32:
             index = int.from_bytes(index_or_hash, 'little')
@@ -191,7 +187,7 @@ class LedgerContract(NativeContract):
         item = engine.snapshot.get(key)
         return item.value if item else None
     
-    def get_transaction(self, engine: Any, hash: UInt256) -> Optional[Transaction]:
+    def get_transaction(self, engine: Any, hash: UInt256) -> Transaction | None:
         """Get a transaction by hash."""
         state = self.get_transaction_state(engine.snapshot, hash)
         if state is None:
@@ -205,7 +201,7 @@ class LedgerContract(NativeContract):
             return -1
         return state.block_index
     
-    def get_transaction_signers(self, engine: Any, hash: UInt256) -> Optional[List[Any]]:
+    def get_transaction_signers(self, engine: Any, hash: UInt256) -> list[Any] | None:
         """Get transaction signers."""
         state = self.get_transaction_state(engine.snapshot, hash)
         if state is None or state.transaction is None:
@@ -221,7 +217,7 @@ class LedgerContract(NativeContract):
     
     def get_transaction_from_block(
         self, engine: Any, block_index_or_hash: bytes, tx_index: int
-    ) -> Optional[Transaction]:
+    ) -> Transaction | None:
         """Get a transaction from a block by index."""
         if tx_index < 0:
             return None
@@ -246,7 +242,7 @@ class LedgerContract(NativeContract):
         return txs[tx_index]
 
     @staticmethod
-    def _extract_block_transactions(block: Any) -> Optional[List[Any]]:
+    def _extract_block_transactions(block: Any) -> list[Any] | None:
         txs = getattr(block, "transactions", None)
         if txs is not None:
             return list(txs)

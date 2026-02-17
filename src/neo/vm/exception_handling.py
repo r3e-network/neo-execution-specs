@@ -7,17 +7,14 @@ TRY/CATCH/FINALLY blocks in the Neo Virtual Machine.
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import List, Optional
 
 from neo.exceptions import InvalidOperationException
-
 
 class ExceptionHandlingState(IntEnum):
     """Indicates the state of the ExceptionHandlingContext."""
     TRY = 0      # The try block is being executed
     CATCH = 1    # The catch block is being executed
     FINALLY = 2  # The finally block is being executed
-
 
 @dataclass
 class ExceptionHandlingContext:
@@ -46,7 +43,6 @@ class ExceptionHandlingContext:
         """Check if this context has a finally block."""
         return self.finally_pointer >= 0
 
-
 class TryStack:
     """Stack of exception handling contexts.
     
@@ -54,7 +50,7 @@ class TryStack:
     """
     
     def __init__(self) -> None:
-        self._stack: List[ExceptionHandlingContext] = []
+        self._stack: list[ExceptionHandlingContext] = []
     
     def push(self, context: ExceptionHandlingContext) -> None:
         """Push a new exception handling context."""
@@ -72,13 +68,13 @@ class TryStack:
             raise InvalidOperationException("The corresponding TRY block cannot be found.")
         return self._stack[-1]
     
-    def try_peek(self) -> tuple[bool, Optional[ExceptionHandlingContext]]:
+    def try_peek(self) -> tuple[bool, ExceptionHandlingContext | None]:
         """Try to peek at the top context, returning (success, context)."""
         if not self._stack:
             return False, None
         return True, self._stack[-1]
     
-    def try_pop(self) -> tuple[bool, Optional[ExceptionHandlingContext]]:
+    def try_pop(self) -> tuple[bool, ExceptionHandlingContext | None]:
         """Try to pop the top context, returning (success, context)."""
         if not self._stack:
             return False, None

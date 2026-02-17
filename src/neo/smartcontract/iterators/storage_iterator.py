@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterator, List, Tuple
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 from .iterator import IIterator
 from neo.smartcontract.storage.find_options import FindOptions
@@ -10,7 +11,6 @@ from neo.vm.types import Array, ByteString, StackItem, Struct
 
 if TYPE_CHECKING:
     pass
-
 
 class StorageIterator(IIterator):
     """Iterator for storage search results.
@@ -38,7 +38,7 @@ class StorageIterator(IIterator):
             # Called from test with list of pairs: StorageIterator(iter(pairs), prefix_len, options)
             raw_pairs = list(engine_or_pairs)
             # Extract raw bytes from StorageKey/StorageItem if needed
-            self._pairs: List[Tuple[bytes, bytes]] = []
+            self._pairs: list[tuple[bytes, bytes]] = []
             for item in raw_pairs:
                 if len(item) == 2:
                     key, value = item

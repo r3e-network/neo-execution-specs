@@ -1,17 +1,17 @@
 """Neo N3 Key Builder."""
 
-from typing import Union
+from __future__ import annotations
 
 
 class KeyBuilder:
     """Build storage keys."""
-    
+
     def __init__(self, id: int, prefix: int):
         self._data = bytearray()
         self._data.extend(id.to_bytes(4, 'little'))
         self._data.append(prefix)
-    
-    def add(self, key: Union[bytes, int]) -> "KeyBuilder":
+
+    def add(self, key: bytes | int) -> KeyBuilder:
         """Add key component."""
         if isinstance(key, int):
             self._data.extend(key.to_bytes(4, 'little'))

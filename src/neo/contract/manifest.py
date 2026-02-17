@@ -1,16 +1,16 @@
 """Neo N3 Contract Manifest implementation."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import IntFlag
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 class ContractPermissionDescriptor:
     """Permission descriptor for contract calls."""
     
     def __init__(self, value: Any = None):
-        self.hash: Optional[bytes] = None
-        self.group: Optional[bytes] = None
+        self.hash: bytes | None = None
+        self.group: bytes | None = None
         self.is_wildcard = value == "*"
         
         if isinstance(value, bytes) and len(value) == 20:
@@ -18,15 +18,13 @@ class ContractPermissionDescriptor:
         elif isinstance(value, bytes) and len(value) == 33:
             self.group = value
 
-
 @dataclass
 class ContractPermission:
     """Contract permission."""
 
     contract: ContractPermissionDescriptor
-    methods: List[str] = field(default_factory=list)
+    methods: list[str] = field(default_factory=list)
     is_wildcard_methods: bool = False
-
 
 @dataclass  
 class ContractGroup:
@@ -35,14 +33,12 @@ class ContractGroup:
     pubkey: bytes  # 33 bytes compressed
     signature: bytes  # 64 bytes
 
-
 class ContractFeatures(IntFlag):
     """Contract features."""
 
     NO_PROPERTY = 0
     HAS_STORAGE = 1
     PAYABLE = 2
-
 
 @dataclass
 class ContractManifest:
@@ -51,12 +47,12 @@ class ContractManifest:
     MAX_LENGTH = 0xFFFF
 
     name: str = ""
-    groups: List[ContractGroup] = field(default_factory=list)
-    supported_standards: List[str] = field(default_factory=list)
-    abi: Optional[Any] = None
-    permissions: List[ContractPermission] = field(default_factory=list)
-    trusts: List[ContractPermissionDescriptor] = field(default_factory=list)
-    extra: Optional[Dict[str, Any]] = None
+    groups: list[ContractGroup] = field(default_factory=list)
+    supported_standards: list[str] = field(default_factory=list)
+    abi: Any | None = None
+    permissions: list[ContractPermission] = field(default_factory=list)
+    trusts: list[ContractPermissionDescriptor] = field(default_factory=list)
+    extra: dict[str, Any] | None = None
 
     @staticmethod
     def _serialize_item(item: Any) -> Any:
@@ -72,7 +68,7 @@ class ContractManifest:
         else:
             return str(item)
 
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         """Convert to JSON."""
         import json
 

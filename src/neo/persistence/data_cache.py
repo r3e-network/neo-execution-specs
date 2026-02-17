@@ -4,7 +4,10 @@ DataCache - Caching layer for storage.
 Reference: Neo.Persistence.DataCache
 """
 
-from typing import Callable, Dict, Iterator, Optional, Tuple
+from __future__ import annotations
+
+from collections.abc import Callable, Iterator
+
 from neo.persistence.store import IReadOnlyStore, IStore
 from neo.persistence.track_state import TrackState
 
@@ -27,9 +30,9 @@ class DataCache:
     
     def __init__(self, store: IReadOnlyStore):
         self._store = store
-        self._cache: Dict[bytes, Trackable] = {}
-    
-    def get(self, key: bytes) -> Optional[bytes]:
+        self._cache: dict[bytes, Trackable] = {}
+
+    def get(self, key: bytes) -> bytes | None:
         """Get value from cache or store."""
         if key in self._cache:
             t = self._cache[key]
@@ -44,7 +47,7 @@ class DataCache:
             return self._cache[key].state != TrackState.DELETED
         return self._store.contains(key)
     
-    def try_get(self, key: bytes) -> Tuple[bool, Optional[bytes]]:
+    def try_get(self, key: bytes) -> tuple[bool, bytes | None]:
         """Try to get a value, returning (found, value)."""
         if key in self._cache:
             t = self._cache[key]
@@ -65,7 +68,7 @@ class DataCache:
         self.add(key, value)
         return value
     
-    def get_and_change(self, key: bytes, factory: Optional[Callable[[], bytes]] = None) -> Optional[bytes]:
+    def get_and_change(self, key: bytes, factory: Callable[[], bytes] | None = None) -> bytes | None:
         """Get value and mark for change, optionally creating if not exists."""
         if key in self._cache:
             t = self._cache[key]
@@ -127,11 +130,11 @@ class DataCache:
         elif self._store.contains(key):
             self._cache[key] = Trackable(key, b"", TrackState.DELETED)
     
-    def find(self, prefix: bytes = b"") -> Iterator[Tuple[bytes, bytes]]:
+    def find(self, prefix: bytes = b"") -> Iterator[tuple[bytes, bytes]]:
         """Find all key-value pairs with given prefix, sorted by key."""
         # Collect all matching entries (cache overrides store)
         cached_keys = set()
-        results: Dict[bytes, bytes] = {}
+        results: dict[bytes, bytes] = {}
 
         for key, t in self._cache.items():
             if key.startswith(prefix):
@@ -148,7 +151,7 @@ class DataCache:
         for key in sorted(results):
             yield key, results[key]
 
-    def seek(self, prefix: bytes, direction: int = 1) -> Iterator[Tuple[bytes, bytes]]:
+    def seek(self, prefix: bytes, direction: int = 1) -> Iterator[tuple[bytes, bytes]]:
         """Seek with direction (1=forward, -1=backward)."""
         items = list(self.find(prefix))
         if direction < 0:
@@ -180,9 +183,9 @@ class ClonedCache(DataCache):
     
     def __init__(self, parent: DataCache):
         self._parent = parent
-        self._cache: Dict[bytes, Trackable] = {}
-    
-    def get(self, key: bytes) -> Optional[bytes]:
+        self._cache: dict[bytes, Trackable] = {}
+
+    def get(self, key: bytes) -> bytes | None:
         """Get from local cache or parent."""
         if key in self._cache:
             t = self._cache[key]
@@ -223,9 +226,9 @@ class ClonedCache(DataCache):
         elif self._parent.contains(key):
             self._cache[key] = Trackable(key, b"", TrackState.DELETED)
     
-    def find(self, prefix: bytes = b"") -> Iterator[Tuple[bytes, bytes]]:
+    def find(self, prefix: bytes = b"") -> Iterator[tuple[bytes, bytes]]:
         """Find all key-value pairs with given prefix, merging parent and local."""
-        results: Dict[bytes, bytes] = {}
+        results: dict[bytes, bytes] = {}
         # Get results from parent
         for key, value in self._parent.find(prefix):
             results[key] = value
@@ -239,7 +242,7 @@ class ClonedCache(DataCache):
         for key in sorted(results):
             yield key, results[key]
 
-    def seek(self, prefix: bytes, direction: int = 1) -> Iterator[Tuple[bytes, bytes]]:
+    def seek(self, prefix: bytes, direction: int = 1) -> Iterator[tuple[bytes, bytes]]:
         """Seek with direction, merging parent and local."""
         items = list(self.find(prefix))
         if direction < 0:

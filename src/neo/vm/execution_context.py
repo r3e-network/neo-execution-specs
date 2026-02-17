@@ -6,7 +6,7 @@ in the VM execution stack, including support for exception handling.
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Any, Dict
+from typing import Any, TYPE_CHECKING
 
 from neo.vm.evaluation_stack import EvaluationStack
 from neo.vm.exception_handling import (
@@ -16,7 +16,6 @@ from neo.vm.slot import Slot
 
 if TYPE_CHECKING:
     pass
-
 
 @dataclass
 class Instruction:
@@ -80,7 +79,6 @@ class Instruction:
             return 0
         return int.from_bytes(self.operand[0:4], 'little', signed=False)
 
-
 class SharedStates:
     """Shared state between cloned execution contexts.
     
@@ -91,10 +89,9 @@ class SharedStates:
     def __init__(self, script: bytes, reference_counter: Any = None) -> None:
         self.script = script
         self.evaluation_stack = EvaluationStack()
-        self.static_fields: Optional[Slot] = None
-        self.states: Dict[object, Any] = {}
+        self.static_fields: Slot | None = None
+        self.states: dict[object, Any] = {}
         self.reference_counter = reference_counter
-
 
 class ExecutionContext:
     """Represents a frame in the VM execution stack.
@@ -119,7 +116,7 @@ class ExecutionContext:
         script: bytes,
         rv_count: int = 0,
         reference_counter: Any = None,
-        _shared_states: Optional[SharedStates] = None,
+        _shared_states: SharedStates | None = None,
         _initial_position: int = 0,
     ) -> None:
         """Initialize a new execution context.
@@ -141,9 +138,9 @@ class ExecutionContext:
         
         self._ip = _initial_position
         self.rv_count = rv_count
-        self.local_variables: Optional[Slot] = None
-        self.arguments: Optional[Slot] = None
-        self.try_stack: Optional[TryStack] = None
+        self.local_variables: Slot | None = None
+        self.arguments: Slot | None = None
+        self.try_stack: TryStack | None = None
     
     @property
     def script(self) -> bytes:
@@ -156,12 +153,12 @@ class ExecutionContext:
         return self._shared_states.evaluation_stack
     
     @property
-    def static_fields(self) -> Optional[Slot]:
+    def static_fields(self) -> Slot | None:
         """Get the static fields slot."""
         return self._shared_states.static_fields
     
     @static_fields.setter
-    def static_fields(self, value: Optional[Slot]) -> None:
+    def static_fields(self, value: Slot | None) -> None:
         """Set the static fields slot."""
         self._shared_states.static_fields = value
     
@@ -178,25 +175,25 @@ class ExecutionContext:
         self._ip = value
     
     @property
-    def current_instruction(self) -> Optional[Instruction]:
+    def current_instruction(self) -> Instruction | None:
         """Get the current instruction."""
         return self.get_instruction(self._ip)
     
     @property
-    def next_instruction(self) -> Optional[Instruction]:
+    def next_instruction(self) -> Instruction | None:
         """Get the next instruction."""
         current = self.current_instruction
         if current is None:
             return None
         return self.get_instruction(self._ip + current.size)
     
-    def get_instruction(self, position: int) -> Optional[Instruction]:
+    def get_instruction(self, position: int) -> Instruction | None:
         """Get instruction at the specified position."""
         if position >= len(self.script):
             return None
         return _parse_instruction(self.script, position)
     
-    def clone(self, initial_position: Optional[int] = None) -> ExecutionContext:
+    def clone(self, initial_position: int | None = None) -> ExecutionContext:
         """Clone this context, sharing script, stack, and static fields.
         
         Args:
@@ -236,7 +233,6 @@ class ExecutionContext:
             self._shared_states.states[state_type] = state_type()
         return self._shared_states.states[state_type]
 
-
 def _parse_instruction(script: bytes, position: int) -> Instruction:
     """Parse an instruction from the script at the given position."""
     
@@ -249,7 +245,6 @@ def _parse_instruction(script: bytes, position: int) -> Instruction:
         operand = script[position + 1:position + 1 + operand_size]
     
     return Instruction(opcode=opcode, operand=operand, position=position)
-
 
 def _get_operand_size(opcode: int, script: bytes, position: int) -> int:
     """Get the operand size for an opcode."""

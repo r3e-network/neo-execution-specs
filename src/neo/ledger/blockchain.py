@@ -7,7 +7,8 @@ Reference: Neo.Ledger.Blockchain
 from __future__ import annotations
 from dataclasses import dataclass, field
 from threading import RLock
-from typing import Callable, Dict, List, Optional, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from neo.types.uint256 import UInt256
 
@@ -15,19 +16,17 @@ if TYPE_CHECKING:
     from neo.network.payloads.block import Block
     from neo.persistence.store import IStore
 
-
 @dataclass
 class ApplicationExecuted:
     """Result of smart contract execution."""
     
-    tx_hash: Optional[UInt256] = None
+    tx_hash: UInt256 | None = None
     trigger: str = "Application"
     vm_state: str = "HALT"
     gas_consumed: int = 0
-    exception: Optional[str] = None
+    exception: str | None = None
     stack: List = field(default_factory=list)
     notifications: List = field(default_factory=list)
-
 
 class Blockchain:
     """Manages blockchain state and block persistence."""
@@ -35,13 +34,13 @@ class Blockchain:
     def __init__(self, store: "IStore") -> None:
         self._store = store
         self._lock = RLock()
-        self._block_cache: Dict[UInt256, "Block"] = {}
-        self._current_block: Optional["Block"] = None
-        self._genesis_block: Optional["Block"] = None
+        self._block_cache: dict[UInt256, "Block"] = {}
+        self._current_block: "Block" | None = None
+        self._genesis_block: "Block" | None = None
         
         # Event callbacks
-        self._on_persist: List[Callable[["Block"], None]] = []
-        self._on_committed: List[Callable[["Block"], None]] = []
+        self._on_persist: list[Callable[["Block"], None]] = []
+        self._on_committed: list[Callable[["Block"], None]] = []
     
     @property
     def height(self) -> int:
@@ -52,23 +51,23 @@ class Blockchain:
             return self._current_block.index
     
     @property
-    def current_block(self) -> Optional["Block"]:
+    def current_block(self) -> "Block" | None:
         """Get current block."""
         with self._lock:
             return self._current_block
     
     @property
-    def genesis_block(self) -> Optional["Block"]:
+    def genesis_block(self) -> "Block" | None:
         """Get genesis block."""
         with self._lock:
             return self._genesis_block
     
-    def get_block(self, block_hash: UInt256) -> Optional["Block"]:
+    def get_block(self, block_hash: UInt256) -> "Block" | None:
         """Get block by hash."""
         with self._lock:
             return self._block_cache.get(block_hash)
     
-    def get_block_by_index(self, index: int) -> Optional["Block"]:
+    def get_block_by_index(self, index: int) -> "Block" | None:
         """Get block by index."""
         with self._lock:
             for block in self._block_cache.values():
@@ -81,7 +80,7 @@ class Blockchain:
         with self._lock:
             return block_hash in self._block_cache
     
-    def persist(self, block: "Block") -> List[ApplicationExecuted]:
+    def persist(self, block: "Block") -> list[ApplicationExecuted]:
         """Persist a block to the blockchain."""
         with self._lock:
             # Validate block index continuity
@@ -90,7 +89,7 @@ class Blockchain:
                     f"Block index {block.index} does not follow current height {self.height}"
                 )
 
-            results: List[ApplicationExecuted] = []
+            results: list[ApplicationExecuted] = []
 
             # Cache the block
             self._block_cache[block.hash] = block

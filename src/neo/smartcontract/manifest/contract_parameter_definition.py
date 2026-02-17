@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
 
 from neo.smartcontract.contract_parameter_type import ContractParameterType
-
 
 @dataclass
 class ContractParameterDefinition:
@@ -14,7 +13,7 @@ class ContractParameterDefinition:
     name: str = ""
     type: ContractParameterType = ContractParameterType.ANY
     
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         """Convert to JSON object."""
         return {
             "name": self.name,
@@ -22,7 +21,7 @@ class ContractParameterDefinition:
         }
     
     @classmethod
-    def from_json(cls, json: Dict[str, Any]) -> ContractParameterDefinition:
+    def from_json(cls, json: dict[str, Any]) -> ContractParameterDefinition:
         """Create from JSON object."""
         type_str = json.get("type", "any").upper()
         return cls(

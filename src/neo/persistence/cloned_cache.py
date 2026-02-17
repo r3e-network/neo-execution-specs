@@ -1,19 +1,19 @@
 """Neo N3 Cloned Cache - Cached data access."""
 
-from typing import Dict, Optional, Generic, TypeVar
+from __future__ import annotations
+from typing import Generic, TypeVar
 
 T = TypeVar('T')
-
 
 class ClonedCache(Generic[T]):
     """Cached data with change tracking."""
     
     def __init__(self):
-        self._inner: Dict[bytes, T] = {}
-        self._changed: Dict[bytes, T] = {}
+        self._inner: dict[bytes, T] = {}
+        self._changed: dict[bytes, T] = {}
         self._deleted: set = set()
     
-    def get(self, key: bytes) -> Optional[T]:
+    def get(self, key: bytes) -> T | None:
         """Get item."""
         if key in self._deleted:
             return None

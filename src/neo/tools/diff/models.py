@@ -3,14 +3,12 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
-
+from typing import Any
 
 class ExecutionSource(Enum):
     """Source of execution result."""
     PYTHON_SPEC = "python"
     CSHARP_CLI = "csharp"
-
 
 @dataclass
 class StackValue:
@@ -30,7 +28,6 @@ class StackValue:
             return False
         return self.type == other.type and self.value == other.value
 
-
 @dataclass
 class ExecutionResult:
     """Result of executing a test vector."""
@@ -38,10 +35,10 @@ class ExecutionResult:
     state: str  # HALT, FAULT, etc.
     gas_consumed: int = 0
     stack: list[StackValue] = field(default_factory=list)
-    state_root: Optional[str] = None
+    state_root: str | None = None
     notifications: list[dict] = field(default_factory=list)
-    exception: Optional[str] = None
-    raw_response: Optional[dict] = None
+    exception: str | None = None
+    raw_response: dict | None = None
     
     def to_dict(self) -> dict:
         return {
@@ -54,15 +51,14 @@ class ExecutionResult:
             "exception": self.exception,
         }
 
-
 @dataclass
 class TestVector:
     """A test vector for diff testing."""
     name: str
     script: bytes
     description: str = ""
-    expected_state: Optional[str] = None
-    expected_stack: Optional[list[StackValue]] = None
+    expected_state: str | None = None
+    expected_stack: list[StackValue] | None = None
     metadata: dict = field(default_factory=dict)
     
     def to_dict(self) -> dict:

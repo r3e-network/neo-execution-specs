@@ -6,11 +6,11 @@ Reference: Neo.Ledger.HeaderCache
 
 from __future__ import annotations
 from threading import RLock
-from typing import Iterator, Optional, TYPE_CHECKING
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from neo.network.payloads.header import Header
-
 
 class HeaderCache:
     """Cache for block headers not yet received."""
@@ -21,7 +21,7 @@ class HeaderCache:
         self._headers: list[Header] = []
         self._lock = RLock()
     
-    def __getitem__(self, index: int) -> Optional["Header"]:
+    def __getitem__(self, index: int) -> "Header" | None:
         """Get header at index."""
         with self._lock:
             if not self._headers:
@@ -46,7 +46,7 @@ class HeaderCache:
         return self.count >= self.MAX_HEADERS
     
     @property
-    def last(self) -> Optional["Header"]:
+    def last(self) -> "Header" | None:
         """Get last header in cache."""
         with self._lock:
             if not self._headers:
@@ -61,7 +61,7 @@ class HeaderCache:
             self._headers.append(header)
             return True
     
-    def try_remove_first(self) -> Optional["Header"]:
+    def try_remove_first(self) -> "Header" | None:
         """Remove and return the first header."""
         with self._lock:
             if not self._headers:

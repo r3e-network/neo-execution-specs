@@ -1,8 +1,7 @@
 """Neo N3 NEP6 Wallet file."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List
-
 
 @dataclass
 class NEP6Wallet:

@@ -4,8 +4,9 @@ In-memory store implementation.
 Reference: Neo.Persistence.Providers.MemoryStore
 """
 
+from __future__ import annotations
+
 from collections.abc import Iterator
-from typing import Dict, Optional, Tuple
 
 from neo.persistence.store import IStore
 
@@ -13,20 +14,20 @@ from neo.persistence.store import IStore
 class MemoryStore(IStore):
     """In-memory key-value store."""
     
-    def __init__(self):
-        self._data: Dict[bytes, bytes] = {}
-    
-    def get(self, key: bytes) -> Optional[bytes]:
+    def __init__(self) -> None:
+        self._data: dict[bytes, bytes] = {}
+
+    def get(self, key: bytes) -> bytes | None:
         return self._data.get(key)
-    
+
     def contains(self, key: bytes) -> bool:
         return key in self._data
-    
+
     def seek(
         self,
         prefix: bytes,
         direction: int = 1
-    ) -> Iterator[Tuple[bytes, bytes]]:
+    ) -> Iterator[tuple[bytes, bytes]]:
         """Seek with prefix filtering and direction.
 
         direction > 0 (Forward): ascending key order

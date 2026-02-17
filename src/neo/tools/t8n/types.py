@@ -5,22 +5,19 @@ Defines input/output data structures for state transition.
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Any
 from enum import IntEnum
-
 
 class VMStateResult(IntEnum):
     """VM execution state."""
     HALT = 1
     FAULT = 2
 
-
 @dataclass
 class StorageEntry:
     """Storage key-value entry."""
     key: str  # hex-encoded
     value: str  # hex-encoded
-
 
 @dataclass
 class AccountState:
@@ -34,12 +31,12 @@ class AccountState:
     """
     neo_balance: int = 0
     gas_balance: int = 0
-    storage: Dict[str, str] = field(default_factory=dict)  # hex key -> hex value
-    nef: Optional[str] = None  # hex-encoded NEF
-    manifest: Optional[Dict[str, Any]] = None
+    storage: dict[str, str] = field(default_factory=dict)  # hex key -> hex value
+    nef: str | None = None  # hex-encoded NEF
+    manifest: dict[str, Any] | None = None
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AccountState":
+    def from_dict(cls, data: dict[str, Any]) -> "AccountState":
         """Create AccountState from dictionary."""
         return cls(
             neo_balance=int(data.get("neoBalance", data.get("neo_balance", 0))),
@@ -49,9 +46,9 @@ class AccountState:
             manifest=data.get("manifest"),
         )
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         if self.neo_balance > 0:
             result["neoBalance"] = self.neo_balance
         if self.gas_balance > 0:
@@ -64,22 +61,20 @@ class AccountState:
             result["manifest"] = self.manifest
         return result
 
-
 # Type alias for allocation mapping
-Alloc = Dict[str, AccountState]  # address (hex) -> AccountState
-
+Alloc = dict[str, AccountState]  # address (hex) -> AccountState
 
 @dataclass
 class SignerInput:
     """Transaction signer input."""
     account: str  # hex-encoded UInt160
     scopes: int = 1  # WitnessScope.CALLED_BY_ENTRY
-    allowed_contracts: List[str] = field(default_factory=list)
-    allowed_groups: List[str] = field(default_factory=list)
-    rules: List[Dict[str, Any]] = field(default_factory=list)
+    allowed_contracts: list[str] = field(default_factory=list)
+    allowed_groups: list[str] = field(default_factory=list)
+    rules: list[dict[str, Any]] = field(default_factory=list)
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SignerInput":
+    def from_dict(cls, data: dict[str, Any]) -> "SignerInput":
         """Create SignerInput from dictionary."""
         if not isinstance(data, dict):
             return cls(account="")
@@ -108,7 +103,6 @@ class SignerInput:
             rules=rules,
         )
 
-
 @dataclass
 class TransactionInput:
     """Transaction input for t8n.
@@ -116,17 +110,17 @@ class TransactionInput:
     Simplified transaction format for testing.
     """
     script: str  # hex-encoded script
-    signers: List[SignerInput] = field(default_factory=list)
+    signers: list[SignerInput] = field(default_factory=list)
     system_fee: int = 0
     network_fee: int = 0
     valid_until_block: int = 0
     nonce: int = 0
-    parse_error: Optional[str] = None
+    parse_error: str | None = None
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TransactionInput":
+    def from_dict(cls, data: dict[str, Any]) -> "TransactionInput":
         """Create TransactionInput from dictionary."""
-        errors: List[str] = []
+        errors: list[str] = []
 
         if not isinstance(data, dict):
             return cls(script="", parse_error="Transaction entry must be an object")
@@ -141,7 +135,7 @@ class TransactionInput:
             errors.append("Transaction script must be a hex string")
             script = str(script_value)
 
-        signers: List[SignerInput] = []
+        signers: list[SignerInput] = []
         signers_field = data.get("signers", [])
         if signers_field is None:
             signers_field = []
@@ -164,7 +158,6 @@ class TransactionInput:
             parse_error="; ".join(errors) if errors else None,
         )
 
-
 @dataclass
 class Environment:
     """Block environment for execution.
@@ -178,7 +171,7 @@ class Environment:
     primary_index: int = 0
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Environment":
+    def from_dict(cls, data: dict[str, Any]) -> "Environment":
         """Create Environment from dictionary."""
         return cls(
             current_block_number=int(data.get("currentBlockNumber", 0)),
@@ -188,7 +181,6 @@ class Environment:
             primary_index=int(data.get("primaryIndex", 0)),
         )
 
-
 @dataclass
 class NotificationOutput:
     """Contract notification in receipt."""
@@ -196,7 +188,7 @@ class NotificationOutput:
     event_name: str
     state: Any  # serialized stack item
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "contract": self.contract,
@@ -204,20 +196,19 @@ class NotificationOutput:
             "state": self.state,
         }
 
-
 @dataclass
 class Receipt:
     """Transaction execution receipt."""
     tx_hash: str  # hex-encoded
     vm_state: str  # "HALT" or "FAULT"
     gas_consumed: int
-    exception: Optional[str] = None
-    stack: List[Any] = field(default_factory=list)
-    notifications: List[Any] = field(default_factory=list)
+    exception: str | None = None
+    stack: list[Any] = field(default_factory=list)
+    notifications: list[Any] = field(default_factory=list)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "txHash": self.tx_hash,
             "vmState": self.vm_state,
             "gasConsumed": str(self.gas_consumed),
@@ -230,15 +221,14 @@ class Receipt:
             result["exception"] = self.exception
         return result
 
-
 @dataclass
 class T8NResult:
     """Result of t8n execution."""
     state_root: str  # hex-encoded
-    receipts: List[Receipt] = field(default_factory=list)
+    receipts: list[Receipt] = field(default_factory=list)
     gas_used: int = 0
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "stateRoot": self.state_root,
@@ -246,14 +236,13 @@ class T8NResult:
             "gasUsed": str(self.gas_used),
         }
 
-
 @dataclass
 class T8NOutput:
     """Complete t8n output."""
     result: T8NResult
-    alloc: Dict[str, Dict[str, Any]]  # post-state allocation
+    alloc: dict[str, dict[str, Any]]  # post-state allocation
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "result": self.result.to_dict(),

@@ -9,14 +9,13 @@ System.Storage.Find.
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING
 
 from neo.vm.types import StackItem, ByteString, Array
 from neo.smartcontract.storage.find_options import FindOptions
 
 if TYPE_CHECKING:
     from neo.smartcontract.application_engine import ApplicationEngine
-
 
 class IIterator(ABC):
     """Abstract iterator interface matching Neo N3 IIterator<StackItem>."""
@@ -33,7 +32,6 @@ class IIterator(ABC):
         Raises ValueError if called before next() or after exhaustion.
         """
         ...
-
 
 class StorageIterator(IIterator):
     """Iterator over storage find results.
@@ -61,7 +59,7 @@ class StorageIterator(IIterator):
         self._engine = engine
         self._prefix = prefix
         self._options = FindOptions(options)
-        self._pairs: List[Tuple[bytes, bytes]] = []
+        self._pairs: list[tuple[bytes, bytes]] = []
         self._index: int = -1
 
         # Materialise results from snapshot

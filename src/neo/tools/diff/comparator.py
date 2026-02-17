@@ -3,10 +3,9 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from neo.tools.diff.models import ExecutionResult, StackValue
-
 
 class DiffType(Enum):
     """Type of difference found."""
@@ -16,7 +15,6 @@ class DiffType(Enum):
     STACK_VALUE = "stack_value"
     GAS_MISMATCH = "gas_mismatch"
     NOTIFICATION_MISMATCH = "notification_mismatch"
-
 
 @dataclass
 class Difference:
@@ -36,15 +34,14 @@ class Difference:
             "message": self.message,
         }
 
-
 @dataclass
 class ComparisonResult:
     """Result of comparing two execution results."""
     vector_name: str
     is_match: bool
     differences: list[Difference] = field(default_factory=list)
-    python_result: Optional[ExecutionResult] = None
-    csharp_result: Optional[ExecutionResult] = None
+    python_result: ExecutionResult | None = None
+    csharp_result: ExecutionResult | None = None
     
     def to_dict(self) -> dict:
         return {
@@ -52,7 +49,6 @@ class ComparisonResult:
             "match": self.is_match,
             "differences": [d.to_dict() for d in self.differences],
         }
-
 
 class ResultComparator:
     """Compare execution results between implementations."""

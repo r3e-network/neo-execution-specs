@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import Any
 import struct
-
 
 @dataclass
 class MethodToken:
@@ -16,7 +15,7 @@ class MethodToken:
     has_return_value: bool = False
     call_flags: int = 0
     
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         """Convert to JSON."""
         return {
             "hash": self.hash.hex(),
@@ -26,7 +25,6 @@ class MethodToken:
             "callflags": self.call_flags
         }
 
-
 @dataclass
 class NefFile:
     """NEO Executable Format 3 (NEF3)."""
@@ -35,11 +33,11 @@ class NefFile:
     
     compiler: str = ""
     source: str = ""
-    tokens: List[MethodToken] = field(default_factory=list)
+    tokens: list[MethodToken] = field(default_factory=list)
     script: bytes = b""
     checksum: int = 0
     
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         """Convert to JSON."""
         import base64
         return {
@@ -138,7 +136,7 @@ class NefFile:
 
         # Tokens
         token_count, offset = cls._read_var_int(data, offset)
-        tokens: List[MethodToken] = []
+        tokens: list[MethodToken] = []
         for _ in range(token_count):
             t_hash = data[offset:offset + 20]
             offset += 20

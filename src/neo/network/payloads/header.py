@@ -5,7 +5,7 @@ Reference: Neo.Network.P2P.Payloads.Header
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from neo.io.binary_reader import BinaryReader
@@ -13,10 +13,8 @@ if TYPE_CHECKING:
     from neo.network.payloads.witness import Witness
     from neo.types.uint256 import UInt256
 
-
 # Header size without witness
 HEADER_SIZE = 4 + 32 + 32 + 8 + 8 + 4 + 1 + 20 + 1
-
 
 @dataclass
 class Header:
@@ -29,7 +27,7 @@ class Header:
     index: int = 0
     primary_index: int = 0
     next_consensus: bytes = field(default_factory=lambda: bytes(20))
-    witness: Optional["Witness"] = None
+    witness: "Witness" | None = None
     
     @property
     def hash(self) -> bytes | "UInt256":

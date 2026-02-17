@@ -6,7 +6,7 @@ Reference: Neo.Ledger.Blockchain (verification parts)
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from neo.ledger.transaction_verifier import TransactionVerifier
 from neo.ledger.verify_result import VerifyResult
@@ -15,7 +15,6 @@ if TYPE_CHECKING:
     from neo.network.payloads.block import Block
     from neo.persistence.snapshot import Snapshot
 
-
 class BlockVerifier:
     """Verifies blocks for validity."""
 
@@ -23,7 +22,7 @@ class BlockVerifier:
     def verify(
         block: "Block",
         snapshot: "Snapshot",
-        prev_block: Optional["Block"] = None,
+        prev_block: "Block" | None = None,
     ) -> VerifyResult:
         """
         Verify a block.
@@ -67,7 +66,7 @@ class BlockVerifier:
     @staticmethod
     def verify_chain_link(
         block: "Block",
-        prev_block: Optional["Block"],
+        prev_block: "Block" | None,
     ) -> VerifyResult:
         """Verify block links to previous block."""
         if block.index == 0:

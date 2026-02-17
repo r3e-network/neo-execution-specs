@@ -1,19 +1,18 @@
 """Neo N3 Account implementation."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Optional, List
+
 from enum import IntEnum
 
 from neo.crypto.hash import hash160
 from neo.wallets.key_pair import KeyPair
-
 
 class AccountType(IntEnum):
     """Account type enumeration."""
     STANDARD = 0
     MULTI_SIG = 1
     CONTRACT = 2
-
 
 @dataclass
 class Account:
@@ -23,8 +22,8 @@ class Account:
     label: str = ""
     is_default: bool = False
     lock: bool = False
-    key_pair: Optional[KeyPair] = None
-    contract: Optional["Contract"] = None
+    key_pair: KeyPair | None = None
+    contract: "Contract" | None = None
     extra: dict = field(default_factory=dict)
     
     @classmethod
@@ -67,21 +66,18 @@ class Account:
             raise ValueError("Account has no private key")
         return self.key_pair.sign(message)
 
-
 @dataclass
 class ContractParameter:
     """Contract parameter definition."""
     name: str
     type: str
 
-
 @dataclass
 class Contract:
     """Account contract."""
     script: bytes
-    parameters: List[ContractParameter] = field(default_factory=list)
+    parameters: list[ContractParameter] = field(default_factory=list)
     deployed: bool = False
-
 
 def create_signature_script(public_key) -> bytes:
     """Create signature verification script."""
@@ -100,7 +96,6 @@ def create_signature_script(public_key) -> bytes:
     
     return bytes(script)
 
-
 def script_hash_to_address(script_hash: bytes) -> str:
     """Convert script hash to Neo address."""
     from neo.wallets.key_pair import base58_check_encode
@@ -109,7 +104,6 @@ def script_hash_to_address(script_hash: bytes) -> str:
     ADDRESS_VERSION = 0x35
     data = bytes([ADDRESS_VERSION]) + script_hash
     return base58_check_encode(data)
-
 
 def address_to_script_hash(address: str) -> bytes:
     """Convert Neo address to script hash."""

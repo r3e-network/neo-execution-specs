@@ -3,9 +3,12 @@
 Reference: Neo.Persistence.Snapshot
 """
 
-from dataclasses import dataclass, field
-from typing import Callable, Dict, Iterator, Optional, Tuple, Any
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
+from typing import Any
 
 from neo.persistence.store import IStore
 
@@ -18,7 +21,7 @@ class Snapshot(ABC):
     """
     
     @abstractmethod
-    def get(self, key: bytes) -> Optional[bytes]:
+    def get(self, key: bytes) -> bytes | None:
         """Get value by key."""
         pass
     
@@ -38,7 +41,7 @@ class Snapshot(ABC):
         pass
     
     @abstractmethod
-    def find(self, prefix: bytes) -> Iterator[Tuple[bytes, bytes]]:
+    def find(self, prefix: bytes) -> Iterator[tuple[bytes, bytes]]:
         """Find all key-value pairs with prefix."""
         pass
     
@@ -47,11 +50,11 @@ class Snapshot(ABC):
         """Commit changes."""
         pass
 
-    def try_get(self, key: bytes) -> Optional[bytes]:
+    def try_get(self, key: bytes) -> bytes | None:
         """Try to get a value by key. Returns None if not found."""
         return self.get(key)
 
-    def get_and_change(self, key: bytes, factory: Optional[Callable[[], bytes]] = None) -> Optional[bytes]:
+    def get_and_change(self, key: bytes, factory: Callable[[], bytes] | None = None) -> bytes | None:
         """Get value and mark for change."""
         value = self.get(key)
         if value is None and factory is not None:
@@ -67,7 +70,7 @@ class Snapshot(ABC):
 
 
     # Storage helper methods for ApplicationEngine
-    def storage_get(self, key: bytes) -> Optional[bytes]:
+    def storage_get(self, key: bytes) -> bytes | None:
         """Get storage value by key."""
         return self.get(key)
 
@@ -80,7 +83,7 @@ class Snapshot(ABC):
         self.delete(key)
 
     # Contract/ledger helper methods
-    def get_contract(self, script_hash: Any) -> Optional[Any]:
+    def get_contract(self, script_hash: Any) -> Any | None:
         """Get contract data by script hash."""
         return None
 
@@ -96,10 +99,10 @@ class Snapshot(ABC):
 class MemorySnapshot(Snapshot):
     """In-memory snapshot implementation."""
     
-    _store: Dict[bytes, bytes] = field(default_factory=dict)
-    _changes: Dict[bytes, Optional[bytes]] = field(default_factory=dict)
-    
-    def get(self, key: bytes) -> Optional[bytes]:
+    _store: dict[bytes, bytes] = field(default_factory=dict)
+    _changes: dict[bytes, bytes | None] = field(default_factory=dict)
+
+    def get(self, key: bytes) -> bytes | None:
         if key in self._changes:
             return self._changes[key]
         return self._store.get(key)
@@ -115,10 +118,10 @@ class MemorySnapshot(Snapshot):
     def delete(self, key: bytes) -> None:
         self._changes[key] = None
     
-    def find(self, prefix: bytes) -> Iterator[Tuple[bytes, bytes]]:
+    def find(self, prefix: bytes) -> Iterator[tuple[bytes, bytes]]:
         """Find all key-value pairs with prefix, sorted by key."""
         seen = set()
-        results: Dict[bytes, bytes] = {}
+        results: dict[bytes, bytes] = {}
         # Collect from changes (overrides store)
         for key, value in self._changes.items():
             if key.startswith(prefix):
@@ -141,7 +144,7 @@ class MemorySnapshot(Snapshot):
                 self._store[key] = value
         self._changes.clear()
     
-    def clone(self) -> "MemorySnapshot":
+    def clone(self) -> MemorySnapshot:
         """Create a clone of this snapshot."""
         clone = MemorySnapshot()
         clone._store = dict(self._store)
@@ -149,20 +152,20 @@ class MemorySnapshot(Snapshot):
         return clone
     
     # Storage helper methods for ApplicationEngine
-    def storage_get(self, key: bytes) -> Optional[bytes]:
+    def storage_get(self, key: bytes) -> bytes | None:
         """Get storage value."""
         return self.get(key)
-    
+
     def storage_put(self, key: bytes, value: bytes) -> None:
         """Put storage value."""
         self.put(key, value)
-    
+
     def storage_delete(self, key: bytes) -> None:
         """Delete storage value."""
         self.delete(key)
-    
+
     # Contract methods
-    def get_contract(self, script_hash) -> Optional[Any]:
+    def get_contract(self, script_hash) -> Any | None:
         """Get contract by script hash."""
         from neo.types.uint160 import UInt160
         if isinstance(script_hash, UInt160):
@@ -198,9 +201,9 @@ class StoreSnapshot(Snapshot):
     
     def __init__(self, store: IStore):
         self._store = store
-        self._changes: Dict[bytes, Optional[bytes]] = {}
-    
-    def get(self, key: bytes) -> Optional[bytes]:
+        self._changes: dict[bytes, bytes | None] = {}
+
+    def get(self, key: bytes) -> bytes | None:
         if key in self._changes:
             return self._changes[key]
         return self._store.get(key)
@@ -216,10 +219,10 @@ class StoreSnapshot(Snapshot):
     def delete(self, key: bytes) -> None:
         self._changes[key] = None
     
-    def find(self, prefix: bytes) -> Iterator[Tuple[bytes, bytes]]:
+    def find(self, prefix: bytes) -> Iterator[tuple[bytes, bytes]]:
         """Find all key-value pairs with prefix, sorted by key."""
         seen = set()
-        results: Dict[bytes, bytes] = {}
+        results: dict[bytes, bytes] = {}
         # Collect from changes (overrides store)
         for key, value in self._changes.items():
             if key.startswith(prefix):

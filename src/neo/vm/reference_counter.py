@@ -7,11 +7,10 @@ Uses id() -> (strong_ref, count) mapping to prevent GC id reuse.
 """
 
 from __future__ import annotations
-from typing import Dict, Set, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from neo.vm.types.stack_item import StackItem
-
 
 class ReferenceCounter:
     """
@@ -27,8 +26,8 @@ class ReferenceCounter:
 
     def __init__(self) -> None:
         # id(item) -> (item_ref, ref_count) — strong ref prevents id reuse
-        self._tracked: Dict[int, Tuple[StackItem, int]] = {}
-        self._zero_referred: Set[int] = set()
+        self._tracked: dict[int, tuple[StackItem, int]] = {}
+        self._zero_referred: set[int] = set()
         self._count: int = 0
 
     @property

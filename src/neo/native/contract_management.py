@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from neo.crypto import hash160
 from neo.hardfork import Hardfork
@@ -20,14 +20,13 @@ PREFIX_CONTRACT_HASH = 12
 # Default minimum deployment fee (10 GAS)
 DEFAULT_MINIMUM_DEPLOYMENT_FEE = 10_00000000
 
-
 @dataclass
 class ContractState:
     """State of a deployed contract."""
 
     id: int = 0
     update_counter: int = 0
-    hash: Optional[UInt160] = None
+    hash: UInt160 | None = None
     nef: bytes = b""
     manifest: bytes = b""
     
@@ -53,7 +52,6 @@ class ContractState:
         manifest_len = int.from_bytes(data[offset:offset+4], 'little')
         state.manifest = data[offset+4:offset+4+manifest_len]
         return state
-
 
 class ContractManagement(NativeContract):
     """Manages contract deployment and updates."""
@@ -136,7 +134,7 @@ class ContractManagement(NativeContract):
         self,
         context: Any,
         hash: UInt160 | None = None,
-    ) -> Optional[ContractState]:
+    ) -> ContractState | None:
         """Get contract state.
 
         - ``get_contract_state(context)`` returns this native contract's active state.
@@ -159,7 +157,7 @@ class ContractManagement(NativeContract):
             return None
         return ContractState.from_bytes(item.value)
     
-    def get_contract_state_by_id(self, snapshot: Any, id: int) -> Optional[ContractState]:
+    def get_contract_state_by_id(self, snapshot: Any, id: int) -> ContractState | None:
         """Get a deployed contract by ID."""
         native = NativeContract.get_contract_by_id(id)
         if native is not None:
@@ -322,13 +320,13 @@ class ContractManagement(NativeContract):
         return UInt160(hash160(bytes(script)))
 
     def update_without_data(
-        self, engine: Any, nef_file: Optional[bytes], manifest: Optional[bytes]
+        self, engine: Any, nef_file: bytes | None, manifest: bytes | None
     ) -> None:
         """Overload shim for update(nef, manifest)."""
         self.update(engine, nef_file, manifest, None)
     
-    def update(self, engine: Any, nef_file: Optional[bytes], 
-               manifest: Optional[bytes], data: Any = None) -> None:
+    def update(self, engine: Any, nef_file: bytes | None, 
+               manifest: bytes | None, data: Any = None) -> None:
         """Update an existing contract."""
         if nef_file is None and manifest is None:
             raise ValueError("NEF and manifest cannot both be null")

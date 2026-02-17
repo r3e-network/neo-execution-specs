@@ -1,11 +1,10 @@
 """Neo N3 Inv Payload."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List
-
 
 @dataclass
 class InvPayload:
     """Inventory payload."""
     type: int
-    hashes: List[bytes] = field(default_factory=list)
+    hashes: list[bytes] = field(default_factory=list)

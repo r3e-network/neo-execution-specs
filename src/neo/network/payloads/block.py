@@ -7,7 +7,7 @@ Reference: Neo.Network.P2P.Payloads.Block
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from neo.network.payloads.header import Header
 from neo.network.payloads.transaction import Transaction
@@ -19,13 +19,12 @@ if TYPE_CHECKING:
 
 MAX_TRANSACTIONS_PER_BLOCK = 512
 
-
 @dataclass
 class Block(Header):
     """Represents a Neo N3 block."""
     
-    transactions: List[Transaction] = field(default_factory=list)
-    _hash: Optional[UInt256] = field(default=None, repr=False)
+    transactions: list[Transaction] = field(default_factory=list)
+    _hash: UInt256 | None = field(default=None, repr=False)
     
     @property
     def hash(self) -> UInt256:

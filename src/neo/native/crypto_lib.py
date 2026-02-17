@@ -6,12 +6,11 @@ Reference: Neo.SmartContract.Native.CryptoLib
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import Any, Optional
+from typing import Any
 
 from neo.crypto import ed25519_verify, murmur32, ripemd160, sha256
 from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract
-
 
 class NamedCurveHash(IntEnum):
     """Named curve and hash algorithm combinations."""
@@ -21,10 +20,8 @@ class NamedCurveHash(IntEnum):
     secp256k1Keccak256 = 24
     secp256r1Keccak256 = 25
 
-
 class _BlsPoint:
     """Manifest marker type for BLS interop objects."""
-
 
 class CryptoLib(NativeContract):
     """Cryptographic functions native contract.
@@ -291,7 +288,7 @@ class CryptoLib(NativeContract):
 
         return ed25519_verify(message, signature, pubkey)
 
-    def recover_secp256k1(self, message_hash: bytes, signature: bytes) -> Optional[bytes]:
+    def recover_secp256k1(self, message_hash: bytes, signature: bytes) -> bytes | None:
         """Recover public key from secp256k1 signature.
 
         Args:

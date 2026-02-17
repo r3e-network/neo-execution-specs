@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Mapping
 
 from neo.crypto.hash import hash160
 from neo.hardfork import Hardfork
@@ -110,13 +110,13 @@ class ProtocolSettings:
     max_traceable_blocks: int = 2102400
     initial_gas_distribution: int = 52_000_000 * 100_000_000
 
-    hardforks: Dict[Hardfork, int] = field(
+    hardforks: dict[Hardfork, int] = field(
         default_factory=lambda: dict(_MAINNET_HARDFORKS)
     )
-    standby_committee: List[bytes] = field(
+    standby_committee: list[bytes] = field(
         default_factory=lambda: [bytes.fromhex(key) for key in _MAINNET_STANDBY_COMMITTEE_HEX]
     )
-    seed_list: List[str] = field(default_factory=lambda: list(_MAINNET_SEED_LIST))
+    seed_list: list[str] = field(default_factory=lambda: list(_MAINNET_SEED_LIST))
 
     # Backward-compatible attribute used by other modules.
     committee_members_count: int = 21
@@ -139,12 +139,12 @@ class ProtocolSettings:
         self.validate_hardforks()
 
     @property
-    def standby_validators(self) -> List[bytes]:
+    def standby_validators(self) -> list[bytes]:
         """Get standby validators as the first N committee keys."""
         return list(self.standby_committee[: self.validators_count])
 
     @classmethod
-    def mainnet(cls) -> "ProtocolSettings":
+    def mainnet(cls) -> ProtocolSettings:
         """Create Neo mainnet-compatible protocol settings."""
         return cls(
             network=860833102,
@@ -162,7 +162,7 @@ class ProtocolSettings:
         )
 
     @classmethod
-    def testnet(cls) -> "ProtocolSettings":
+    def testnet(cls) -> ProtocolSettings:
         """Create Neo testnet-compatible protocol settings."""
         return cls(
             network=894710606,

@@ -3,11 +3,11 @@
 Reference: Neo.Cryptography.MerkleTree
 """
 
-from typing import List, Optional
+from __future__ import annotations
+
 from neo.crypto.hash import hash256
 
-
-def compute_root(hashes: List[bytes]) -> bytes:
+def compute_root(hashes: list[bytes]) -> bytes:
     """Compute merkle root from list of hashes."""
     if not hashes:
         return bytes(32)
@@ -19,14 +19,13 @@ def compute_root(hashes: List[bytes]) -> bytes:
                    for i in range(0, len(working), 2)]
     return working[0]
 
-
 class MerkleTree:
     """Merkle tree implementation."""
     
-    def __init__(self, hashes: List[bytes]) -> None:
+    def __init__(self, hashes: list[bytes]) -> None:
         """Initialize merkle tree from leaf hashes."""
         self._leaves = list(hashes)
-        self._root: Optional[bytes] = None
+        self._root: bytes | None = None
     
     @property
     def root(self) -> bytes:
@@ -36,17 +35,17 @@ class MerkleTree:
         return self._root
     
     @staticmethod
-    def compute_root(hashes: List[bytes]) -> bytes:
+    def compute_root(hashes: list[bytes]) -> bytes:
         """Compute merkle root from list of hashes."""
         return compute_root(hashes)
     
     @staticmethod
-    def compute_root_from_data(data_list: List[bytes]) -> bytes:
+    def compute_root_from_data(data_list: list[bytes]) -> bytes:
         """Compute merkle root from list of data (hashes each item first)."""
         hashes = [hash256(d) for d in data_list]
         return compute_root(hashes)
     
-    def get_proof(self, index: int) -> List[bytes]:
+    def get_proof(self, index: int) -> list[bytes]:
         """Get merkle proof for leaf at index."""
         if index < 0 or index >= len(self._leaves):
             raise IndexError("Index out of range")
@@ -73,7 +72,7 @@ class MerkleTree:
     @staticmethod
     def verify_proof(
         leaf_hash: bytes,
-        proof: List[bytes],
+        proof: list[bytes],
         root: bytes,
         index: int
     ) -> bool:

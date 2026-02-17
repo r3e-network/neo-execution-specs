@@ -1,12 +1,12 @@
 """Map stack item."""
 
 from __future__ import annotations
-from typing import Dict, Iterator, TYPE_CHECKING
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 from neo.vm.types.stack_item import StackItem, StackItemType
 
 if TYPE_CHECKING:
     from neo.vm.reference_counter import ReferenceCounter
-
 
 class Map(StackItem):
     """Key-value map on the stack."""
@@ -14,7 +14,7 @@ class Map(StackItem):
     __slots__ = ("_items", "_reference_counter")
     
     def __init__(self, reference_counter: ReferenceCounter | None = None) -> None:
-        self._items: Dict[StackItem, StackItem] = {}
+        self._items: dict[StackItem, StackItem] = {}
         self._reference_counter = reference_counter
 
     def _ref_add(self, item: StackItem) -> None:

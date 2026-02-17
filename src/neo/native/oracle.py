@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 from neo.crypto import hash160
 from neo.hardfork import Hardfork
@@ -30,7 +30,6 @@ MAX_USER_DATA_LENGTH = 512
 # Default oracle price (0.5 GAS in datoshi)
 DEFAULT_ORACLE_PRICE = 50_000_000
 
-
 class OracleResponseCode(IntEnum):
     """Oracle response codes."""
 
@@ -45,7 +44,6 @@ class OracleResponseCode(IntEnum):
     ContentTypeNotSupported = 0x1f
     Error = 0xff
 
-
 @dataclass
 class OracleRequest:
     """Oracle request data structure."""
@@ -53,7 +51,7 @@ class OracleRequest:
     original_txid: UInt256 = field(default_factory=lambda: UInt256(b'\x00' * 32))
     gas_for_response: int = 0
     url: str = ""
-    filter: Optional[str] = None
+    filter: str | None = None
     callback_contract: UInt160 = field(default_factory=lambda: UInt160(b'\x00' * 20))
     callback_method: str = ""
     user_data: bytes = b""
@@ -179,7 +177,6 @@ class OracleRequest:
             user_data=user_data
         )
 
-
 class OracleContract(NativeContract):
     """Oracle native contract for external data requests.
     
@@ -290,7 +287,7 @@ class OracleContract(NativeContract):
         self,
         engine: Any,
         url: str,
-        filter: Optional[str],
+        filter: str | None,
         callback: str,
         user_data: Any,
         gas_for_response: int
@@ -412,7 +409,7 @@ class OracleContract(NativeContract):
         id_list.append(request_id)
         snapshot.put(key, self._serialize_id_list(id_list))
     
-    def _serialize_id_list(self, id_list: List[int]) -> bytes:
+    def _serialize_id_list(self, id_list: list[int]) -> bytes:
         """Serialize ID list to bytes."""
         result = bytearray()
         result.append(len(id_list))
@@ -420,7 +417,7 @@ class OracleContract(NativeContract):
             result.extend(id_val.to_bytes(8, 'little'))
         return bytes(result)
     
-    def _deserialize_id_list(self, data: bytes) -> List[int]:
+    def _deserialize_id_list(self, data: bytes) -> list[int]:
         """Deserialize ID list from bytes."""
         if not data:
             return []
@@ -431,7 +428,7 @@ class OracleContract(NativeContract):
             result.append(int.from_bytes(data[offset:offset + 8], 'little'))
         return result
     
-    def get_request(self, snapshot: Any, request_id: int) -> Optional[OracleRequest]:
+    def get_request(self, snapshot: Any, request_id: int) -> OracleRequest | None:
         """Get a pending request by ID."""
         key = self._create_storage_key(PREFIX_REQUEST, request_id)
         value = snapshot.get(key) if snapshot else None
@@ -439,7 +436,7 @@ class OracleContract(NativeContract):
             return None
         return OracleRequest.deserialize(value)
     
-    def get_requests(self, snapshot: Any) -> Iterator[Tuple[int, OracleRequest]]:
+    def get_requests(self, snapshot: Any) -> Iterator[tuple[int, OracleRequest]]:
         """Get all pending requests."""
         if snapshot is None:
             return
@@ -455,7 +452,7 @@ class OracleContract(NativeContract):
                 request_id = int.from_bytes(suffix, 'little')
                 yield (request_id, OracleRequest.deserialize(value))
     
-    def get_requests_by_url(self, snapshot: Any, url: str) -> Iterator[Tuple[int, OracleRequest]]:
+    def get_requests_by_url(self, snapshot: Any, url: str) -> Iterator[tuple[int, OracleRequest]]:
         """Get requests for a specific URL."""
         url_hash = self._get_url_hash(url)
         key = self._create_storage_key(PREFIX_ID_LIST, url_hash)

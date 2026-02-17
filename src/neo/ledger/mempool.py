@@ -6,7 +6,8 @@ Reference: Neo.Ledger.MemoryPool
 
 from __future__ import annotations
 from threading import RLock
-from typing import Dict, Iterator, List, Optional, Set, TYPE_CHECKING
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 from neo.ledger.pool_item import PoolItem
 from neo.ledger.verify_result import VerifyResult
@@ -14,7 +15,6 @@ from neo.types.uint256 import UInt256
 
 if TYPE_CHECKING:
     from neo.network.payloads.transaction import Transaction
-
 
 class MemoryPool:
     """Cache for verified transactions before block inclusion."""
@@ -26,13 +26,13 @@ class MemoryPool:
         self._lock = RLock()
         
         # Verified transactions
-        self._verified: Dict[UInt256, PoolItem] = {}
+        self._verified: dict[UInt256, PoolItem] = {}
         
         # Unverified transactions (valid in prior block)
-        self._unverified: Dict[UInt256, PoolItem] = {}
+        self._unverified: dict[UInt256, PoolItem] = {}
         
         # Conflict tracking
-        self._conflicts: Dict[UInt256, Set[UInt256]] = {}
+        self._conflicts: dict[UInt256, set[UInt256]] = {}
     
     @property
     def capacity(self) -> int:
@@ -62,7 +62,7 @@ class MemoryPool:
         with self._lock:
             return tx_hash in self._verified or tx_hash in self._unverified
     
-    def try_get(self, tx_hash: UInt256) -> Optional["Transaction"]:
+    def try_get(self, tx_hash: UInt256) -> "Transaction" | None:
         """Get transaction by hash."""
         with self._lock:
             if tx_hash in self._verified:
@@ -71,7 +71,7 @@ class MemoryPool:
                 return self._unverified[tx_hash].tx
             return None
     
-    def get_verified_transactions(self) -> List["Transaction"]:
+    def get_verified_transactions(self) -> list["Transaction"]:
         """Get all verified transactions."""
         with self._lock:
             return [item.tx for item in self._verified.values()]

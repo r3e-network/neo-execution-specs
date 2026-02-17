@@ -1,12 +1,12 @@
 """Neo N3 Transaction class."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Optional
+
 import struct
 
 from neo.ledger.transaction import Signer, Witness, TransactionAttribute
 from neo.crypto.hash import hash256
-
 
 @dataclass
 class Transaction:
@@ -17,12 +17,12 @@ class Transaction:
     system_fee: int = 0
     network_fee: int = 0
     valid_until_block: int = 0
-    signers: List[Signer] = field(default_factory=list)
-    attributes: List[TransactionAttribute] = field(default_factory=list)
+    signers: list[Signer] = field(default_factory=list)
+    attributes: list[TransactionAttribute] = field(default_factory=list)
     script: bytes = b""
-    witnesses: List[Witness] = field(default_factory=list)
+    witnesses: list[Witness] = field(default_factory=list)
     
-    _hash: Optional[bytes] = field(default=None, repr=False)
+    _hash: bytes | None = field(default=None, repr=False)
     
     @property
     def hash(self) -> bytes:

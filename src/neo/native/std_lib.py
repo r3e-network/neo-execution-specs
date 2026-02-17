@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import Any, List
+from typing import Any
 
 import regex  # type: ignore[import-untyped]
 
@@ -14,7 +14,6 @@ from neo.native.native_contract import CallFlags, NativeContract
 # Base58 alphabet
 BASE58_ALPHABET = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 MAX_INPUT_LENGTH = 1024
-
 
 class StdLib(NativeContract):
     """Standard library functions for Neo smart contracts."""
@@ -490,7 +489,7 @@ class StdLib(NativeContract):
         """Overload shim for memorySearch(mem, value, start)."""
         return self.memory_search(mem, value, start, False)
 
-    def string_split(self, s: str, separator: str, remove_empty_entries: bool = False) -> List[str]:
+    def string_split(self, s: str, separator: str, remove_empty_entries: bool = False) -> list[str]:
         """Split a string by separator."""
         if len(s) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
@@ -500,7 +499,7 @@ class StdLib(NativeContract):
             parts = [p for p in parts if p]
         return parts
 
-    def string_split_keep_empty(self, s: str, separator: str) -> List[str]:
+    def string_split_keep_empty(self, s: str, separator: str) -> list[str]:
         """Overload shim for stringSplit(s, separator)."""
         return self.string_split(s, separator, False)
 

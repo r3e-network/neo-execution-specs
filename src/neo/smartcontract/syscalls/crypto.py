@@ -4,14 +4,13 @@ Reference: Neo.SmartContract.ApplicationEngine.Crypto.cs
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from neo.smartcontract.application_engine import ApplicationEngine
 
 # Price constants (in datoshi, 1 datoshi = 1e-8 GAS)
 CHECK_SIG_PRICE = 1 << 15
-
 
 def crypto_check_sig(engine: "ApplicationEngine") -> None:
     """System.Crypto.CheckSig
@@ -37,7 +36,6 @@ def crypto_check_sig(engine: "ApplicationEngine") -> None:
         result = False
     
     stack.push(Boolean(result))
-
 
 def crypto_check_multisig(engine: "ApplicationEngine") -> None:
     """System.Crypto.CheckMultisig
@@ -95,11 +93,10 @@ def crypto_check_multisig(engine: "ApplicationEngine") -> None:
     
     stack.push(Boolean(result))
 
-
 def _check_multisig_internal(
     message: bytes,
-    signatures: List[bytes],
-    pubkeys: List[bytes],
+    signatures: list[bytes],
+    pubkeys: list[bytes],
     curve
 ) -> bool:
     """Internal multisig verification logic."""
@@ -120,7 +117,6 @@ def _check_multisig_internal(
             return False
     
     return i == m
-
 
 def _get_sign_data(engine: "ApplicationEngine") -> bytes:
     """Get the data to be signed from the script container."""

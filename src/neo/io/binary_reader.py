@@ -4,8 +4,8 @@ BinaryReader - Binary deserialization helper.
 Reference: Neo.IO.MemoryReader
 """
 
-from typing import Type, TypeVar, List, TYPE_CHECKING, cast
 import struct
+from typing import TYPE_CHECKING, TypeVar, cast
 
 if TYPE_CHECKING:
     from neo.io.serializable import ISerializable
@@ -143,11 +143,11 @@ class BinaryReader:
         from neo.types.uint256 import UInt256
         return UInt256(self.read_bytes(32))
     
-    def read_serializable(self, cls: Type[T]) -> T:
+    def read_serializable(self, cls: type[T]) -> T:
         """Read a serializable object."""
         return cast(T, cls.deserialize(self))
     
-    def read_serializable_array(self, cls: Type[T], max_count: int = 0x1000000) -> List[T]:
+    def read_serializable_array(self, cls: type[T], max_count: int = 0x1000000) -> list[T]:
         """Read an array of serializable objects."""
         count = self.read_var_int(max_count)
         return [cast(T, cls.deserialize(self)) for _ in range(count)]

@@ -4,8 +4,8 @@ BinaryWriter - Binary serialization helper.
 Reference: Neo.IO.BinaryWriter extensions
 """
 
-from typing import List, TYPE_CHECKING
 import struct
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from neo.io.serializable import ISerializable
@@ -107,7 +107,7 @@ class BinaryWriter:
         """Write a serializable object."""
         obj.serialize(self)
     
-    def write_serializable_array(self, items: List["ISerializable"]) -> None:
+    def write_serializable_array(self, items: list["ISerializable"]) -> None:
         """Write an array of serializable objects."""
         self.write_var_int(len(items))
         for item in items:

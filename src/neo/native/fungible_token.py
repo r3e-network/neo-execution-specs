@@ -3,16 +3,14 @@
 from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from neo.types import UInt160
 from neo.native.native_contract import NativeContract, CallFlags, StorageItem
 
-
 # Storage prefixes
 PREFIX_TOTAL_SUPPLY = 11
 PREFIX_ACCOUNT = 20
-
 
 @dataclass
 class AccountState:
@@ -31,7 +29,6 @@ class AccountState:
         if data:
             state.balance = int.from_bytes(data[:32], "little", signed=True)
         return state
-
 
 class FungibleToken(NativeContract):
     """Base class for NEP-17 compatible native tokens."""
@@ -245,8 +242,8 @@ class FungibleToken(NativeContract):
     def _post_transfer(
         self,
         engine: Any,
-        from_account: Optional[UInt160],
-        to_account: Optional[UInt160],
+        from_account: UInt160 | None,
+        to_account: UInt160 | None,
         amount: int,
         data: Any,
         call_on_payment: bool,

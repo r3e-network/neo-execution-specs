@@ -8,8 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Optional
-
+from typing import Any
 
 def load_json_file(path: str) -> Any:
     """Load JSON from file or stdin."""
@@ -17,7 +16,6 @@ def load_json_file(path: str) -> Any:
         return json.load(sys.stdin)
     with open(path, "r") as f:
         return json.load(f)
-
 
 def write_json_file(path: str, data: dict[str, Any]) -> None:
     """Write JSON to file or stdout."""
@@ -27,7 +25,6 @@ def write_json_file(path: str, data: dict[str, Any]) -> None:
     else:
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
-
 
 def create_parser() -> argparse.ArgumentParser:
     """Create argument parser."""
@@ -53,7 +50,6 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     return parser
-
 
 def add_output_args(parser: argparse.ArgumentParser) -> None:
     """Add output arguments to parser."""
@@ -82,8 +78,7 @@ def add_output_args(parser: argparse.ArgumentParser) -> None:
         ),
     )
 
-
-def main(args: Optional[list[str]] = None) -> int:
+def main(args: list[str] | None = None) -> int:
     """Main entry point."""
     from neo.tools.t8n.t8n import T8N
 
@@ -125,7 +120,6 @@ def main(args: Optional[list[str]] = None) -> int:
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -1,9 +1,9 @@
 """Contract ABI definitions."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List
-from enum import IntEnum
 
+from enum import IntEnum
 
 class ContractParameterType(IntEnum):
     """Parameter types."""
@@ -21,33 +21,29 @@ class ContractParameterType(IntEnum):
     INTEROP = 0x30
     VOID = 0xFF
 
-
 @dataclass
 class ContractParameterDefinition:
     """Parameter definition."""
     name: str
     type: ContractParameterType
 
-
 @dataclass
 class ContractMethodDescriptor:
     """Method descriptor."""
     name: str
-    parameters: List[ContractParameterDefinition] = field(default_factory=list)
+    parameters: list[ContractParameterDefinition] = field(default_factory=list)
     return_type: ContractParameterType = ContractParameterType.VOID
     offset: int = 0
     safe: bool = False
-
 
 @dataclass
 class ContractEventDescriptor:
     """Event descriptor."""
     name: str
-    parameters: List[ContractParameterDefinition] = field(default_factory=list)
-
+    parameters: list[ContractParameterDefinition] = field(default_factory=list)
 
 @dataclass
 class ContractAbi:
     """Contract ABI."""
-    methods: List[ContractMethodDescriptor] = field(default_factory=list)
-    events: List[ContractEventDescriptor] = field(default_factory=list)
+    methods: list[ContractMethodDescriptor] = field(default_factory=list)
+    events: list[ContractEventDescriptor] = field(default_factory=list)

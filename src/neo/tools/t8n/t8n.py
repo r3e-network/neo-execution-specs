@@ -6,7 +6,8 @@ Executes transactions against a pre-state and produces post-state.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from collections.abc import Iterable
+from typing import Any
 
 from neo.crypto.hash import hash256
 from neo.persistence.snapshot import MemorySnapshot
@@ -23,14 +24,12 @@ from neo.tools.t8n.types import (
     TransactionInput,
 )
 
-
 # t8n alloc key layout (tool-local representation)
 PREFIX_BALANCE = 0x14
 BALANCE_TYPE_GAS = 0x00
 BALANCE_TYPE_NEO = 0x01
 PREFIX_ACCOUNT_STORAGE = 0x70
 ACCOUNT_LENGTH = 20
-
 
 def _normalize_hex(hex_str: str) -> str:
     value = hex_str[2:] if hex_str.startswith(("0x", "0X")) else hex_str
@@ -39,20 +38,16 @@ def _normalize_hex(hex_str: str) -> str:
         value = f"0{value}"
     return value
 
-
 def _hex_to_bytes(hex_str: str) -> bytes:
     """Convert hex string to bytes."""
     return bytes.fromhex(_normalize_hex(hex_str))
-
 
 def _bytes_to_hex(data: bytes) -> str:
     """Convert bytes to 0x-prefixed hex string."""
     return "0x" + data.hex()
 
-
 def _balance_key(addr: bytes, balance_type: int) -> bytes:
     return bytes([PREFIX_BALANCE, balance_type]) + addr
-
 
 def _decode_uncaught_exception(error_item: Any) -> str:
     try:
@@ -62,7 +57,6 @@ def _decode_uncaught_exception(error_item: Any) -> str:
             return error_item.get_bytes_unsafe().decode("utf-8", errors="replace")
         except Exception:
             return str(error_item)
-
 
 def _to_uint32_hash_bytes(value: int) -> bytes:
     try:
@@ -74,7 +68,6 @@ def _to_uint32_hash_bytes(value: int) -> bytes:
     except Exception:
         return str(value).encode("utf-8", errors="replace")
 
-
 def _to_int64_hash_bytes(value: int) -> bytes:
     try:
         if isinstance(value, str):
@@ -84,7 +77,6 @@ def _to_int64_hash_bytes(value: int) -> bytes:
         return parsed.to_bytes(8, "little", signed=True)
     except Exception:
         return str(value).encode("utf-8", errors="replace")
-
 
 def _parse_integer(value: Any, field_name: str) -> int:
     if isinstance(value, bool):
@@ -101,13 +93,11 @@ def _parse_integer(value: Any, field_name: str) -> int:
             raise ValueError(f"{field_name} must be an integer") from exc
     raise ValueError(f"{field_name} must be an integer")
 
-
 def _validate_compressed_ecpoint(value: bytes, field_name: str) -> None:
     if len(value) != 33:
         raise ValueError(f"{field_name} must be 33-byte ECPoint")
     if value[0] not in (0x02, 0x03):
         raise ValueError(f"{field_name} must use compressed ECPoint format")
-
 
 def _var_int_size(value: int) -> int:
     if value < 0xFD:
@@ -117,7 +107,6 @@ def _var_int_size(value: int) -> int:
     if value <= 0xFFFF_FFFF:
         return 5
     return 9
-
 
 def _estimate_witness_condition_size(condition: Any) -> int:
     cond_type = getattr(condition, "type", None)
@@ -145,17 +134,14 @@ def _estimate_witness_condition_size(condition: Any) -> int:
         return 1
     raise ValueError(f"Unsupported witness condition type for size estimation: {cond_type}")
 
-
 def _estimate_witness_rule_size(rule: Any) -> int:
     condition = getattr(rule, "condition", None)
     if condition is None:
         raise ValueError("Witness rule is missing condition")
     return 1 + _estimate_witness_condition_size(condition)
 
-
 def _normalize_symbol(value: str) -> str:
     return "".join(ch for ch in value.lower() if ch.isalnum())
-
 
 _WITNESS_RULE_ACTIONS = {
     "deny": 0,
@@ -183,7 +169,6 @@ _MAX_SIGNER_ALLOWED_GROUPS = 16
 _MAX_UINT32 = 0xFFFF_FFFF
 _MAX_TRANSACTION_SIZE = 102400
 
-
 def _parse_witness_rule_action(action: Any) -> int:
     if isinstance(action, bool):
         raise ValueError("Witness rule action must be 0/1 or Deny/Allow")
@@ -202,7 +187,6 @@ def _parse_witness_rule_action(action: Any) -> int:
         if mapped is not None:
             return mapped
     raise ValueError("Witness rule action must be 0/1 or Deny/Allow")
-
 
 def _parse_witness_condition_type(raw_type: Any) -> int:
     valid_types = set(_WITNESS_CONDITION_TYPES.values())
@@ -225,7 +209,6 @@ def _parse_witness_condition_type(raw_type: Any) -> int:
             return mapped
 
     raise ValueError("Witness condition type must be integer or known name")
-
 
 def _parse_witness_condition(condition: Any, depth: int = 0) -> Any:
     if depth > _MAX_WITNESS_CONDITION_DEPTH:
@@ -298,8 +281,7 @@ def _parse_witness_condition(condition: Any, depth: int = 0) -> Any:
 
     raise ValueError(f"Unsupported witness condition type: {cond_type}")
 
-
-def _parse_witness_rules(rules: Any) -> List[Any]:
+def _parse_witness_rules(rules: Any) -> list[Any]:
     if rules is None:
         return []
     if not isinstance(rules, list):
@@ -307,7 +289,7 @@ def _parse_witness_rules(rules: Any) -> List[Any]:
     if len(rules) > _MAX_WITNESS_RULES:
         raise ValueError(f"Signer witness rules must contain at most {_MAX_WITNESS_RULES} entries")
 
-    parsed_rules: List[Any] = []
+    parsed_rules: list[Any] = []
     for rule in rules:
         if not isinstance(rule, dict):
             raise ValueError("Witness rule must be an object")
@@ -323,7 +305,6 @@ def _parse_witness_rules(rules: Any) -> List[Any]:
         )
     return parsed_rules
 
-
 class T8N:
     """Neo state transition tool.
 
@@ -333,9 +314,9 @@ class T8N:
 
     def __init__(
         self,
-        alloc: Dict[str, Any],
-        env: Dict[str, Any],
-        txs: List[Dict[str, Any]],
+        alloc: dict[str, Any],
+        env: dict[str, Any],
+        txs: list[dict[str, Any]],
         strict: bool = False,
     ):
         """Initialize t8n with input data.
@@ -353,7 +334,7 @@ class T8N:
         self.snapshot = MemorySnapshot()
         self.protocol_settings = self._resolve_protocol_settings(self.env.network)
         self._bind_snapshot_context()
-        self.receipts: List[Receipt] = []
+        self.receipts: list[Receipt] = []
         self.total_gas_used = 0
 
     @staticmethod
@@ -379,7 +360,7 @@ class T8N:
         setattr(self.snapshot, "persisting_block", block)
         setattr(self.snapshot, "protocol_settings", self.protocol_settings)
 
-    def _parse_alloc(self, alloc: Dict[str, Any]) -> Alloc:
+    def _parse_alloc(self, alloc: dict[str, Any]) -> Alloc:
         """Parse allocation dictionary."""
         result: Alloc = {}
         for addr, state in alloc.items():
@@ -594,7 +575,7 @@ class T8N:
 
             if signer.rules is None:
                 signer.rules = []
-            parsed_rules: List[Any] = []
+            parsed_rules: list[Any] = []
             try:
                 if scope & witness_rules_scope:
                     parsed_rules = _parse_witness_rules(signer.rules)
@@ -616,7 +597,7 @@ class T8N:
                 f"Transaction size exceeds max transaction size: {estimated_tx_size} > {_MAX_TRANSACTION_SIZE}"
             )
 
-    def _serialize_stack_item(self, item: Any) -> Dict[str, Any]:
+    def _serialize_stack_item(self, item: Any) -> dict[str, Any]:
         from neo.vm.types import StackItemType
 
         item_type = item.type
@@ -655,7 +636,7 @@ class T8N:
         type_name = item_type.name if hasattr(item_type, "name") else str(item_type)
         return {"type": type_name, "value": None}
 
-    def _serialize_notification_state(self, state: Any) -> Dict[str, Any]:
+    def _serialize_notification_state(self, state: Any) -> dict[str, Any]:
         if hasattr(state, "type"):
             return self._serialize_stack_item(state)
         if state is None:
@@ -685,14 +666,14 @@ class T8N:
             return {"type": "Map", "value": pairs}
         return {"type": type(state).__name__, "value": str(state)}
 
-    def _extract_stack(self, engine: ApplicationEngine) -> List[Dict[str, Any]]:
+    def _extract_stack(self, engine: ApplicationEngine) -> list[dict[str, Any]]:
         return [
             self._serialize_stack_item(engine.result_stack.peek(i))
             for i in range(len(engine.result_stack))
         ]
 
-    def _extract_notifications(self, engine: ApplicationEngine) -> List[Dict[str, Any]]:
-        result: List[Dict[str, Any]] = []
+    def _extract_notifications(self, engine: ApplicationEngine) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
         for notification in engine.notifications:
             result.append(
                 {
@@ -739,7 +720,7 @@ class T8N:
             engine.load_script(script)
 
             vm_state = "FAULT"
-            exception: Optional[str] = None
+            exception: str | None = None
 
             try:
                 state = engine.execute()
@@ -776,7 +757,7 @@ class T8N:
                 notifications=[],
             )
 
-    def _iter_snapshot_items(self) -> Iterable[Tuple[bytes, bytes]]:
+    def _iter_snapshot_items(self) -> Iterable[tuple[bytes, bytes]]:
         store = getattr(self.snapshot, "_store", None)
         if isinstance(store, dict):
             for key in sorted(store):
@@ -789,13 +770,13 @@ class T8N:
             if isinstance(key, bytes) and isinstance(value, bytes):
                 yield key, value
 
-    def _extract_post_alloc(self) -> Dict[str, Dict[str, Any]]:
+    def _extract_post_alloc(self) -> dict[str, dict[str, Any]]:
         """Extract post-state allocation from snapshot."""
-        result: Dict[str, Dict[str, Any]] = {}
+        result: dict[str, dict[str, Any]] = {}
 
         # Preserve non-balance metadata from input accounts.
         for addr, state in self.pre_alloc.items():
-            entry: Dict[str, Any] = {}
+            entry: dict[str, Any] = {}
             if state.nef is not None:
                 entry["nef"] = state.nef
             if state.manifest is not None:
@@ -839,7 +820,7 @@ class T8N:
             data = b"\x00"
         return _bytes_to_hex(hash256(data))
 
-    def _validate_block_envelope(self) -> Optional[str]:
+    def _validate_block_envelope(self) -> str | None:
         max_txs = int(self.protocol_settings.max_transactions_per_block)
         if len(self.txs) > max_txs:
             return (

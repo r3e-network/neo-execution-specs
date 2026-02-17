@@ -1,11 +1,10 @@
 """Neo N3 Wallet implementation."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 from neo.wallets.account import Account
 from neo.wallets.key_pair import KeyPair
-
 
 @dataclass
 class Wallet:
@@ -13,9 +12,9 @@ class Wallet:
     
     name: str = "MyWallet"
     version: str = "1.0"
-    accounts: List[Account] = field(default_factory=list)
+    accounts: list[Account] = field(default_factory=list)
     extra: dict = field(default_factory=dict)
-    _path: Optional[str] = None
+    _path: str | None = None
     
     def create_account(self, label: str = "") -> Account:
         """Create new account with random key."""
@@ -35,7 +34,7 @@ class Wallet:
         self.accounts.append(account)
         return account
     
-    def get_account(self, script_hash: bytes) -> Optional[Account]:
+    def get_account(self, script_hash: bytes) -> Account | None:
         """Get account by script hash."""
         for account in self.accounts:
             if account.script_hash == script_hash:
@@ -43,7 +42,7 @@ class Wallet:
         return None
     
     @property
-    def default_account(self) -> Optional[Account]:
+    def default_account(self) -> Account | None:
         """Get default account."""
         for account in self.accounts:
             if account.is_default:

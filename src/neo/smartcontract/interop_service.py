@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Callable, Dict, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 import hashlib
 
 from neo.smartcontract.call_flags import CallFlags
@@ -10,7 +11,6 @@ from neo.hardfork import Hardfork
 
 if TYPE_CHECKING:
     from neo.smartcontract.application_engine import ApplicationEngine
-
 
 @dataclass
 class InteropDescriptor:
@@ -21,17 +21,14 @@ class InteropDescriptor:
     required_flags: CallFlags
     hardfork: Hardfork | None = None
 
-
 def get_interop_hash(name: str) -> int:
     """Get syscall hash from name."""
     data = name.encode('ascii')
     hash_bytes = hashlib.sha256(data).digest()[:4]
     return int.from_bytes(hash_bytes, 'little')
 
-
 # Syscall registry
-_syscalls: Dict[int, InteropDescriptor] = {}
-
+_syscalls: dict[int, InteropDescriptor] = {}
 
 def register_syscall(
     name: str,
@@ -44,11 +41,9 @@ def register_syscall(
     hash_val = get_interop_hash(name)
     _syscalls[hash_val] = InteropDescriptor(name, handler, price, flags, hardfork)
 
-
 def get_syscall(hash_val: int) -> InteropDescriptor | None:
     """Get syscall by hash."""
     return _syscalls.get(hash_val)
-
 
 def _is_hardfork_enabled(engine: "ApplicationEngine", hardfork: Hardfork) -> bool:
     """Check hardfork activation for syscall gating.
@@ -74,7 +69,6 @@ def _is_hardfork_enabled(engine: "ApplicationEngine", hardfork: Hardfork) -> boo
 
     index = int(getattr(block, "index", 0))
     return bool(settings.is_hardfork_enabled(hardfork, index))
-
 
 def invoke_syscall(engine: "ApplicationEngine", hash_val: int) -> None:
     """Invoke a syscall by hash."""

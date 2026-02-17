@@ -7,26 +7,24 @@ Reference: Neo.Network.P2P.Payloads.WitnessRule
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from neo.io.binary_reader import BinaryReader
     from neo.io.binary_writer import BinaryWriter
     from neo.network.payloads.witness_condition import WitnessCondition
 
-
 class WitnessRuleAction(IntEnum):
     """Action for a witness rule."""
     DENY = 0
     ALLOW = 1
-
 
 @dataclass
 class WitnessRule:
     """Represents a witness rule."""
     
     action: WitnessRuleAction = WitnessRuleAction.DENY
-    condition: Optional["WitnessCondition"] = None
+    condition: "WitnessCondition" | None = None
     
     @property
     def size(self) -> int:

@@ -1,8 +1,7 @@
 """Neo N3 NEP6 Wallet."""
 
+from __future__ import annotations
 from dataclasses import dataclass
-from typing import Optional
-
 
 @dataclass
 class NEP6Account:
@@ -11,4 +10,4 @@ class NEP6Account:
     label: str = ""
     is_default: bool = False
     lock: bool = False
-    key: Optional[str] = None
+    key: str | None = None

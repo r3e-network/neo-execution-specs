@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from .contract_method_descriptor import ContractMethodDescriptor
 from .contract_event_descriptor import ContractEventDescriptor
-
 
 @dataclass
 class ContractAbi:
     """Represents the ABI of a smart contract."""
     
-    methods: List[ContractMethodDescriptor] = field(default_factory=list)
-    events: List[ContractEventDescriptor] = field(default_factory=list)
+    methods: list[ContractMethodDescriptor] = field(default_factory=list)
+    events: list[ContractEventDescriptor] = field(default_factory=list)
     
-    def get_method(self, name: str, pcount: int = -1) -> Optional[ContractMethodDescriptor]:
+    def get_method(self, name: str, pcount: int = -1) -> ContractMethodDescriptor | None:
         """Get method by name and parameter count.
         
         Args:
@@ -33,7 +32,7 @@ class ContractAbi:
                     return m
             return None
     
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         """Convert to JSON object."""
         return {
             "methods": [m.to_json() for m in self.methods],
@@ -41,7 +40,7 @@ class ContractAbi:
         }
     
     @classmethod
-    def from_json(cls, json: Dict[str, Any]) -> ContractAbi:
+    def from_json(cls, json: dict[str, Any]) -> ContractAbi:
         """Create from JSON object."""
         return cls(
             methods=[

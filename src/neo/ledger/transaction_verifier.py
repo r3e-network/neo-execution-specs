@@ -5,7 +5,7 @@ Reference: Neo.Ledger.TransactionVerifier
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Set
+from typing import TYPE_CHECKING
 
 from neo.ledger.verify_result import VerifyResult
 
@@ -13,12 +13,10 @@ if TYPE_CHECKING:
     from neo.network.payloads.transaction import Transaction
     from neo.persistence.snapshot import Snapshot
 
-
 # Constants
 MAX_TRANSACTION_SIZE = 102400
 MAX_VALID_UNTIL_BLOCK_INCREMENT = 5760  # ~24 hours at 15s blocks
 MAX_TRANSACTION_ATTRIBUTES = 16
-
 
 class TransactionVerifier:
     """Verifies transactions for validity."""
@@ -52,7 +50,7 @@ class TransactionVerifier:
             return VerifyResult.INVALID
         
         # Check for duplicate signers
-        signer_accounts: Set[bytes] = set()
+        signer_accounts: set[bytes] = set()
         for signer in tx.signers:
             if signer.account is None:
                 return VerifyResult.INVALID

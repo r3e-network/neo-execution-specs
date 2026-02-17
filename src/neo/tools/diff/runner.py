@@ -10,7 +10,8 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional, Iterator, Any
+from collections.abc import Iterator
+from typing import Any
 
 from neo.vm.opcode import OpCode
 
@@ -20,7 +21,6 @@ from neo.tools.diff.models import (
     StackValue,
     TestVector,
 )
-
 
 OPCODE_PRICE_TABLE_V391: dict[int, int] = {
     int(OpCode.PUSHINT8): 1<<0,
@@ -221,17 +221,13 @@ OPCODE_PRICE_TABLE_V391: dict[int, int] = {
     int(OpCode.CONVERT): 1<<13,
 }
 
-
-
 _NON_VM_CATEGORIES = {"native", "crypto", "state"}
 _NON_VECTOR_JSON_FILES = {"checklist_coverage.json"}
 _CRYPTO_HEX_METHODS = {"sha256", "ripemd160"}
 
-
 def _vector_category(vector: TestVector) -> str:
     metadata = vector.metadata if isinstance(vector.metadata, dict) else {}
     return str(metadata.get("category", "vm")).lower()
-
 
 def _to_stack_value(value: Any) -> StackValue:
     if isinstance(value, bool):
@@ -242,11 +238,9 @@ def _to_stack_value(value: Any) -> StackValue:
         return StackValue(type="String", value=value)
     return StackValue(type="Any", value=value)
 
-
 def _decode_hex_string(value: str) -> bytes:
     candidate = value.removeprefix("0x").removeprefix("0X")
     return bytes.fromhex(candidate) if candidate else b""
-
 
 def _normalize_non_vm_result(actual: Any, vector: TestVector) -> Any:
     metadata = vector.metadata if isinstance(vector.metadata, dict) else {}
@@ -287,7 +281,6 @@ def _normalize_non_vm_result(actual: Any, vector: TestVector) -> Any:
 
     return actual
 
-
 class _LocalNativeSnapshot:
     """Minimal snapshot shim for local native vector execution."""
 
@@ -314,7 +307,6 @@ class _LocalNativeSnapshot:
 
     def find(self, *_args: Any, **_kwargs: Any) -> Iterator[Any]:
         return iter(())
-
 
 class _LocalNativeEngine:
     """Minimal engine shim for local native vector execution."""
@@ -345,7 +337,6 @@ class _LocalNativeEngine:
 
     def check_witness(self, _account: Any) -> bool:
         return True
-
 
 class PythonExecutor:
     """Execute test vectors using Python spec."""
@@ -562,14 +553,12 @@ class PythonExecutor:
         else:
             return StackValue(type=type_name, value=None)
 
-
-
 class CSharpExecutor:
     """Execute test vectors using C# neo-cli via RPC."""
 
     def __init__(self, rpc_url: str = "http://localhost:10332"):
         self.rpc_url = rpc_url
-        self._native_hashes: Optional[dict[str, str]] = None
+        self._native_hashes: dict[str, str] | None = None
 
     def execute(self, vector: TestVector) -> ExecutionResult:
         """Execute a test vector via RPC (script/native/crypto)."""
@@ -953,8 +942,6 @@ class CSharpExecutor:
         """Normalize Buffer/ByteString payloads to lowercase hex strings."""
         return CSharpExecutor._decode_bytes_payload(value).hex()
 
-
-
 class VectorLoader:
     """Load test vectors from files."""
 
@@ -1058,20 +1045,19 @@ class VectorLoader:
             except Exception as e:
                 print(f"Warning: Failed to load {file_path}: {e}")
 
-
 class DiffTestRunner:
     """Main test runner for diff testing."""
     
     def __init__(
         self,
-        csharp_rpc: Optional[str] = None,
+        csharp_rpc: str | None = None,
         python_only: bool = False,
     ):
         self.python_executor = PythonExecutor()
         self.csharp_executor = CSharpExecutor(csharp_rpc) if csharp_rpc else None
         self.python_only = python_only
     
-    def run_vector(self, vector: TestVector) -> tuple[ExecutionResult, Optional[ExecutionResult]]:
+    def run_vector(self, vector: TestVector) -> tuple[ExecutionResult, ExecutionResult | None]:
         """Run a single test vector on both implementations."""
         py_result = self.python_executor.execute(vector)
         cs_result = None

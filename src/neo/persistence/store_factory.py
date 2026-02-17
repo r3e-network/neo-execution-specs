@@ -1,12 +1,12 @@
 """Neo N3 Store Factory."""
 
-from typing import Dict, Type
-
+from __future__ import annotations
+from typing import Type
 
 class StoreFactory:
     """Factory for storage providers."""
     
-    _providers: Dict[str, Type] = {}
+    _providers: dict[str, Type] = {}
     
     @classmethod
     def register(cls, name: str, provider: Type) -> None:

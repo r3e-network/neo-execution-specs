@@ -1,9 +1,9 @@
 """Neo N3 Transaction implementation."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List
-from enum import IntEnum
 
+from enum import IntEnum
 
 class TransactionAttributeType(IntEnum):
     """Transaction attribute types."""
@@ -13,23 +13,20 @@ class TransactionAttributeType(IntEnum):
     CONFLICTS = 0x21
     NOTARY_ASSISTED = 0x22
 
-
 @dataclass
 class TransactionAttribute:
     """Transaction attribute."""
     type: TransactionAttributeType
     data: bytes = b""
 
-
 @dataclass
 class Signer:
     """Transaction signer."""
     account: bytes  # UInt160
     scopes: int = 1  # CalledByEntry
-    allowed_contracts: List[bytes] = field(default_factory=list)
-    allowed_groups: List[bytes] = field(default_factory=list)
+    allowed_contracts: list[bytes] = field(default_factory=list)
+    allowed_groups: list[bytes] = field(default_factory=list)
     rules: List = field(default_factory=list)
-
 
 @dataclass
 class Witness:

@@ -1,25 +1,27 @@
 """Native contract base class."""
 
 from __future__ import annotations
-from abc import ABC, abstractmethod
+
 import collections.abc
 import dataclasses
-from dataclasses import dataclass, field
-from enum import IntFlag
 import inspect
 import json
 import types
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Union, get_args, get_origin
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import IntFlag
+from typing import TYPE_CHECKING, Any, Union, get_args, get_origin
 
-from neo.types import UInt160
 from neo.crypto import hash160
+from neo.types import UInt160
 
 if TYPE_CHECKING:
     pass
 
-
 class CallFlags(IntFlag):
     """Call flags for contract methods."""
+
     NONE = 0
     READ_STATES = 0b00000001
     WRITE_STATES = 0b00000010
@@ -29,34 +31,34 @@ class CallFlags(IntFlag):
     READ_ONLY = READ_STATES | ALLOW_CALL
     ALL = STATES | ALLOW_CALL | ALLOW_NOTIFY
 
-
 @dataclass
 class ContractMethodDescriptor:
     """Descriptor for a contract method."""
+
     name: str = ""
     offset: int = 0
-    parameters: List[str] = field(default_factory=list)
+    parameters: list[str] = field(default_factory=list)
     return_type: str = "Void"
     safe: bool = False
-
 
 @dataclass
 class ContractEventParameter:
     """Descriptor for an event parameter."""
+
     name: str
     type: str
-
 
 @dataclass
 class ContractEventDescriptor:
     """Descriptor for a contract event."""
-    name: str
-    parameters: List[ContractEventParameter] = field(default_factory=list)
 
+    name: str
+    parameters: list[ContractEventParameter] = field(default_factory=list)
 
 @dataclass
 class ContractMethodMetadata:
     """Metadata for a native contract method."""
+
     name: str
     handler: Callable
     cpu_fee: int = 0
@@ -72,16 +74,15 @@ class ContractMethodMetadata:
         if not self.descriptor.name:
             self.descriptor.name = self.name
 
-
 @dataclass
 class ContractEventMetadata:
     """Metadata for a native contract event."""
+
     name: str
     descriptor: ContractEventDescriptor
     order: int = 0
     active_in: Any = None
     deprecated_in: Any = None
-
 
 class StorageKey:
     """Storage key for native contracts."""
@@ -110,7 +111,6 @@ class StorageKey:
     
     def __hash__(self) -> int:
         return hash((self.id, self.key))
-
 
 class StorageItem:
     """Storage item for native contracts."""
@@ -145,13 +145,12 @@ class StorageItem:
             return 0
         return int.from_bytes(self._value, 'little', signed=True)
 
-
 class NativeContract(ABC):
     """Base class for native contracts."""
     
-    _contracts: Dict[UInt160, 'NativeContract'] = {}
-    _contracts_by_id: Dict[int, 'NativeContract'] = {}
-    _contracts_by_name: Dict[str, 'NativeContract'] = {}
+    _contracts: dict[UInt160, NativeContract] = {}
+    _contracts_by_id: dict[int, NativeContract] = {}
+    _contracts_by_name: dict[str, NativeContract] = {}
     _id_counter: int = 0
     _CALLNATIVE_PUSH_SIZE: int = 1
     _CALLNATIVE_SYSCALL_SIZE: int = 5
@@ -164,11 +163,11 @@ class NativeContract(ABC):
     def __init__(self) -> None:
         self._id = self._get_next_id()
         self._hash = self._calculate_hash()
-        self._methods: Dict[str, ContractMethodMetadata] = {}
-        self._methods_by_name: Dict[str, list[ContractMethodMetadata]] = {}
+        self._methods: dict[str, ContractMethodMetadata] = {}
+        self._methods_by_name: dict[str, list[ContractMethodMetadata]] = {}
         self._method_entries: list[ContractMethodMetadata] = []
         self._ordered_method_entries: list[ContractMethodMetadata] = []
-        self._methods_by_offset: Dict[int, ContractMethodMetadata] = {}
+        self._methods_by_offset: dict[int, ContractMethodMetadata] = {}
         self._method_order: list[str] = []
         self._next_method_offset: int = 0
         self._events: list[ContractEventMetadata] = []
@@ -195,8 +194,8 @@ class NativeContract(ABC):
         then hashes it with Hash160.  For native contracts sender is
         UInt160.Zero and nefCheckSum is 0.
         """
-        from neo.vm.script_builder import ScriptBuilder
         from neo.vm.opcode import OpCode
+        from neo.vm.script_builder import ScriptBuilder
 
         sb = ScriptBuilder()
         sb.emit(OpCode.ABORT)
@@ -437,7 +436,7 @@ class NativeContract(ABC):
             descriptor_offset += self._CALLNATIVE_STUB_SIZE
         return entries
 
-    def get_method_by_offset(self, offset: int) -> Optional[ContractMethodMetadata]:
+    def get_method_by_offset(self, offset: int) -> ContractMethodMetadata | None:
         """Look up a registered method by its script offset.
 
         This offset corresponds to the method descriptor offset (the
@@ -449,7 +448,7 @@ class NativeContract(ABC):
         self,
         name: str,
         context: Any,
-    ) -> Optional[ContractMethodMetadata]:
+    ) -> ContractMethodMetadata | None:
         """Look up a method by name and ensure it is active in *context*."""
         variants = self._methods_by_name.get(name)
         if not variants:
@@ -467,7 +466,7 @@ class NativeContract(ABC):
             return False
         return True
 
-    def get_active_methods_by_offset(self, context: Any) -> Dict[int, ContractMethodMetadata]:
+    def get_active_methods_by_offset(self, context: Any) -> dict[int, ContractMethodMetadata]:
         """Build the callnative offset map for methods active in *context*."""
         return {
             syscall_offset: method
@@ -478,13 +477,13 @@ class NativeContract(ABC):
         self,
         context: Any,
         instruction_pointer: int,
-    ) -> Optional[ContractMethodMetadata]:
+    ) -> ContractMethodMetadata | None:
         """Resolve a callnative method by SYSCALL instruction pointer."""
         if instruction_pointer < 0:
             return None
         return self.get_active_methods_by_offset(context).get(instruction_pointer)
 
-    def get_method(self, name: str) -> Optional[ContractMethodMetadata]:
+    def get_method(self, name: str) -> ContractMethodMetadata | None:
         """Look up a registered method by name."""
         variants = self._methods_by_name.get(name)
         if not variants:
@@ -514,7 +513,7 @@ class NativeContract(ABC):
         """Convert a Python type annotation into a Neo manifest ABI type."""
         if annotation is inspect._empty or annotation is Any:
             return "Any"
-        if annotation is None or annotation is type(None):  # noqa: E721
+        if annotation is None or annotation is type(None):
             return "Void"
 
         if isinstance(annotation, str):
@@ -553,7 +552,7 @@ class NativeContract(ABC):
         ):
             return "InteropInterface"
         if origin in (types.UnionType, Union):
-            args = [arg for arg in get_args(annotation) if arg is not type(None)]  # noqa: E721
+            args = [arg for arg in get_args(annotation) if arg is not type(None)]
             if len(args) == 1:
                 return cls._normalize_manifest_annotation(args[0])
             return "Any"
@@ -775,17 +774,17 @@ class NativeContract(ABC):
         pass
     
     @classmethod
-    def get_contract(cls, hash: UInt160) -> Optional['NativeContract']:
+    def get_contract(cls, hash: UInt160) -> NativeContract | None:
         """Get a native contract by hash."""
         return cls._contracts.get(hash)
     
     @classmethod
-    def get_contract_by_id(cls, id: int) -> Optional['NativeContract']:
+    def get_contract_by_id(cls, id: int) -> NativeContract | None:
         """Get a native contract by ID."""
         return cls._contracts_by_id.get(id)
     
     @classmethod
-    def get_contract_by_name(cls, name: str) -> Optional['NativeContract']:
+    def get_contract_by_name(cls, name: str) -> NativeContract | None:
         """Get a native contract by name."""
         return cls._contracts_by_name.get(name)
 

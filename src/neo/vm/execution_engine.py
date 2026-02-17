@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Callable, Dict, List, Optional
 
 from neo.exceptions import InvalidOperationException, StackOverflowException, VMAbortException
 from neo.vm.evaluation_stack import EvaluationStack
@@ -28,27 +28,25 @@ class VMState(IntEnum):
     FAULT = 2
     BREAK = 4
 
-
 class VMUnhandledException(Exception):
     def __init__(self, exception: StackItem):
         self.exception = exception
         super().__init__(f"Unhandled VM exception: {exception}")
 
-
 @dataclass
 class ExecutionEngine:
     limits: ExecutionEngineLimits = field(default_factory=ExecutionEngineLimits)
-    invocation_stack: List[ExecutionContext] = field(default_factory=list)
+    invocation_stack: list[ExecutionContext] = field(default_factory=list)
     result_stack: EvaluationStack = field(default_factory=EvaluationStack)
     state: VMState = VMState.NONE
-    uncaught_exception: Optional[StackItem] = None
+    uncaught_exception: StackItem | None = None
     is_jumping: bool = False
-    reference_counter: Optional[ReferenceCounter] = None
+    reference_counter: ReferenceCounter | None = None
     gas_consumed: int = 0
     gas_limit: int = -1  # -1 means unlimited (pure VM mode)
-    syscall_handler: Optional[Callable[[ExecutionEngine, int], None]] = None
-    token_handler: Optional[Callable[[ExecutionEngine, int], None]] = None
-    _handlers: Dict[int, Callable] = field(default_factory=dict, repr=False)
+    syscall_handler: Callable[[ExecutionEngine, int], None] | None = None
+    token_handler: Callable[[ExecutionEngine, int], None] | None = None
+    _handlers: dict[int, Callable] = field(default_factory=dict, repr=False)
 
     def __post_init__(self):
         if self.reference_counter is None:
@@ -159,7 +157,7 @@ class ExecutionEngine:
     def create_slot(self, count: int) -> Slot:
         return Slot(count, self.reference_counter)
 
-    def create_slot_from_items(self, items: List[StackItem]) -> Slot:
+    def create_slot_from_items(self, items: list[StackItem]) -> Slot:
         return Slot.from_items(items, self.reference_counter)
 
     def execute_jump(self, position: int) -> None:
@@ -436,7 +434,6 @@ class ExecutionEngine:
         self._handlers[OpCode.CONVERT] = types.convert
         self._handlers[OpCode.ABORTMSG] = types.abortmsg
         self._handlers[OpCode.ASSERTMSG] = types.assertmsg
-
 
 __all__ = [
     "ExecutionEngine",

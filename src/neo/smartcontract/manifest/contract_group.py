@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
 
 from neo.types import UInt160
 from neo.crypto.ecc.signature import verify_signature
 from neo.crypto.ecc.curve import SECP256R1
-
 
 @dataclass
 class ContractGroup:
@@ -36,7 +35,7 @@ class ContractGroup:
         except (ValueError, TypeError, OverflowError):
             return False
     
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         """Convert to JSON object."""
         return {
             "pubkey": self.pubkey.hex(),
@@ -44,7 +43,7 @@ class ContractGroup:
         }
     
     @classmethod
-    def from_json(cls, json: Dict[str, Any]) -> ContractGroup:
+    def from_json(cls, json: dict[str, Any]) -> ContractGroup:
         """Create from JSON object."""
         return cls(
             pubkey=bytes.fromhex(json.get("pubkey", "")),

@@ -1,15 +1,14 @@
 """Neo N3 NEF (Neo Executable Format) implementation."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List
+
 import struct
 
 from neo.crypto.hash import hash256
 
-
 # NEF magic number
 NEF_MAGIC = 0x3346454E  # "NEF3"
-
 
 @dataclass
 class MethodToken:
@@ -49,14 +48,13 @@ class MethodToken:
         offset += 2
         return cls(token_hash, method, params_count, has_return, call_flags), offset
 
-
 @dataclass
 class NefFile:
     """NEF file structure."""
     
     compiler: str = "neo-core-v3.0"
     source: str = ""
-    tokens: List[MethodToken] = field(default_factory=list)
+    tokens: list[MethodToken] = field(default_factory=list)
     script: bytes = b""
     checksum: int = 0
     
@@ -152,7 +150,7 @@ class NefFile:
 
         # Tokens
         token_count, offset = read_var_int(data, offset)
-        tokens: List[MethodToken] = []
+        tokens: list[MethodToken] = []
         for _ in range(token_count):
             token, offset = MethodToken.deserialize(data, offset)
             tokens.append(token)
@@ -198,7 +196,6 @@ class NefFile:
 
         return nef
 
-
 def write_var_int(value: int) -> bytes:
     """Write variable length integer."""
     if value < 0xFD:
@@ -210,11 +207,9 @@ def write_var_int(value: int) -> bytes:
     else:
         return bytes([0xFF]) + struct.pack('<Q', value)
 
-
 def write_var_bytes(data: bytes) -> bytes:
     """Write variable length bytes."""
     return write_var_int(len(data)) + data
-
 
 def read_var_int(data: bytes, offset: int) -> tuple[int, int]:
     """Read variable length integer, return (value, new_offset)."""
@@ -233,7 +228,6 @@ def read_var_int(data: bytes, offset: int) -> tuple[int, int]:
     else:
         value = struct.unpack_from('<Q', data, offset)[0]
         return value, offset + 8
-
 
 def read_var_bytes(data: bytes, offset: int) -> tuple[bytes, int]:
     """Read variable length bytes, return (bytes, new_offset)."""

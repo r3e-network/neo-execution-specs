@@ -6,7 +6,7 @@ Reference: Neo.SmartContract.Native.Notary
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract, StorageItem
@@ -19,7 +19,6 @@ PREFIX_MAX_NOT_VALID_BEFORE_DELTA = 10
 # Default values
 DEFAULT_MAX_NOT_VALID_BEFORE_DELTA = 140
 DEFAULT_DEPOSIT_DELTA_TILL = 5760
-
 
 def _write_var_int(buf: bytearray, value: int) -> None:
     """Write a Neo VarInt to buffer."""
@@ -35,7 +34,6 @@ def _write_var_int(buf: bytearray, value: int) -> None:
         buf.append(0xFF)
         buf.extend(value.to_bytes(8, "little"))
 
-
 def _read_var_int(data: bytes, offset: int) -> tuple[int, int]:
     """Read a Neo VarInt from data at offset. Returns (value, new_offset)."""
     fb = data[offset]
@@ -48,7 +46,6 @@ def _read_var_int(data: bytes, offset: int) -> tuple[int, int]:
         return int.from_bytes(data[offset:offset + 4], "little"), offset + 4
     else:
         return int.from_bytes(data[offset:offset + 8], "little"), offset + 8
-
 
 @dataclass
 class Deposit:
@@ -72,7 +69,6 @@ class Deposit:
         amount, offset = _read_var_int(data, 0)
         till = int.from_bytes(data[offset:offset + 4], 'little')
         return cls(amount=amount, till=till)
-
 
 class Notary(NativeContract):
     """Notary native contract for multisignature transaction assistance.
@@ -235,7 +231,7 @@ class Notary(NativeContract):
         self,
         engine: Any,
         from_account: UInt160,
-        to_account: Optional[UInt160]
+        to_account: UInt160 | None
     ) -> bool:
         """Withdraw deposited GAS.
 
@@ -358,7 +354,7 @@ class Notary(NativeContract):
 
         self._put_deposit(snapshot, to, deposit)
     
-    def _get_deposit(self, snapshot: Any, account: UInt160) -> Optional[Deposit]:
+    def _get_deposit(self, snapshot: Any, account: UInt160) -> Deposit | None:
         """Get deposit for account."""
         key = self._create_storage_key(PREFIX_DEPOSIT, account.data)
         value = snapshot.get(key) if snapshot else None
