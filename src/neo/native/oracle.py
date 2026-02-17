@@ -11,6 +11,7 @@ from enum import IntEnum
 from typing import Any, List, Optional, Tuple
 
 from neo.crypto import hash160
+from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract, StorageItem
 from neo.types import UInt160, UInt256
 
@@ -59,6 +60,18 @@ class OracleRequest:
     
     def serialize(self) -> bytes:
         """Serialize request to bytes."""
+        # Validate field lengths before serialization
+        url_bytes = self.url.encode('utf-8')
+        if len(url_bytes) > MAX_URL_LENGTH:
+            raise ValueError(f"URL exceeds max length of {MAX_URL_LENGTH}")
+        if self.filter is not None and len(self.filter.encode('utf-8')) > MAX_FILTER_LENGTH:
+            raise ValueError("Filter exceeds max length")
+        method_bytes = self.callback_method.encode('utf-8')
+        if len(method_bytes) > MAX_CALLBACK_LENGTH:
+            raise ValueError("Callback exceeds max length")
+        if len(self.user_data) > MAX_USER_DATA_LENGTH:
+            raise ValueError("User data exceeds max length")
+
         result = bytearray()
         
         # Original txid (32 bytes)
@@ -180,6 +193,9 @@ class OracleContract(NativeContract):
     @property
     def name(self) -> str:
         return "OracleContract"
+
+    def _contract_activations(self) -> tuple[Any | None, ...]:
+        return (None, Hardfork.HF_FAUN)
     
     def _register_methods(self) -> None:
         """Register Oracle contract methods."""
@@ -190,11 +206,43 @@ class OracleContract(NativeContract):
         self._register_method("setPrice", self.set_price,
                             cpu_fee=1 << 15, call_flags=CallFlags.STATES)
         self._register_method("request", self.request,
-                            cpu_fee=0, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
+                            cpu_fee=0, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+                            manifest_parameter_names=[
+                                "url",
+                                "filter",
+                                "callback",
+                                "userData",
+                                "gasForResponse",
+                            ])
         self._register_method("finish", self.finish,
                             cpu_fee=0, call_flags=CallFlags.STATES | CallFlags.ALLOW_CALL | CallFlags.ALLOW_NOTIFY)
         self._register_method("verify", self.verify,
                             cpu_fee=1 << 15, call_flags=CallFlags.NONE)
+
+    def _register_events(self) -> None:
+        """Register Oracle contract events."""
+        super()._register_events()
+        self._register_event(
+            "OracleRequest",
+            [
+                ("Id", "Integer"),
+                ("RequestContract", "Hash160"),
+                ("Url", "String"),
+                ("Filter", "String"),
+            ],
+            order=0,
+        )
+        self._register_event(
+            "OracleResponse",
+            [("Id", "Integer"), ("OriginalTx", "Hash256")],
+            order=1,
+        )
+
+    def _native_supported_standards(self, context: Any) -> list[str]:
+        settings, _ = self._hardfork_context(context)
+        if settings is not None and self.is_hardfork_enabled(context, Hardfork.HF_FAUN):
+            return ["NEP-30"]
+        return []
     
     def initialize(self, engine: Any) -> None:
         """Initialize Oracle contract storage."""
