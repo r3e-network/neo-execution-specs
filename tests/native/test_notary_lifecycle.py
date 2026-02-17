@@ -12,19 +12,19 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from neo.types import UInt160
-from neo.native.notary import (
-    Notary,
-    Deposit,
-    DEFAULT_MAX_NOT_VALID_BEFORE_DELTA,
-)
-from neo.native.native_contract import NativeContract, StorageKey
-from neo.native.gas_token import GasToken
+import pytest
 
+from neo.native.gas_token import GasToken
+from neo.native.native_contract import NativeContract, StorageKey
+from neo.native.notary import (
+    DEFAULT_MAX_NOT_VALID_BEFORE_DELTA,
+    Deposit,
+    Notary,
+)
+from neo.types import UInt160
 
 # ---------------------------------------------------------------------------
 # Mock infrastructure
@@ -184,8 +184,8 @@ class TestDepositSerialization:
     def test_serialize_length(self):
         d = Deposit(amount=1, till=1)
         data = d.serialize()
-        # 8 bytes amount + 4 bytes till = 12
-        assert len(data) == 12
+        # VarInt(1) = 1 byte + 4 bytes till = 5
+        assert len(data) == 5
 
 
 # ===========================================================================

@@ -616,8 +616,6 @@ class PolicyContract(NativeContract):
         if current_time == 0:
             raise ValueError("Cannot determine current block timestamp")
         request_time = int(request_entry)
-        if request_time <= 0:
-            raise ValueError("Invalid block request timestamp")
         elapsed_time = current_time - request_time
         if elapsed_time < REQUIRED_TIME_FOR_RECOVER_FUND_MS:
             remaining = REQUIRED_TIME_FOR_RECOVER_FUND_MS - elapsed_time
