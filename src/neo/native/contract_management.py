@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import Any, Optional
 
-from neo.hardfork import Hardfork
 from neo.crypto import hash160
+from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract, StorageItem
 from neo.types import UInt160
 
@@ -84,13 +84,17 @@ class ContractManagement(NativeContract):
         self._register_method("hasMethod", self.has_method,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
         self._register_method("deploy", self.deploy_without_data,
-                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
+                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+                            manifest_parameter_names=["nefFile", "manifest"])
         self._register_method("deploy", self.deploy,
-                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
+                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+                            manifest_parameter_names=["nefFile", "manifest", "data"])
         self._register_method("update", self.update_without_data,
-                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
+                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+                            manifest_parameter_names=["nefFile", "manifest"])
         self._register_method("update", self.update,
-                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
+                            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+                            manifest_parameter_names=["nefFile", "manifest", "data"])
         self._register_method("destroy", self.destroy,
                             cpu_fee=1 << 15, call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY)
 
@@ -111,6 +115,8 @@ class ContractManagement(NativeContract):
         """Set minimum deployment fee. Committee only."""
         if value < 0:
             raise ValueError("Value cannot be negative")
+        if value > 10_000_000_00000000:
+            raise ValueError("Value exceeds maximum deployment fee")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
         
@@ -126,10 +132,25 @@ class ContractManagement(NativeContract):
         item.add(1)
         return value
     
-    def get_contract_state(self, snapshot: Any, hash: UInt160) -> Optional[ContractState]:
-        """Get a deployed contract by hash."""
+    def get_contract_state(
+        self,
+        context: Any,
+        hash: UInt160 | None = None,
+    ) -> Optional[ContractState]:
+        """Get contract state.
+
+        - ``get_contract_state(context)`` returns this native contract's active state.
+        - ``get_contract_state(context, hash)`` resolves a deployed/native contract by hash.
+        """
+        if hash is None:
+            return NativeContract.get_contract_state(self, context)
+
+        snapshot = getattr(context, "snapshot", context)
+
         native = NativeContract.get_contract(hash)
         if native is not None:
+            if not native.is_contract_active(snapshot):
+                return None
             return NativeContract.get_contract_state(native, snapshot)
 
         key = self._create_storage_key(PREFIX_CONTRACT, hash.data)
@@ -142,6 +163,8 @@ class ContractManagement(NativeContract):
         """Get a deployed contract by ID."""
         native = NativeContract.get_contract_by_id(id)
         if native is not None:
+            if not native.is_contract_active(snapshot):
+                return None
             return NativeContract.get_contract_state(native, snapshot)
 
         key = self._create_storage_key(PREFIX_CONTRACT_HASH, id)
