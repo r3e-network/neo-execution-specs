@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional, cast
 
+from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract, StorageItem
 from neo.types import UInt160
 
@@ -20,6 +21,35 @@ DEFAULT_MAX_NOT_VALID_BEFORE_DELTA = 140
 DEFAULT_DEPOSIT_DELTA_TILL = 5760
 
 
+def _write_var_int(buf: bytearray, value: int) -> None:
+    """Write a Neo VarInt to buffer."""
+    if value < 0xFD:
+        buf.append(value)
+    elif value <= 0xFFFF:
+        buf.append(0xFD)
+        buf.extend(value.to_bytes(2, "little"))
+    elif value <= 0xFFFFFFFF:
+        buf.append(0xFE)
+        buf.extend(value.to_bytes(4, "little"))
+    else:
+        buf.append(0xFF)
+        buf.extend(value.to_bytes(8, "little"))
+
+
+def _read_var_int(data: bytes, offset: int) -> tuple[int, int]:
+    """Read a Neo VarInt from data at offset. Returns (value, new_offset)."""
+    fb = data[offset]
+    offset += 1
+    if fb < 0xFD:
+        return fb, offset
+    elif fb == 0xFD:
+        return int.from_bytes(data[offset:offset + 2], "little"), offset + 2
+    elif fb == 0xFE:
+        return int.from_bytes(data[offset:offset + 4], "little"), offset + 4
+    else:
+        return int.from_bytes(data[offset:offset + 8], "little"), offset + 8
+
+
 @dataclass
 class Deposit:
     """Notary deposit data."""
@@ -28,20 +58,19 @@ class Deposit:
     till: int = 0
     
     def serialize(self) -> bytes:
-        """Serialize deposit to bytes."""
+        """Serialize deposit to bytes using VarInt for amount."""
         result = bytearray()
-        # Amount as variable-length integer
-        amount_bytes = self.amount.to_bytes(8, 'little')
-        result.extend(amount_bytes)
-        # Till as 4-byte integer
+        # Amount as VarInt (Neo serialization format)
+        _write_var_int(result, self.amount)
+        # Till as 4-byte unsigned LE
         result.extend(self.till.to_bytes(4, 'little'))
         return bytes(result)
-    
+
     @classmethod
     def deserialize(cls, data: bytes) -> Deposit:
         """Deserialize deposit from bytes."""
-        amount = int.from_bytes(data[:8], 'little')
-        till = int.from_bytes(data[8:12], 'little')
+        amount, offset = _read_var_int(data, 0)
+        till = int.from_bytes(data[offset:offset + 4], 'little')
         return cls(amount=amount, till=till)
 
 
@@ -60,6 +89,9 @@ class Notary(NativeContract):
     @property
     def name(self) -> str:
         return "Notary"
+
+    def _contract_activations(self) -> tuple[Any | None, ...]:
+        return (Hardfork.HF_ECHIDNA, Hardfork.HF_FAUN)
     
     def _register_methods(self) -> None:
         """Register Notary contract methods."""
@@ -74,7 +106,8 @@ class Notary(NativeContract):
         self._register_method("lockDepositUntil", self.lock_deposit_until,
                             cpu_fee=1 << 15, call_flags=CallFlags.STATES)
         self._register_method("withdraw", self.withdraw,
-                            cpu_fee=1 << 15, call_flags=CallFlags.ALL)
+                            cpu_fee=1 << 15, call_flags=CallFlags.ALL,
+                            manifest_parameter_names=["from", "to"])
         self._register_method("getMaxNotValidBeforeDelta", 
                             self.get_max_not_valid_before_delta,
                             cpu_fee=1 << 15, call_flags=CallFlags.READ_STATES)
@@ -82,7 +115,15 @@ class Notary(NativeContract):
                             self.set_max_not_valid_before_delta,
                             cpu_fee=1 << 15, call_flags=CallFlags.STATES)
         self._register_method("onNEP17Payment", self.on_nep17_payment,
-                            cpu_fee=1 << 15, call_flags=CallFlags.STATES)
+                            cpu_fee=1 << 15, call_flags=CallFlags.STATES,
+                            manifest_parameter_names=["from", "amount", "data"])
+
+    def _native_supported_standards(self, context: Any) -> list[str]:
+        standards = ["NEP-27"]
+        settings, _ = self._hardfork_context(context)
+        if settings is not None and self.is_hardfork_enabled(context, Hardfork.HF_FAUN):
+            standards.append("NEP-30")
+        return standards
     
     def initialize(self, engine: Any) -> None:
         """Initialize Notary contract storage."""
