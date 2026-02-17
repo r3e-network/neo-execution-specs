@@ -87,6 +87,13 @@ class ApplicationEngine(ExecutionEngine):
         self.script_container = script_container
         self.network = network
         self.protocol_settings = protocol_settings
+        if self.snapshot is not None and self.protocol_settings is not None:
+            if not hasattr(self.snapshot, "protocol_settings"):
+                try:
+                    setattr(self.snapshot, "protocol_settings", self.protocol_settings)
+                except Exception:
+                    # Snapshot implementations may forbid dynamic attributes.
+                    pass
         
         # Execution state
         self._notifications: List[Notification] = []
@@ -234,6 +241,11 @@ class ApplicationEngine(ExecutionEngine):
         # Verify call flags
         if not self._check_call_flags(call_flags):
             raise InvalidOperationException("Call flags not allowed")
+
+        # Enforce method availability + caller permissions just like
+        # System.Contract.Call dynamic dispatch.
+        if not self._check_method_permission(contract, method, call_flags):
+            raise InvalidOperationException(f"Method not allowed: {method}")
         
         # Create arguments array
         args_array = Array(items=list(args)) if args else Array()
@@ -451,8 +463,8 @@ class ApplicationEngine(ExecutionEngine):
             if self._check_witness_groups(signer):
                 return True
 
-        # Check WitnessRules scope (0x40)
-        if scope & 0x40:  # WITNESS_RULES
+        # Check WitnessRules scope
+        if scope & WitnessScope.WITNESS_RULES:
             rules = getattr(signer, 'rules', [])
             for rule in rules:
                 action = getattr(rule, 'action', None)
@@ -1068,8 +1080,28 @@ class ApplicationEngine(ExecutionEngine):
     
     def _get_native_contract(self, contract_hash: UInt160) -> Optional[Any]:
         """Get native contract by hash."""
+        from neo.native import initialize_native_contracts
+        from neo.native.native_contract import NativeContract
+
         hash_bytes = bytes(contract_hash)
-        return self._native_contracts.get(hash_bytes)
+        cached = self._native_contracts.get(hash_bytes)
+        if cached is not None:
+            if not cached.is_contract_active(self):
+                return None
+            return cached
+
+        contract = NativeContract.get_contract(contract_hash)
+        if contract is None:
+            # Lazy initialize native contracts for engines created in tests
+            # or ad-hoc contexts where global native registries are empty.
+            initialize_native_contracts()
+            contract = NativeContract.get_contract(contract_hash)
+
+        if contract is not None:
+            if not contract.is_contract_active(self):
+                return None
+            self._native_contracts[hash_bytes] = contract
+        return contract
 
     def _get_contract_id(self, script_hash: UInt160) -> int:
         """Resolve the integer contract ID for a given script hash.
@@ -1098,8 +1130,7 @@ class ApplicationEngine(ExecutionEngine):
         Validation steps:
 
         1. **Method existence** — the target contract's ABI must declare
-           the method.  Native contracts always pass (their methods are
-           registered programmatically, not via JSON manifest).
+           the method (native methods are resolved through native metadata).
         2. **Safe-flag enforcement** — if the method is marked ``safe``
            in the ABI, only ``READ_STATES`` is required.  Non-safe
            methods require the caller to hold ``WRITE_STATES``.
@@ -1109,10 +1140,12 @@ class ApplicationEngine(ExecutionEngine):
 
         Returns ``True`` when the call is permitted.
         """
-        # --- Native contracts: always permitted (methods are code-registered) ---
+        # --- Native contracts: method existence + caller permission ---
         from neo.native.native_contract import NativeContract
         if isinstance(contract, NativeContract):
-            return True
+            if contract.get_method_if_active(method, self) is None:
+                return False
+            return self._check_caller_permission(contract, method)
 
         # --- 1. Method existence check via manifest ABI ---
         manifest_data = self._parse_contract_manifest(contract)
@@ -1131,12 +1164,8 @@ class ApplicationEngine(ExecutionEngine):
                 # --- 2. Safe-flag enforcement ---
                 is_safe = target_method.get("safe", False)
                 if not is_safe:
-                    # Non-safe methods require WRITE_STATES in the flags
                     if not (flags & CallFlags.WRITE_STATES):
-                        # Caller didn't request write — but method needs it
-                        # This is actually checked elsewhere via call flags;
-                        # here we just verify the method exists.
-                        pass
+                        return False  # Non-safe method requires WRITE_STATES
 
         # --- 3. Caller permission check ---
         return self._check_caller_permission(contract, method)
@@ -1231,6 +1260,40 @@ class ApplicationEngine(ExecutionEngine):
         the caller's context becomes current again and its flags are
         automatically restored via the ``_current_call_flags`` property.
         """
+        from neo.native.native_contract import NativeContract
+        from neo.vm.types import Array, Struct
+
+        if isinstance(contract, NativeContract):
+            metadata = contract.get_method_if_active(method, self)
+            if metadata is None:
+                raise InvalidOperationException(
+                    f"Method \"{method}\" doesn't exist in native contract {contract.name}."
+                )
+
+            required = int(metadata.required_call_flags)
+            requested = int(flags)
+            if (requested & required) != required:
+                raise InvalidOperationException(
+                    f"Insufficient call flags for {contract.name}.{metadata.name}"
+                )
+
+            total_fee = metadata.cpu_fee + metadata.storage_fee
+            if total_fee > 0:
+                self.add_gas(total_fee)
+
+            previous_flags = self._current_call_flags
+            self._current_call_flags = flags
+            try:
+                if isinstance(args, (Array, Struct)):
+                    for arg in list(args):
+                        self.push(arg)
+                elif args is not None and args != NULL:
+                    self.push(args)
+                self._invoke_native_handler(metadata.handler)
+            finally:
+                self._current_call_flags = previous_flags
+            return
+
         # Get the contract script (NEF)
         if hasattr(contract, 'nef'):
             script = self._extract_script_from_nef(contract.nef)
@@ -1245,7 +1308,6 @@ class ApplicationEngine(ExecutionEngine):
         self._invocation_counters[script_hash] = self._invocation_counters.get(script_hash, 0) + 1
 
         # Push arguments onto stack for the called method
-        from neo.vm.types import Array, Struct
         if isinstance(args, (Array, Struct)):
             for arg in reversed(list(args)):
                 self.push(arg)
@@ -1292,16 +1354,16 @@ class ApplicationEngine(ExecutionEngine):
 
         C# reference: ``ApplicationEngine.CallNativeContract``
 
-        Native contract scripts consist of 5-byte stubs, one per method::
+        Native contract scripts consist of 7-byte stubs, one per method::
 
-            PUSH<version>  (1 byte)  +  SYSCALL CallNative  (1+4 bytes)
+            PUSH<version> (1 byte) + SYSCALL CallNative (1+4 bytes) + RET (1 byte)
 
         When this syscall fires the engine:
 
         1. Pops the version integer pushed by the preceding PUSH opcode.
         2. Identifies the native contract via the current script hash.
-        3. Calculates the method offset from the instruction pointer
-           (``ip // 5 * 5`` — each stub is 5 bytes, aligned).
+        3. Resolves method metadata from the active callnative offset map
+           (SYSCALL instruction pointer).
         4. Looks up the method metadata by offset.
         5. Validates call flags and charges gas (cpu_fee + storage_fee).
         6. Invokes the method handler.
@@ -1313,8 +1375,12 @@ class ApplicationEngine(ExecutionEngine):
         """
         from neo.native.native_contract import NativeContract
 
-        # 1. Pop version
-        self.pop().get_integer()
+        # 1. Pop + validate version
+        version = int(self.pop().get_integer())
+        if version != 0:
+            raise InvalidOperationException(
+                f"The native contract of version {version} is not active."
+            )
 
         # 2. Identify native contract
         script_hash = self._require_current_script_hash()
@@ -1327,15 +1393,12 @@ class ApplicationEngine(ExecutionEngine):
                 f"Native contract not found for hash {script_hash}"
             )
 
-        # 3. Calculate method offset (5-byte aligned stubs)
+        # 3. Resolve method from current native-script instruction pointer.
         ctx = self.current_context
-        method_offset = (ctx.ip // 5) * 5
-
-        # 4. Look up method
-        method = contract.get_method_by_offset(method_offset)
+        method = contract.get_method_by_callnative_offset(self, ctx.ip)
         if method is None:
             raise InvalidOperationException(
-                f"Method not found at offset {method_offset} "
+                f"Method not found at offset {ctx.ip} "
                 f"in native contract {contract.name}"
             )
 
@@ -1368,10 +1431,10 @@ class ApplicationEngine(ExecutionEngine):
         stack (convenience for handlers that aren't yet refactored to
         push results themselves).
 
-        TODO(Task #26): Unify all handlers to ``handler(engine) -> None``
-        and remove this shim.
+        TODO(Task #26): Unify all handlers to ``handler(engine) -> None``.
         """
         import inspect
+        from typing import get_type_hints
 
         try:
             sig = inspect.signature(handler)
@@ -1381,26 +1444,186 @@ class ApplicationEngine(ExecutionEngine):
             self._push_native_result(result)
             return
 
-        params = [
-            p for p in sig.parameters.values()
-            if p.name != "self"
-        ]
+        params = [p for p in sig.parameters.values() if p.name != "self"]
 
-        if len(params) == 0:
-            result = handler()
-        elif len(params) == 1:
-            # Single param — could be engine or snapshot
-            name = params[0].name
-            if name == "snapshot":
-                result = handler(self.snapshot)
-            else:
-                result = handler(self)
-        else:
-            # Multiple params — pass engine; handler pops remaining
-            # args from the stack itself
-            result = handler(self)
+        try:
+            target = handler.__func__ if hasattr(handler, "__func__") else handler
+            type_hints = get_type_hints(target)
+        except Exception:
+            type_hints = {}
+
+        call_args = self._resolve_native_handler_args(params, type_hints)
+        result = handler(*call_args)
 
         self._push_native_result(result)
+
+    def _resolve_native_handler_args(
+        self,
+        params: list[Any],
+        type_hints: dict[str, Any],
+    ) -> list[Any]:
+        """Build call arguments for native handlers from context + eval stack."""
+        import inspect
+
+        if not params:
+            return []
+
+        # Compatibility path for handlers that accept ``(value, context=None)``.
+        if (
+            len(params) == 2
+            and params[1].name == "context"
+            and params[1].default is not inspect._empty
+        ):
+            value_item = self.pop()
+            value = self._convert_stack_item_for_native(
+                value_item, type_hints.get(params[0].name, params[0].annotation)
+            )
+            return [value, self]
+
+        context_args: list[Any] = []
+        arg_params = params
+        first_name = params[0].name
+        if first_name == "engine":
+            context_args = [self]
+            arg_params = params[1:]
+        elif first_name == "snapshot":
+            context_args = [self.snapshot]
+            arg_params = params[1:]
+
+        raw_items = [self.pop() for _ in arg_params]
+        raw_items.reverse()
+
+        converted_args: list[Any] = []
+        for param, item in zip(arg_params, raw_items):
+            annotation = type_hints.get(param.name, param.annotation)
+            converted_args.append(self._convert_stack_item_for_native(item, annotation))
+
+        return context_args + converted_args
+
+    def _convert_stack_item_for_native(self, item: StackItem, annotation: Any) -> Any:
+        """Convert a VM stack item to a Python value for native handler calls."""
+        import inspect
+        from enum import Enum
+        from types import UnionType
+        from typing import Union, get_args, get_origin
+
+        from neo.vm.types import Array as VMArray
+        from neo.vm.types import Buffer as VMBuffer
+        from neo.vm.types import InteropInterface
+        from neo.vm.types import Map as VMMap
+
+        if annotation is inspect._empty or annotation is Any:
+            return self._pythonize_stack_item(item)
+
+        if isinstance(annotation, str):
+            if annotation == "UInt160":
+                from neo.types import UInt160
+
+                return UInt160(item.get_bytes_unsafe())
+            if annotation == "UInt256":
+                from neo.types import UInt256
+
+                return UInt256(item.get_bytes_unsafe())
+            if annotation in {"int", "bool", "str", "bytes"}:
+                primitives = {
+                    "int": int(item.get_integer()),
+                    "bool": bool(item.get_boolean()),
+                    "str": item.get_string(),
+                    "bytes": item.get_bytes_unsafe(),
+                }
+                return primitives[annotation]
+            return self._pythonize_stack_item(item)
+
+        if item.is_null:
+            return None
+
+        origin = get_origin(annotation)
+        if origin in (list, List) or annotation in (list, List):
+            elem_ann = get_args(annotation)[0] if get_args(annotation) else Any
+            if isinstance(item, VMArray):
+                return [self._convert_stack_item_for_native(x, elem_ann) for x in item]
+            return [self._convert_stack_item_for_native(item, elem_ann)]
+
+        if origin in (dict, Dict) or annotation in (dict, Dict):
+            key_ann, val_ann = (Any, Any)
+            if get_args(annotation):
+                key_ann, val_ann = get_args(annotation)
+            if isinstance(item, VMMap):
+                return {
+                    self._convert_stack_item_for_native(k, key_ann): self._convert_stack_item_for_native(
+                        v, val_ann
+                    )
+                    for k, v in item.items()
+                }
+            return {}
+
+        if origin in (UnionType, Union):
+            args = get_args(annotation)
+            if item.is_null and type(None) in args:
+                return None
+            for candidate in args:
+                if candidate is type(None):
+                    continue
+                try:
+                    return self._convert_stack_item_for_native(item, candidate)
+                except Exception:
+                    continue
+            return self._pythonize_stack_item(item)
+
+        if annotation is int:
+            return int(item.get_integer())
+        if annotation is bool:
+            return bool(item.get_boolean())
+        if annotation is str:
+            return item.get_string()
+        if annotation is bytes:
+            return item.get_bytes_unsafe()
+        if annotation is StackItem:
+            return item
+
+        ann_name = getattr(annotation, "__name__", "")
+        if ann_name == "UInt160":
+            return annotation(item.get_bytes_unsafe())
+        if ann_name == "UInt256":
+            return annotation(item.get_bytes_unsafe())
+
+        if isinstance(annotation, type) and issubclass(annotation, Enum):
+            return annotation(int(item.get_integer()))
+
+        if isinstance(item, InteropInterface):
+            iface = item.get_interface()
+            if isinstance(annotation, type) and isinstance(iface, annotation):
+                return iface
+            return iface
+
+        if isinstance(item, VMBuffer):
+            return item.get_bytes_unsafe()
+
+        return self._pythonize_stack_item(item)
+
+    def _pythonize_stack_item(self, item: StackItem) -> Any:
+        """Convert a stack item to a Python value with conservative defaults."""
+        from neo.vm.types import Array as VMArray
+        from neo.vm.types import Boolean as VMBoolean
+        from neo.vm.types import Buffer as VMBuffer
+        from neo.vm.types import InteropInterface
+        from neo.vm.types import Map as VMMap
+
+        if item.is_null:
+            return None
+        if isinstance(item, VMBoolean):
+            return bool(item.get_boolean())
+        if isinstance(item, Integer):
+            return int(item.get_integer())
+        if isinstance(item, (ByteString, VMBuffer)):
+            return item.get_bytes_unsafe()
+        if isinstance(item, VMArray):
+            return [self._pythonize_stack_item(x) for x in item]
+        if isinstance(item, VMMap):
+            return {self._pythonize_stack_item(k): self._pythonize_stack_item(v) for k, v in item.items()}
+        if isinstance(item, InteropInterface):
+            return item.get_interface()
+        return item
 
     def _push_native_result(self, result: Any) -> None:
         """Push a native handler's return value onto the eval stack.
@@ -1417,22 +1640,82 @@ class ApplicationEngine(ExecutionEngine):
         if result is None:
             return
 
+        self.push(self._native_result_to_stack_item(result))
+
+    def _native_result_to_stack_item(self, value: Any, depth: int = 0) -> StackItem:
+        """Convert Python native-handler results into VM stack items."""
+        from enum import Enum
+
+        from neo.vm.types import Array as VMArray
+        from neo.vm.types import InteropInterface
+        from neo.vm.types import Map as VMMap
         from neo.vm.types import StackItem as SI
 
-        if isinstance(result, SI):
-            self.push(result)
-        elif isinstance(result, bool):
-            self.push(Integer(1 if result else 0))
-        elif isinstance(result, int):
-            self.push(Integer(result))
-        elif isinstance(result, str):
-            self.push(ByteString(result.encode("utf-8")))
-        elif isinstance(result, bytes):
-            self.push(ByteString(result))
-        else:
-            # Last resort — try wrapping in InteropInterface
-            from neo.vm.types import InteropInterface
-            self.push(InteropInterface(result))
+        if depth > 32:
+            return InteropInterface(value)
+
+        if isinstance(value, SI):
+            return value
+        if value is None:
+            return NULL
+        if isinstance(value, bool):
+            return Integer(1 if value else 0)
+        if isinstance(value, int):
+            return Integer(value)
+        if isinstance(value, str):
+            return ByteString(value.encode("utf-8"))
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return ByteString(bytes(value))
+        if isinstance(value, Enum):
+            enum_value = getattr(value, "value", value)
+            if isinstance(enum_value, bool):
+                return Integer(1 if enum_value else 0)
+            if isinstance(enum_value, int):
+                return Integer(enum_value)
+            try:
+                return Integer(int(enum_value))  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return ByteString(str(enum_value).encode("utf-8"))
+
+        if isinstance(value, (list, tuple)):
+            return VMArray(
+                self.reference_counter,
+                [self._native_result_to_stack_item(item, depth + 1) for item in value],
+            )
+
+        if isinstance(value, dict):
+            vm_map = VMMap(self.reference_counter)
+            try:
+                for key, item in value.items():
+                    vm_map[self._native_result_to_stack_item(key, depth + 1)] = (
+                        self._native_result_to_stack_item(item, depth + 1)
+                    )
+            except TypeError:
+                return InteropInterface(value)
+            return vm_map
+
+        raw_data = getattr(value, "data", None)
+        if isinstance(raw_data, (bytes, bytearray, memoryview)):
+            return ByteString(bytes(raw_data))
+
+        encoder = getattr(value, "encode", None)
+        if callable(encoder):
+            for kwargs in ({"compressed": True}, {}):
+                try:
+                    encoded = encoder(**kwargs)
+                except Exception:
+                    continue
+                if isinstance(encoded, (bytes, bytearray, memoryview)):
+                    return ByteString(bytes(encoded))
+
+        to_bytes = getattr(value, "__bytes__", None)
+        if callable(to_bytes):
+            try:
+                return ByteString(bytes(value))
+            except Exception:
+                return InteropInterface(value)
+
+        return InteropInterface(value)
 
     def _contract_get_call_flags(self, engine: ApplicationEngine) -> None:
         """Get current call flags."""
