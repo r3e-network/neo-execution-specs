@@ -50,10 +50,7 @@ def base58_check_encode(data: bytes) -> str:
     """Encode with checksum."""
     from neo.crypto.hash import hash256
 
-    if len(data) == 0:
-        checksum = hash256(b"")[:4]
-    else:
-        checksum = hash256(data)[:4]
+    checksum = hash256(data)[:4]
     return encode(data + checksum)
 
 

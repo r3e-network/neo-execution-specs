@@ -11,13 +11,11 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntFlag
-from typing import TYPE_CHECKING, Any, Union, get_args, get_origin
+from typing import Any, Union, get_args, get_origin
 
 from neo.crypto import hash160
 from neo.types import UInt160
 
-if TYPE_CHECKING:
-    pass
 
 class CallFlags(IntFlag):
     """Call flags for contract methods."""
