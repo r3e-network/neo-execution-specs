@@ -8,5 +8,5 @@ class NEP6Wallet:
     """NEP6 wallet format."""
     name: str = ""
     version: str = "1.0"
-    accounts: List = field(default_factory=list)
+    accounts: list = field(default_factory=list)
     extra: dict = field(default_factory=dict)

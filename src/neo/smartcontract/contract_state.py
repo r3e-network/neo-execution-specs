@@ -10,4 +10,4 @@ class ContractState:
     update_counter: int = 0
     hash: bytes = field(default_factory=lambda: bytes(20))
     nef: bytes = b""
-    manifest: Dict = field(default_factory=dict)
+    manifest: dict = field(default_factory=dict)
