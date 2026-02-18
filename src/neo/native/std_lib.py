@@ -16,9 +16,6 @@ MAX_INPUT_LENGTH = 1024
 class StdLib(NativeContract):
     """Standard library functions for Neo smart contracts."""
 
-    def __init__(self) -> None:
-        super().__init__()
-
     @property
     def name(self) -> str:
         return "StdLib"

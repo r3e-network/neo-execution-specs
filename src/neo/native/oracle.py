@@ -107,9 +107,16 @@ class OracleRequest:
         result.append(len(method_bytes))
         result.extend(method_bytes)
         
-        # User data (length-prefixed)
-        result.append(len(self.user_data) & 0xff)
-        result.append((len(self.user_data) >> 8) & 0xff)
+        # User data (var-int length-prefixed)
+        ud_len = len(self.user_data)
+        if ud_len < 0xFD:
+            result.append(ud_len)
+        elif ud_len <= 0xFFFF:
+            result.append(0xFD)
+            result.extend(ud_len.to_bytes(2, 'little'))
+        else:
+            result.append(0xFE)
+            result.extend(ud_len.to_bytes(4, 'little'))
         result.extend(self.user_data)
         
         return bytes(result)
@@ -163,9 +170,20 @@ class OracleRequest:
         callback_method = data[offset:offset + method_len].decode('utf-8')
         offset += method_len
         
-        # User data
-        user_data_len = data[offset] | (data[offset + 1] << 8)
-        offset += 2
+        # User data (var-int length)
+        fb = data[offset]
+        offset += 1
+        if fb < 0xFD:
+            user_data_len = fb
+        elif fb == 0xFD:
+            user_data_len = int.from_bytes(data[offset:offset + 2], 'little')
+            offset += 2
+        elif fb == 0xFE:
+            user_data_len = int.from_bytes(data[offset:offset + 4], 'little')
+            offset += 4
+        else:
+            user_data_len = int.from_bytes(data[offset:offset + 8], 'little')
+            offset += 8
         user_data = data[offset:offset + user_data_len]
         
         return cls(

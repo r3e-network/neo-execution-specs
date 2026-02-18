@@ -5,8 +5,9 @@ Reference: Neo.Ledger.MemoryPool
 """
 
 from __future__ import annotations
-from threading import RLock
+
 from collections.abc import Iterator
+from threading import RLock
 from typing import TYPE_CHECKING
 
 from neo.ledger.pool_item import PoolItem
@@ -30,9 +31,6 @@ class MemoryPool:
         
         # Unverified transactions (valid in prior block)
         self._unverified: dict[UInt256, PoolItem] = {}
-        
-        # Conflict tracking
-        self._conflicts: dict[UInt256, set[UInt256]] = {}
     
     @property
     def capacity(self) -> int:
@@ -62,7 +60,7 @@ class MemoryPool:
         with self._lock:
             return tx_hash in self._verified or tx_hash in self._unverified
     
-    def try_get(self, tx_hash: UInt256) -> "Transaction" | None:
+    def try_get(self, tx_hash: UInt256) -> Transaction | None:
         """Get transaction by hash."""
         with self._lock:
             if tx_hash in self._verified:
@@ -71,12 +69,12 @@ class MemoryPool:
                 return self._unverified[tx_hash].tx
             return None
     
-    def get_verified_transactions(self) -> list["Transaction"]:
+    def get_verified_transactions(self) -> list[Transaction]:
         """Get all verified transactions."""
         with self._lock:
             return [item.tx for item in self._verified.values()]
     
-    def try_add(self, tx: "Transaction") -> VerifyResult:
+    def try_add(self, tx: Transaction) -> VerifyResult:
         """Try to add a transaction to the pool."""
         with self._lock:
             tx_hash = tx.hash
@@ -117,9 +115,8 @@ class MemoryPool:
         with self._lock:
             self._verified.clear()
             self._unverified.clear()
-            self._conflicts.clear()
     
-    def __iter__(self) -> Iterator["Transaction"]:
+    def __iter__(self) -> Iterator[Transaction]:
         """Iterate over all transactions."""
         with self._lock:
             items = list(self._verified.values()) + list(self._unverified.values())

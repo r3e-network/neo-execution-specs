@@ -229,7 +229,6 @@ class ApplicationEngine(ExecutionEngine):
         contract_hash = UInt160(token.hash)
         method = token.method
         params_count = token.parameters_count
-        _has_return = token.has_return_value  # reserved for rv_count validation
         call_flags = CallFlags(token.call_flags)
 
         # Pop arguments from stack based on parameter count

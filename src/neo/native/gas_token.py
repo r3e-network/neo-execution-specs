@@ -17,9 +17,6 @@ class GasToken(FungibleToken):
     # Initial GAS distribution: 30 million GAS
     INITIAL_GAS = 30_000_000 * 10**8
     
-    def __init__(self) -> None:
-        super().__init__()
-    
     @property
     def name(self) -> str:
         return "GasToken"

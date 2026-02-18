@@ -35,7 +35,7 @@ REQUIRED_TIME_FOR_RECOVER_FUND_MS = 365 * 24 * 60 * 60 * 1_000
 # Maximum values
 MAX_EXEC_FEE_FACTOR = 100
 MAX_STORAGE_PRICE = 10000000
-MAX_ATTRIBUTE_FEE = 10_0000_0000
+MAX_ATTRIBUTE_FEE = 1_000_000_000
 MAX_MILLISECONDS_PER_BLOCK = 30_000
 MAX_MAX_VALID_UNTIL_BLOCK_INCREMENT = 86_400
 MAX_MAX_TRACEABLE_BLOCKS = 2_102_400
@@ -62,9 +62,6 @@ class PolicyContract(NativeContract):
     Controls fees, blocked accounts, and other network parameters.
     Only committee members can modify these settings.
     """
-    
-    def __init__(self) -> None:
-        super().__init__()
     
     @property
     def name(self) -> str:
@@ -232,7 +229,7 @@ class PolicyContract(NativeContract):
             engine: Application engine
             value: Fee in datoshi (must be 0-100000000)
         """
-        if value < 0 or value > 1_00000000:
+        if value < 0 or value > 100_000_000:
             raise ValueError(f"FeePerByte must be between [0, 100000000], got {value}")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")

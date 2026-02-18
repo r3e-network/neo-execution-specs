@@ -106,9 +106,6 @@ class LedgerContract(NativeContract):
     Stores blocks and transactions, provides query methods.
     """
     
-    def __init__(self) -> None:
-        super().__init__()
-    
     @property
     def name(self) -> str:
         return "LedgerContract"

@@ -4,11 +4,12 @@ Reference: Neo.SmartContract.Native.RoleManagement
 """
 
 from __future__ import annotations
+
 from enum import IntEnum
 from typing import Any
 
 from neo.hardfork import Hardfork
-from neo.native.native_contract import NativeContract, CallFlags
+from neo.native.native_contract import CallFlags, NativeContract
 
 
 class Role(IntEnum):
@@ -33,9 +34,6 @@ class RoleManagement(NativeContract):
     Allows the committee to designate public keys for specific network
     roles (validators, oracles, NeoFS alphabet nodes, P2P notary).
     """
-
-    def __init__(self) -> None:
-        super().__init__()
 
     @property
     def name(self) -> str:
@@ -179,8 +177,8 @@ class RoleManagement(NativeContract):
 
     def _deserialize_nodes(self, data: bytes) -> list:
         """Deserialize node list from storage."""
-        from neo.crypto.ecc.point import ECPoint
         from neo.crypto.ecc.curve import SECP256R1
+        from neo.crypto.ecc.point import ECPoint
 
         nodes = []
         offset = 0

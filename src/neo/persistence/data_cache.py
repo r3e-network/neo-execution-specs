@@ -193,13 +193,59 @@ class ClonedCache(DataCache):
                 return None
             return t.value
         return self._parent.get(key)
-    
+
+    def try_get(self, key: bytes) -> tuple[bool, bytes | None]:
+        """Try to get a value from clone or parent."""
+        if key in self._cache:
+            t = self._cache[key]
+            if t.state == TrackState.DELETED:
+                return False, None
+            return True, t.value
+        return self._parent.try_get(key)
+
     def contains(self, key: bytes) -> bool:
         """Check if key exists."""
         if key in self._cache:
             return self._cache[key].state != TrackState.DELETED
         return self._parent.contains(key)
-    
+
+    def get_and_change(self, key: bytes, factory: Callable[[], bytes] | None = None) -> bytes | None:
+        """Get value and mark for change, delegating to parent."""
+        if key in self._cache:
+            t = self._cache[key]
+            if t.state == TrackState.DELETED:
+                if factory is None:
+                    return None
+                t.value = factory()
+                t.state = TrackState.CHANGED
+            elif t.state == TrackState.NONE:
+                t.state = TrackState.CHANGED
+            return t.value
+
+        value = self._parent.get(key)
+        if value is not None:
+            self._cache[key] = Trackable(key, value, TrackState.CHANGED)
+            return value
+
+        if factory is not None:
+            value = factory()
+            self._cache[key] = Trackable(key, value, TrackState.ADDED)
+            return value
+        return None
+
+    def add(self, key: bytes, value: bytes) -> None:
+        """Add a new key-value pair to the clone."""
+        if key in self._cache:
+            t = self._cache[key]
+            if t.state != TrackState.DELETED:
+                raise KeyError(f"Key already exists: {key.hex()}")
+            t.value = value
+            t.state = TrackState.CHANGED
+        elif self._parent.contains(key):
+            raise KeyError(f"Key already exists: {key.hex()}")
+        else:
+            self._cache[key] = Trackable(key, value, TrackState.ADDED)
+
     def put(self, key: bytes, value: bytes) -> None:
         """Add or update a value in the clone."""
         if key in self._cache:

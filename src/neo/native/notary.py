@@ -79,9 +79,6 @@ class Notary(NativeContract):
     - Managing NotValidBefore delta settings
     """
     
-    def __init__(self) -> None:
-        super().__init__()
-    
     @property
     def name(self) -> str:
         return "Notary"

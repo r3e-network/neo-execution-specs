@@ -12,6 +12,7 @@ from neo.crypto import ed25519_verify, murmur32, ripemd160, sha256
 from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract
 
+
 class NamedCurveHash(IntEnum):
     """Named curve and hash algorithm combinations."""
 
@@ -32,9 +33,6 @@ class CryptoLib(NativeContract):
     - Ed25519 signature verification
     - BLS12-381 operations
     """
-
-    def __init__(self) -> None:
-        super().__init__()
 
     @property
     def name(self) -> str:

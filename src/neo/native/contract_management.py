@@ -56,9 +56,6 @@ class ContractState:
 class ContractManagement(NativeContract):
     """Manages contract deployment and updates."""
     
-    def __init__(self) -> None:
-        super().__init__()
-    
     @property
     def name(self) -> str:
         return "ContractManagement"
