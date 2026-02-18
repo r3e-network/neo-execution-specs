@@ -1,7 +1,7 @@
 """Neo N3 Key Pair implementation."""
 
-from dataclasses import dataclass
 import secrets
+from dataclasses import dataclass
 
 from neo.crypto.ecc import ECPoint, derive_public_key
 from neo.crypto.ecdsa import verify_signature as verify_ecdsa_signature
@@ -111,7 +111,8 @@ def base58_decode(s: str) -> bytes:
     result: list[int] = []
     while num > 0:
         num, remainder = divmod(num, 256)
-        result.insert(0, remainder)
+        result.append(remainder)
+    result.reverse()
 
     leading_ones = 0
     for char in s:

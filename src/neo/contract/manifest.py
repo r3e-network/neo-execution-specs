@@ -1,9 +1,13 @@
 """Neo N3 Contract Manifest implementation."""
 
 from __future__ import annotations
+
+import dataclasses
+import json
 from dataclasses import dataclass, field
 from enum import IntFlag
 from typing import Any
+
 
 class ContractPermissionDescriptor:
     """Permission descriptor for contract calls."""
@@ -57,8 +61,6 @@ class ContractManifest:
     @staticmethod
     def _serialize_item(item: Any) -> Any:
         """Serialize a single item to a JSON-compatible value."""
-        import dataclasses
-
         if hasattr(item, 'to_json'):
             return item.to_json()
         elif dataclasses.is_dataclass(item) and not isinstance(item, type):
@@ -70,8 +72,6 @@ class ContractManifest:
 
     def to_json(self) -> dict[str, Any]:
         """Convert to JSON."""
-        import json
-
         result = {
             "name": self.name,
             "groups": [self._serialize_item(g) for g in self.groups] if self.groups else [],

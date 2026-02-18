@@ -69,19 +69,6 @@ class Snapshot(ABC):
         self.put(key, value)
 
 
-    # Storage helper methods for ApplicationEngine
-    def storage_get(self, key: bytes) -> bytes | None:
-        """Get storage value by key."""
-        return self.get(key)
-
-    def storage_put(self, key: bytes, value: bytes) -> None:
-        """Set storage value."""
-        self.put(key, value)
-
-    def storage_delete(self, key: bytes) -> None:
-        """Delete storage value."""
-        self.delete(key)
-
     # Contract/ledger helper methods
     def get_contract(self, script_hash: Any) -> Any | None:
         """Get contract data by script hash."""
