@@ -11,8 +11,6 @@ import regex  # type: ignore[import-untyped]
 from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract
 
-# Base58 alphabet
-BASE58_ALPHABET = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 MAX_INPUT_LENGTH = 1024
 
 class StdLib(NativeContract):
@@ -370,88 +368,29 @@ class StdLib(NativeContract):
         """Encode bytes to base58 string."""
         if len(data) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
-
-        # Count leading zeros
-        leading_zeros = 0
-        for byte in data:
-            if byte == 0:
-                leading_zeros += 1
-            else:
-                break
-
-        # Convert to integer
-        num = int.from_bytes(data, "big")
-
-        # Convert to base58
-        result = []
-        while num > 0:
-            num, remainder = divmod(num, 58)
-            result.append(BASE58_ALPHABET[remainder : remainder + 1])
-
-        # Add leading '1's for leading zeros
-        result.extend([b"1"] * leading_zeros)
-
-        return b"".join(reversed(result)).decode("ascii")
+        from neo.crypto.base58 import encode as _b58enc
+        return _b58enc(data)
 
     def base58_decode(self, s: str) -> bytes:
         """Decode base58 string to bytes."""
         if len(s) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
-
-        # Count leading '1's
-        leading_ones = 0
-        for char in s:
-            if char == "1":
-                leading_ones += 1
-            else:
-                break
-
-        # Convert from base58
-        num = 0
-        for char in s:
-            idx = BASE58_ALPHABET.find(char.encode("ascii"))
-            if idx < 0:
-                raise ValueError(f"Invalid base58 character: {char}")
-            num = num * 58 + idx
-
-        # Convert to bytes
-        if num == 0:
-            result = b""
-        else:
-            result = num.to_bytes((num.bit_length() + 7) // 8, "big")
-
-        # Add leading zeros
-        return b"\x00" * leading_ones + result
+        from neo.crypto.base58 import decode as _b58dec
+        return _b58dec(s)
 
     def base58_check_encode(self, data: bytes) -> str:
         """Encode bytes to base58 with checksum."""
         if len(data) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
-
-        from neo.crypto import sha256
-
-        checksum = sha256(sha256(data))[:4]
-        return self.base58_encode(data + checksum)
+        from neo.crypto.base58 import base58_check_encode as _b58chk_enc
+        return _b58chk_enc(data)
 
     def base58_check_decode(self, s: str) -> bytes:
         """Decode base58 with checksum verification."""
         if len(s) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
-
-        from neo.crypto import sha256
-
-        data = self.base58_decode(s)
-        if len(data) < 4:
-            raise ValueError("Invalid base58check data")
-
-        payload = data[:-4]
-        checksum = data[-4:]
-        expected_checksum = sha256(sha256(payload))[:4]
-
-        if checksum != expected_checksum:
-            raise ValueError("Invalid checksum")
-
-        return payload
+        from neo.crypto.base58 import base58_check_decode as _b58chk_dec
+        return _b58chk_dec(s)
 
     def memory_compare(self, str1: bytes, str2: bytes) -> int:
         """Compare two byte arrays."""

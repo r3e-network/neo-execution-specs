@@ -260,10 +260,6 @@ class NeoToken(FungibleToken):
             standards.append("NEP-27")
         return standards
 
-    def get_total_supply(self, snapshot: Any) -> int:
-        """NEO has fixed supply."""
-        return self._total_amount
-
     def _get_account_state(self, item: StorageItem) -> NeoAccountState:
         """Get NEO account state from storage item."""
         return NeoAccountState.from_bytes(item.value)

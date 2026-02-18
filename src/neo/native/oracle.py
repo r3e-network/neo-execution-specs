@@ -30,6 +30,9 @@ MAX_USER_DATA_LENGTH = 512
 # Default oracle price (0.5 GAS in datoshi)
 DEFAULT_ORACLE_PRICE = 50_000_000
 
+# OracleResponse transaction attribute type code
+ORACLE_RESPONSE_ATTR_TYPE = 0x11
+
 class OracleResponseCode(IntEnum):
     """Oracle response codes."""
 
@@ -79,7 +82,6 @@ class OracleRequest:
         result.extend(self.gas_for_response.to_bytes(8, 'little'))
         
         # URL (variable-length encoded)
-        url_bytes = self.url.encode('utf-8')
         if len(url_bytes) < 0xFD:
             result.append(len(url_bytes))
         elif len(url_bytes) <= 0xFFFF:
@@ -102,7 +104,6 @@ class OracleRequest:
         result.extend(self.callback_contract.data)
         
         # Callback method (length-prefixed)
-        method_bytes = self.callback_method.encode('utf-8')
         result.append(len(method_bytes))
         result.extend(method_bytes)
         
@@ -540,13 +541,12 @@ class OracleContract(NativeContract):
     @staticmethod
     def _get_oracle_response_attr(tx: Any) -> Any:
         """Extract the OracleResponse attribute (type 0x11) from *tx*."""
-        ORACLE_RESPONSE_TYPE = 0x11
         attrs = getattr(tx, 'attributes', None)
         if not attrs:
             return None
         for attr in attrs:
             attr_type = getattr(attr, 'type', None)
-            if attr_type is not None and int(attr_type) == ORACLE_RESPONSE_TYPE:
+            if attr_type is not None and int(attr_type) == ORACLE_RESPONSE_ATTR_TYPE:
                 return attr
         return None
 
@@ -593,10 +593,9 @@ class OracleContract(NativeContract):
         if not attrs:
             return False
 
-        ORACLE_RESPONSE_TYPE = 0x11
         for attr in attrs:
             attr_type = getattr(attr, 'type', None)
-            if attr_type is not None and int(attr_type) == ORACLE_RESPONSE_TYPE:
+            if attr_type is not None and int(attr_type) == ORACLE_RESPONSE_ATTR_TYPE:
                 return True
 
         return False

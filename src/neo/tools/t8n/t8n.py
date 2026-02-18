@@ -5,8 +5,8 @@ Executes transactions against a pre-state and produces post-state.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from collections.abc import Iterable
+from types import SimpleNamespace
 from typing import Any
 
 from neo.crypto.hash import hash256
@@ -31,6 +31,7 @@ BALANCE_TYPE_NEO = 0x01
 PREFIX_ACCOUNT_STORAGE = 0x70
 ACCOUNT_LENGTH = 20
 
+
 def _normalize_hex(hex_str: str) -> str:
     value = hex_str[2:] if hex_str.startswith(("0x", "0X")) else hex_str
     value = value.strip().lower()
@@ -38,16 +39,20 @@ def _normalize_hex(hex_str: str) -> str:
         value = f"0{value}"
     return value
 
+
 def _hex_to_bytes(hex_str: str) -> bytes:
     """Convert hex string to bytes."""
     return bytes.fromhex(_normalize_hex(hex_str))
+
 
 def _bytes_to_hex(data: bytes) -> str:
     """Convert bytes to 0x-prefixed hex string."""
     return "0x" + data.hex()
 
+
 def _balance_key(addr: bytes, balance_type: int) -> bytes:
     return bytes([PREFIX_BALANCE, balance_type]) + addr
+
 
 def _decode_uncaught_exception(error_item: Any) -> str:
     try:
@@ -57,6 +62,7 @@ def _decode_uncaught_exception(error_item: Any) -> str:
             return error_item.get_bytes_unsafe().decode("utf-8", errors="replace")
         except Exception:
             return str(error_item)
+
 
 def _to_uint32_hash_bytes(value: int) -> bytes:
     try:
@@ -68,6 +74,7 @@ def _to_uint32_hash_bytes(value: int) -> bytes:
     except Exception:
         return str(value).encode("utf-8", errors="replace")
 
+
 def _to_int64_hash_bytes(value: int) -> bytes:
     try:
         if isinstance(value, str):
@@ -77,6 +84,7 @@ def _to_int64_hash_bytes(value: int) -> bytes:
         return parsed.to_bytes(8, "little", signed=True)
     except Exception:
         return str(value).encode("utf-8", errors="replace")
+
 
 def _parse_integer(value: Any, field_name: str) -> int:
     if isinstance(value, bool):
@@ -93,11 +101,13 @@ def _parse_integer(value: Any, field_name: str) -> int:
             raise ValueError(f"{field_name} must be an integer") from exc
     raise ValueError(f"{field_name} must be an integer")
 
+
 def _validate_compressed_ecpoint(value: bytes, field_name: str) -> None:
     if len(value) != 33:
         raise ValueError(f"{field_name} must be 33-byte ECPoint")
     if value[0] not in (0x02, 0x03):
         raise ValueError(f"{field_name} must use compressed ECPoint format")
+
 
 def _var_int_size(value: int) -> int:
     if value < 0xFD:
@@ -107,6 +117,7 @@ def _var_int_size(value: int) -> int:
     if value <= 0xFFFF_FFFF:
         return 5
     return 9
+
 
 def _estimate_witness_condition_size(condition: Any) -> int:
     cond_type = getattr(condition, "type", None)
@@ -121,11 +132,7 @@ def _estimate_witness_condition_size(condition: Any) -> int:
         expressions = getattr(condition, "expressions", None)
         if expressions is None:
             raise ValueError("And/Or witness condition is missing expressions")
-        return (
-            1
-            + _var_int_size(len(expressions))
-            + sum(_estimate_witness_condition_size(expr) for expr in expressions)
-        )
+        return 1 + _var_int_size(len(expressions)) + sum(_estimate_witness_condition_size(expr) for expr in expressions)
     if cond_type in (0x18, 0x28):  # ScriptHash / CalledByContract
         return 1 + 20
     if cond_type in (0x19, 0x29):  # Group / CalledByGroup
@@ -134,14 +141,17 @@ def _estimate_witness_condition_size(condition: Any) -> int:
         return 1
     raise ValueError(f"Unsupported witness condition type for size estimation: {cond_type}")
 
+
 def _estimate_witness_rule_size(rule: Any) -> int:
     condition = getattr(rule, "condition", None)
     if condition is None:
         raise ValueError("Witness rule is missing condition")
     return 1 + _estimate_witness_condition_size(condition)
 
+
 def _normalize_symbol(value: str) -> str:
     return "".join(ch for ch in value.lower() if ch.isalnum())
+
 
 _WITNESS_RULE_ACTIONS = {
     "deny": 0,
@@ -168,6 +178,8 @@ _MAX_SIGNER_ALLOWED_CONTRACTS = 16
 _MAX_SIGNER_ALLOWED_GROUPS = 16
 _MAX_UINT32 = 0xFFFF_FFFF
 _MAX_TRANSACTION_SIZE = 102400
+_WITNESS_CONDITION_VALID_TYPES: frozenset[int] = frozenset(_WITNESS_CONDITION_TYPES.values())
+
 
 def _parse_witness_rule_action(action: Any) -> int:
     if isinstance(action, bool):
@@ -188,19 +200,18 @@ def _parse_witness_rule_action(action: Any) -> int:
             return mapped
     raise ValueError("Witness rule action must be 0/1 or Deny/Allow")
 
-def _parse_witness_condition_type(raw_type: Any) -> int:
-    valid_types = set(_WITNESS_CONDITION_TYPES.values())
 
+def _parse_witness_condition_type(raw_type: Any) -> int:
     if isinstance(raw_type, bool):
         raise ValueError("Witness condition type must be integer or name")
     if isinstance(raw_type, int):
-        if raw_type in valid_types:
+        if raw_type in _WITNESS_CONDITION_VALID_TYPES:
             return raw_type
         raise ValueError(f"Unknown witness condition type: {raw_type}")
     if isinstance(raw_type, str):
         try:
             parsed = int(raw_type, 0)
-            if parsed in valid_types:
+            if parsed in _WITNESS_CONDITION_VALID_TYPES:
                 return parsed
         except ValueError:
             pass
@@ -210,11 +221,10 @@ def _parse_witness_condition_type(raw_type: Any) -> int:
 
     raise ValueError("Witness condition type must be integer or known name")
 
+
 def _parse_witness_condition(condition: Any, depth: int = 0) -> Any:
     if depth > _MAX_WITNESS_CONDITION_DEPTH:
-        raise ValueError(
-            f"Witness condition nesting depth exceeds {_MAX_WITNESS_CONDITION_DEPTH}"
-        )
+        raise ValueError(f"Witness condition nesting depth exceeds {_MAX_WITNESS_CONDITION_DEPTH}")
     if not isinstance(condition, dict):
         raise ValueError("Witness condition must be an object")
 
@@ -248,9 +258,7 @@ def _parse_witness_condition(condition: Any, depth: int = 0) -> Any:
             )
         return SimpleNamespace(
             type=cond_type,
-            expressions=[
-                _parse_witness_condition(expr, depth + 1) for expr in expressions
-            ],
+            expressions=[_parse_witness_condition(expr, depth + 1) for expr in expressions],
         )
 
     if cond_type in (0x18, 0x28):  # ScriptHash / CalledByContract
@@ -281,6 +289,7 @@ def _parse_witness_condition(condition: Any, depth: int = 0) -> Any:
 
     raise ValueError(f"Unsupported witness condition type: {cond_type}")
 
+
 def _parse_witness_rules(rules: Any) -> list[Any]:
     if rules is None:
         return []
@@ -304,6 +313,7 @@ def _parse_witness_rules(rules: Any) -> list[Any]:
             )
         )
     return parsed_rules
+
 
 class T8N:
     """Neo state transition tool.
@@ -433,9 +443,7 @@ class T8N:
 
         system_fee = _parse_integer(tx.system_fee, "System fee")
         network_fee = _parse_integer(tx.network_fee, "Network fee")
-        valid_until_block = _parse_integer(
-            tx.valid_until_block, "Transaction validUntilBlock"
-        )
+        valid_until_block = _parse_integer(tx.valid_until_block, "Transaction validUntilBlock")
         nonce = _parse_integer(tx.nonce, "Transaction nonce")
 
         tx.system_fee = system_fee
@@ -457,15 +465,9 @@ class T8N:
         if valid_until_block > _MAX_UINT32:
             raise ValueError("Transaction validUntilBlock exceeds uint32 range")
         if valid_until_block > 0 and valid_until_block <= self.env.current_block_number:
-            raise ValueError(
-                "Transaction validUntilBlock has expired for current block context"
-            )
-        if valid_until_block > (
-            self.env.current_block_number + self.protocol_settings.max_valid_until_block_increment
-        ):
-            raise ValueError(
-                "Transaction validUntilBlock exceeds max valid-until increment for current block context"
-            )
+            raise ValueError("Transaction validUntilBlock has expired for current block context")
+        if valid_until_block > (self.env.current_block_number + self.protocol_settings.max_valid_until_block_increment):
+            raise ValueError("Transaction validUntilBlock exceeds max valid-until increment for current block context")
 
         if nonce < 0:
             raise ValueError("Transaction nonce cannot be negative")
@@ -537,9 +539,7 @@ class T8N:
             if not isinstance(signer.allowed_groups, list):
                 raise ValueError("Signer allowedGroups must be an array")
             if len(signer.allowed_groups) > _MAX_SIGNER_ALLOWED_GROUPS:
-                raise ValueError(
-                    f"Signer allowedGroups must contain at most {_MAX_SIGNER_ALLOWED_GROUPS} entries"
-                )
+                raise ValueError(f"Signer allowedGroups must contain at most {_MAX_SIGNER_ALLOWED_GROUPS} entries")
             if signer.allowed_groups and not (scope & custom_groups_scope):
                 raise ValueError("Signer allowedGroups require CUSTOM_GROUPS scope")
             if scope & custom_groups_scope:
@@ -550,28 +550,18 @@ class T8N:
                 try:
                     contract_hash = _hex_to_bytes(allowed)
                 except Exception as exc:
-                    raise ValueError(
-                        "Invalid signer allowedContracts entry; expected 20-byte UInt160"
-                    ) from exc
+                    raise ValueError("Invalid signer allowedContracts entry; expected 20-byte UInt160") from exc
                 if len(contract_hash) != ACCOUNT_LENGTH:
-                    raise ValueError(
-                        "Invalid signer allowedContracts entry; expected 20-byte UInt160"
-                    )
+                    raise ValueError("Invalid signer allowedContracts entry; expected 20-byte UInt160")
             for group in signer.allowed_groups:
                 try:
                     group_bytes = _hex_to_bytes(group)
                 except Exception as exc:
-                    raise ValueError(
-                        "Invalid signer allowedGroups entry; expected 33-byte ECPoint"
-                    ) from exc
+                    raise ValueError("Invalid signer allowedGroups entry; expected 33-byte ECPoint") from exc
                 if len(group_bytes) != 33:
-                    raise ValueError(
-                        "Invalid signer allowedGroups entry; expected 33-byte ECPoint"
-                    )
+                    raise ValueError("Invalid signer allowedGroups entry; expected 33-byte ECPoint")
                 if group_bytes[0] not in (0x02, 0x03):
-                    raise ValueError(
-                        "Invalid signer allowedGroups entry; expected compressed ECPoint format"
-                    )
+                    raise ValueError("Invalid signer allowedGroups entry; expected compressed ECPoint format")
 
             if signer.rules is None:
                 signer.rules = []
@@ -667,10 +657,7 @@ class T8N:
         return {"type": type(state).__name__, "value": str(state)}
 
     def _extract_stack(self, engine: ApplicationEngine) -> list[dict[str, Any]]:
-        return [
-            self._serialize_stack_item(engine.result_stack.peek(i))
-            for i in range(len(engine.result_stack))
-        ]
+        return [self._serialize_stack_item(engine.result_stack.peek(i)) for i in range(len(engine.result_stack))]
 
     def _extract_notifications(self, engine: ApplicationEngine) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
@@ -823,10 +810,7 @@ class T8N:
     def _validate_block_envelope(self) -> str | None:
         max_txs = int(self.protocol_settings.max_transactions_per_block)
         if len(self.txs) > max_txs:
-            return (
-                f"Transaction list exceeds max transactions per block: "
-                f"{len(self.txs)} > {max_txs}"
-            )
+            return f"Transaction list exceeds max transactions per block: {len(self.txs)} > {max_txs}"
         return None
 
     def run(self) -> T8NOutput:

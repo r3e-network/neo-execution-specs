@@ -139,33 +139,6 @@ class PolicyContract(NativeContract):
             call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
             active_in=Hardfork.HF_FAUN,
         )
-
-    def _register_events(self) -> None:
-        """Register PolicyContract events."""
-        super()._register_events()
-        self._register_event(
-            "MillisecondsPerBlockChanged",
-            [("old", "Integer"), ("new", "Integer")],
-            order=0,
-            active_in=Hardfork.HF_ECHIDNA,
-        )
-        self._register_event(
-            "WhitelistFeeChanged",
-            [
-                ("contract", "Hash160"),
-                ("method", "String"),
-                ("argCount", "Integer"),
-                ("fee", "Any"),
-            ],
-            order=1,
-            active_in=Hardfork.HF_FAUN,
-        )
-        self._register_event(
-            "RecoveredFund",
-            [("account", "Hash160")],
-            order=2,
-            active_in=Hardfork.HF_FAUN,
-        )
         self._register_method(
             "removeWhitelistFeeContract",
             self.remove_whitelist_fee_contract,
@@ -214,6 +187,33 @@ class PolicyContract(NativeContract):
             manifest_parameter_names=["contractHash", "method", "argCount", "fixedFee"],
         )
         self._register_method("unblockAccount", self.unblock_account, cpu_fee=1 << 15, call_flags=CallFlags.STATES)
+
+    def _register_events(self) -> None:
+        """Register PolicyContract events."""
+        super()._register_events()
+        self._register_event(
+            "MillisecondsPerBlockChanged",
+            [("old", "Integer"), ("new", "Integer")],
+            order=0,
+            active_in=Hardfork.HF_ECHIDNA,
+        )
+        self._register_event(
+            "WhitelistFeeChanged",
+            [
+                ("contract", "Hash160"),
+                ("method", "String"),
+                ("argCount", "Integer"),
+                ("fee", "Any"),
+            ],
+            order=1,
+            active_in=Hardfork.HF_FAUN,
+        )
+        self._register_event(
+            "RecoveredFund",
+            [("account", "Hash160")],
+            order=2,
+            active_in=Hardfork.HF_FAUN,
+        )
     
     def get_fee_per_byte(self, snapshot: Any) -> int:
         """Get network fee per transaction byte.

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from neo.native.fungible_token import FungibleToken
-from neo.types import UInt160
 
 
 class GasToken(FungibleToken):
@@ -80,44 +79,6 @@ class GasToken(FungibleToken):
                 primary = engine.get_script_hash_from_pubkey(primary_pubkey)
                 self.mint(engine, primary, total_network_fee, False)
     
-    def mint(self, engine: Any, account: UInt160, amount: int, 
-             call_on_payment: bool = True) -> None:
-        """Mint GAS to an account.
-        
-        Args:
-            engine: The application engine
-            account: The account to mint to
-            amount: Amount in datoshi (1 GAS = 10^8 datoshi)
-            call_on_payment: Whether to call onNEP17Payment
-        """
-        super().mint(engine, account, amount, call_on_payment)
-    
-    def burn(self, engine: Any, account: UInt160, amount: int) -> None:
-        """Burn GAS from an account.
-        
-        Args:
-            engine: The application engine
-            account: The account to burn from
-            amount: Amount in datoshi (1 GAS = 10^8 datoshi)
-        """
-        super().burn(engine, account, amount)
-    
-    def transfer(self, engine: Any, from_account: UInt160, to_account: UInt160,
-                 amount: int, data: Any = None) -> bool:
-        """Transfer GAS between accounts.
-        
-        Args:
-            engine: The application engine
-            from_account: Source account
-            to_account: Destination account
-            amount: Amount in datoshi
-            data: Optional data to pass to onNEP17Payment
-            
-        Returns:
-            True if transfer succeeded, False otherwise
-        """
-        return super().transfer(engine, from_account, to_account, amount, data)
-
     @staticmethod
     def _find_attribute(tx: Any, attr_type: int) -> Any:
         """Find transaction attribute by type code."""

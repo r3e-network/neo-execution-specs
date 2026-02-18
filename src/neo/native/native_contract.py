@@ -503,13 +503,13 @@ class NativeContract(ABC):
             len(parameters) == 2
             and index == 1
             and parameter.name == "context"
-            and parameter.default is not inspect._empty
+            and parameter.default is not inspect.Parameter.empty
         )
 
     @classmethod
     def _normalize_manifest_annotation(cls, annotation: Any) -> str:
         """Convert a Python type annotation into a Neo manifest ABI type."""
-        if annotation is inspect._empty or annotation is Any:
+        if annotation is inspect.Parameter.empty or annotation is Any:
             return "Any"
         if annotation is None or annotation is type(None):
             return "Void"

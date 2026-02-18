@@ -1,13 +1,18 @@
 """Ledger contract for blockchain data access."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any
 
+from neo.native.native_contract import CallFlags, NativeContract, StorageItem
+from neo.network.payloads.block import (
+    Block,
+)
+from neo.network.payloads.transaction import (
+    Transaction,
+)
 from neo.types import UInt256
-from neo.native.native_contract import NativeContract, CallFlags, StorageItem
-from neo.network.payloads.block import Block
-from neo.network.payloads.transaction import Transaction
 
 # Storage prefixes
 PREFIX_BLOCK_HASH = 9
@@ -18,6 +23,7 @@ PREFIX_TRANSACTION = 11
 @dataclass
 class HashIndexState:
     """Current block hash and index."""
+
     hash: UInt256 | None = None
     index: int = 0
     
@@ -27,7 +33,7 @@ class HashIndexState:
         return data
     
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'HashIndexState':
+    def from_bytes(cls, data: bytes) -> HashIndexState:
         state = cls()
         if data and len(data) >= 36:
             state.hash = UInt256(data[:32])
@@ -37,6 +43,7 @@ class HashIndexState:
 @dataclass
 class TransactionState:
     """State of a transaction in storage."""
+
     block_index: int = 0
     transaction: Any | None = None
     state: int = 0  # VMState: 0=NONE, 1=HALT, 2=FAULT
@@ -69,7 +76,7 @@ class TransactionState:
         return b""
     
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'TransactionState':
+    def from_bytes(cls, data: bytes) -> TransactionState:
         state = cls()
         if data and len(data) >= 4:
             state.block_index = int.from_bytes(data[:4], 'little')
