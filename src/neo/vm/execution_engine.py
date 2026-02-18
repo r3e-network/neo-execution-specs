@@ -229,7 +229,6 @@ class ExecutionEngine:
 
     def execute_throw(self, ex: StackItem) -> None:
         self.uncaught_exception = ex
-        pop_count = 0
         # Iterate from top of invocation stack (last element = top)
         for i in range(len(self.invocation_stack) - 1, -1, -1):
             context = self.invocation_stack[i]
@@ -255,7 +254,6 @@ class ExecutionEngine:
                         context.ip = try_ctx.finally_pointer
                     self.is_jumping = True
                     return
-            pop_count += 1
         raise VMUnhandledException(self.uncaught_exception)
 
     def _init_handlers(self) -> None:

@@ -1,5 +1,7 @@
 """Neo N3 Script Builder."""
 
+from __future__ import annotations
+
 from neo.vm.opcode import OpCode
 
 
@@ -9,17 +11,17 @@ class ScriptBuilder:
     def __init__(self):
         self._data = bytearray()
     
-    def emit(self, op: int) -> "ScriptBuilder":
+    def emit(self, op: int) -> ScriptBuilder:
         """Emit opcode."""
         self._data.append(op)
         return self
     
-    def emit_raw(self, data: bytes) -> "ScriptBuilder":
+    def emit_raw(self, data: bytes) -> ScriptBuilder:
         """Emit raw bytes."""
         self._data.extend(data)
         return self
     
-    def emit_push(self, value) -> "ScriptBuilder":
+    def emit_push(self, value) -> ScriptBuilder:
         """Push a value onto the stack.
         
         Args:
@@ -38,7 +40,7 @@ class ScriptBuilder:
         else:
             raise ValueError(f"Cannot push type: {type(value)}")
     
-    def _emit_push_int(self, value: int) -> "ScriptBuilder":
+    def _emit_push_int(self, value: int) -> ScriptBuilder:
         """Push an integer."""
         if value == -1:
             return self.emit(OpCode.PUSHM1)
@@ -57,7 +59,7 @@ class ScriptBuilder:
             
             return self._emit_push_bytes(data)
     
-    def _emit_push_bytes(self, data: bytes) -> "ScriptBuilder":
+    def _emit_push_bytes(self, data: bytes) -> ScriptBuilder:
         """Push bytes."""
         length = len(data)
         
@@ -74,7 +76,7 @@ class ScriptBuilder:
         self._data.extend(data)
         return self
     
-    def emit_call(self, offset: int) -> "ScriptBuilder":
+    def emit_call(self, offset: int) -> ScriptBuilder:
         """Emit CALL instruction."""
         if -128 <= offset <= 127:
             self.emit(OpCode.CALL)
@@ -84,7 +86,7 @@ class ScriptBuilder:
             self._data.extend(offset.to_bytes(4, 'little', signed=True))
         return self
     
-    def emit_jump(self, op: int, offset: int) -> "ScriptBuilder":
+    def emit_jump(self, op: int, offset: int) -> ScriptBuilder:
         """Emit jump instruction with offset."""
         self.emit(op)
         if op in (OpCode.JMP, OpCode.JMPIF, OpCode.JMPIFNOT, 
@@ -95,13 +97,13 @@ class ScriptBuilder:
             self._data.extend(offset.to_bytes(4, 'little', signed=True))
         return self
     
-    def emit_syscall(self, method_hash: int) -> "ScriptBuilder":
+    def emit_syscall(self, method_hash: int) -> ScriptBuilder:
         """Emit SYSCALL instruction."""
         self.emit(OpCode.SYSCALL)
         self._data.extend(method_hash.to_bytes(4, 'little'))
         return self
     
-    def emit_callt(self, token_index: int) -> "ScriptBuilder":
+    def emit_callt(self, token_index: int) -> ScriptBuilder:
         """Emit CALLT instruction with token index."""
         self.emit(OpCode.CALLT)
         self._data.extend(token_index.to_bytes(2, 'little'))

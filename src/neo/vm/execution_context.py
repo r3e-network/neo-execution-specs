@@ -13,6 +13,7 @@ from neo.vm.evaluation_stack import EvaluationStack
 from neo.vm.exception_handling import (
     TryStack,
 )
+from neo.vm.opcode import OpCode
 from neo.vm.slot import Slot
 
 
@@ -245,75 +246,44 @@ def _parse_instruction(script: bytes, position: int) -> Instruction:
     
     return Instruction(opcode=opcode, operand=operand, position=position)
 
+# Fixed-size operand table (module-level to avoid per-call reconstruction)
+_OPERAND_SIZES: dict[int, int] = {
+    OpCode.PUSHINT8: 1, OpCode.PUSHINT16: 2, OpCode.PUSHINT32: 4,
+    OpCode.PUSHINT64: 8, OpCode.PUSHINT128: 16, OpCode.PUSHINT256: 32,
+    OpCode.PUSHA: 4,
+    OpCode.JMP: 1, OpCode.JMP_L: 4,
+    OpCode.JMPIF: 1, OpCode.JMPIF_L: 4,
+    OpCode.JMPIFNOT: 1, OpCode.JMPIFNOT_L: 4,
+    OpCode.JMPEQ: 1, OpCode.JMPEQ_L: 4,
+    OpCode.JMPNE: 1, OpCode.JMPNE_L: 4,
+    OpCode.JMPGT: 1, OpCode.JMPGT_L: 4,
+    OpCode.JMPGE: 1, OpCode.JMPGE_L: 4,
+    OpCode.JMPLT: 1, OpCode.JMPLT_L: 4,
+    OpCode.JMPLE: 1, OpCode.JMPLE_L: 4,
+    OpCode.CALL: 1, OpCode.CALL_L: 4, OpCode.CALLT: 2,
+    OpCode.TRY: 2, OpCode.TRY_L: 8,
+    OpCode.ENDTRY: 1, OpCode.ENDTRY_L: 4,
+    OpCode.SYSCALL: 4,
+    OpCode.INITSSLOT: 1, OpCode.INITSLOT: 2,
+    OpCode.LDSFLD: 1, OpCode.STSFLD: 1,
+    OpCode.LDLOC: 1, OpCode.STLOC: 1,
+    OpCode.LDARG: 1, OpCode.STARG: 1,
+    OpCode.NEWARRAY_T: 1, OpCode.ISTYPE: 1, OpCode.CONVERT: 1,
+}
+
+
 def _get_operand_size(opcode: int, script: bytes, position: int) -> int:
     """Get the operand size for an opcode."""
-    from neo.vm.opcode import OpCode
-
-    try:
-        op = OpCode(opcode)
-    except ValueError:
-        return 0
-
-    # Variable-length operands
-    if op == OpCode.PUSHDATA1:
+    # Variable-length operands (must inspect script bytes)
+    if opcode == OpCode.PUSHDATA1:
         return 1 + script[position + 1] if position + 1 < len(script) else 0
-    elif op == OpCode.PUSHDATA2:
+    if opcode == OpCode.PUSHDATA2:
         if position + 2 < len(script):
-            length = int.from_bytes(script[position + 1:position + 3], 'little')
-            return 2 + length
+            return 2 + int.from_bytes(script[position + 1:position + 3], 'little')
         return 0
-    elif op == OpCode.PUSHDATA4:
+    if opcode == OpCode.PUSHDATA4:
         if position + 4 < len(script):
-            length = int.from_bytes(script[position + 1:position + 5], 'little')
-            return 4 + length
+            return 4 + int.from_bytes(script[position + 1:position + 5], 'little')
         return 0
-    
-    # Fixed-size operands
-    operand_sizes = {
-        OpCode.PUSHINT8: 1,
-        OpCode.PUSHINT16: 2,
-        OpCode.PUSHINT32: 4,
-        OpCode.PUSHINT64: 8,
-        OpCode.PUSHINT128: 16,
-        OpCode.PUSHINT256: 32,
-        OpCode.PUSHA: 4,
-        OpCode.JMP: 1,
-        OpCode.JMP_L: 4,
-        OpCode.JMPIF: 1,
-        OpCode.JMPIF_L: 4,
-        OpCode.JMPIFNOT: 1,
-        OpCode.JMPIFNOT_L: 4,
-        OpCode.JMPEQ: 1,
-        OpCode.JMPEQ_L: 4,
-        OpCode.JMPNE: 1,
-        OpCode.JMPNE_L: 4,
-        OpCode.JMPGT: 1,
-        OpCode.JMPGT_L: 4,
-        OpCode.JMPGE: 1,
-        OpCode.JMPGE_L: 4,
-        OpCode.JMPLT: 1,
-        OpCode.JMPLT_L: 4,
-        OpCode.JMPLE: 1,
-        OpCode.JMPLE_L: 4,
-        OpCode.CALL: 1,
-        OpCode.CALL_L: 4,
-        OpCode.CALLT: 2,
-        OpCode.TRY: 2,
-        OpCode.TRY_L: 8,
-        OpCode.ENDTRY: 1,
-        OpCode.ENDTRY_L: 4,
-        OpCode.SYSCALL: 4,
-        OpCode.INITSSLOT: 1,
-        OpCode.INITSLOT: 2,
-        OpCode.LDSFLD: 1,
-        OpCode.STSFLD: 1,
-        OpCode.LDLOC: 1,
-        OpCode.STLOC: 1,
-        OpCode.LDARG: 1,
-        OpCode.STARG: 1,
-        OpCode.NEWARRAY_T: 1,
-        OpCode.ISTYPE: 1,
-        OpCode.CONVERT: 1,
-    }
-    
-    return operand_sizes.get(op, 0)
+
+    return _OPERAND_SIZES.get(opcode, 0)
