@@ -1,6 +1,8 @@
-# Known NeoGo 0.116.0 deltas vs Neo C# 3.9.1.
-# Verified on 2026-02-14 and re-verified on 2026-02-16 across
-# rpc1..rpc7 MainNet and rpc.t5 TestNet, all reporting /NEO-GO:0.116.0/.
+# Known NeoGo control-flow deltas vs Neo C# 3.9.1.
+# Verified on 2026-02-14, 2026-02-16, and 2026-02-19 across
+# rpc1..rpc7 MainNet and rpc.t5 TestNet.
+# NeoGo endpoint user-agent has moved from /NEO-GO:0.116.0/ to /NEO-GO:0.117.0/,
+# while this 5-vector delta set remained stable.
 # Cause: NeoGo faults on ENDTRY*/ENDFINALLY jump targets that C# treats as
 # valid end-of-script control flow in these vectors.
 # See details:

@@ -86,12 +86,18 @@ neo-diff --vectors tests/vectors/vm/ --python-only
 # Compare with C# neo-cli
 neo-diff --vectors tests/vectors/ --csharp-rpc http://localhost:10332
 
+# Compare with live C# endpoint while ignoring governance-mutated PolicyContract
+# read values (getFeePerByte/getExecFeeFactor/getStoragePrice) only
+neo-diff --vectors tests/vectors/ \
+         --csharp-rpc http://seed1.neo.org:10332 \
+         --allow-policy-governance-drift
+
 # Compare C# vs NeoGo compatibility (strict, MainNet)
 neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332
 
-# Same check with known NeoGo 0.116.0 TRY/ENDTRY deltas ignored (5 vectors)
+# Same check with known NeoGo TRY/ENDTRY deltas ignored (5 vectors)
 neo-compat --vectors tests/vectors/ \
            --csharp-rpc http://seed1.neo.org:10332 \
            --neogo-rpc http://rpc3.n3.nspcc.ru:10332 \
@@ -147,7 +153,7 @@ For repeatable public NeoGo endpoint delta checks (MainNet + TestNet):
 ```bash
 python3 scripts/neogo_endpoint_matrix.py \
   --output-dir reports/compat-endpoint-matrix \
-  --prefix neogo-0.116-endpoint-matrix
+  --prefix neogo-endpoint-matrix
 ```
 
 ### Native surface parity helper
@@ -201,17 +207,19 @@ python -m build --sdist --wheel
 twine check dist/*
 ```
 
-## Production Snapshot (2026-02-16 UTC)
+## Production Snapshot (2026-02-19 UTC)
 
-- Baseline C# 3.9.1 alignment: `405/405` strict vectors on MainNet and TestNet.
-- NeoGo 0.116.0 strict delta set: stable 5-vector TRY/ENDTRY control-flow divergence.
-- NeoGo ignore-gated parity (`docs/verification/neogo-0.116-known-deltas.txt`): `Vector deltas: 0` on MainNet/TestNet.
-- Public endpoint matrix (`rpc1..rpc7` MainNet + `rpc.t5` TestNet): same 5/5 delta reproduction on every endpoint.
-- Tri-client status: local `neo-rs` endpoints in this environment return `ERROR` across vectors, so tri-client parity is not claimable yet.
+- Live C# 3.9.1 strict vectors (MainNet public endpoint): `402/405` (3 `PolicyContract` value deltas).
+- Live policy values currently observed on MainNet/TestNet: `20 / 1 / 1000` for `getFeePerByte / getExecFeeFactor / getStoragePrice`.
+- NeoGo strict delta set remains at 5 TRY/ENDTRY vectors on MainNet and on TestNet strict rerun; one TestNet strict run observed a transient extra `ASSERTMSG_false_fault` delta.
+- NeoGo endpoint matrix checks now track user-agent by stable token (`NEO-GO:`), not a pinned patch version.
+- Native contract surface parity vs live C# is clean on both MainNet and TestNet (`11/11` contracts with zero mismatches).
+- Tri-client status: local `neo-rs` endpoints in this environment return connection errors, so tri-client parity is not claimable yet.
 
 Evidence:
 - `docs/verification/neogo-0.116-validation-2026-02-16.md`
 - `docs/verification/neogo-0.116-known-deltas.txt`
+- `docs/verification/live-validation-2026-02-19.md`
 
 ## Project Structure
 

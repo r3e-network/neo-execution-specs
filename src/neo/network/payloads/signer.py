@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class Signer:
     """Transaction signer."""
 
-    account: "UInt160 | None" = None
+    account: UInt160 | None = None
     scopes: WitnessScope = WitnessScope.CALLED_BY_ENTRY
     allowed_contracts: list[bytes] = field(default_factory=list)
     allowed_groups: list[bytes] = field(default_factory=list)
@@ -35,7 +35,7 @@ class Signer:
             size += 1 + sum(r.size for r in self.rules)
         return size
 
-    def serialize(self, writer: "BinaryWriter") -> None:
+    def serialize(self, writer: BinaryWriter) -> None:
         """Serialize the signer."""
         if self.account is not None:
             writer.write_bytes(self.account.data)
@@ -60,12 +60,16 @@ class Signer:
                 rule.serialize(writer)
 
     @classmethod
-    def deserialize(cls, reader: "BinaryReader") -> "Signer":
+    def deserialize(cls, reader: BinaryReader) -> Signer:
         """Deserialize a signer."""
         from neo.types.uint160 import UInt160
 
         account = UInt160(reader.read_bytes(20))
         scopes = WitnessScope(reader.read_byte())
+
+        # Global scope cannot be combined with other scopes
+        if (scopes & WitnessScope.GLOBAL) and scopes != WitnessScope.GLOBAL:
+            raise ValueError("Global scope cannot be combined with other scopes")
 
         allowed_contracts: list[bytes] = []
         if scopes & WitnessScope.CUSTOM_CONTRACTS:

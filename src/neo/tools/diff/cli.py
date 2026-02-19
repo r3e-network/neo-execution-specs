@@ -50,6 +50,15 @@ def create_parser() -> argparse.ArgumentParser:
         default=0,
         help="Allowed gas difference tolerance",
     )
+
+    parser.add_argument(
+        "--allow-policy-governance-drift",
+        action="store_true",
+        help=(
+            "Ignore stack[0] value differences for PolicyContract "
+            "getFeePerByte/getExecFeeFactor/getStoragePrice native vectors."
+        ),
+    )
     
     parser.add_argument(
         "--verbose",
@@ -83,7 +92,10 @@ def run_diff_tests(args: argparse.Namespace) -> int:
         csharp_rpc=args.csharp_rpc,
         python_only=args.python_only,
     )
-    comparator = ResultComparator(gas_tolerance=args.gas_tolerance)
+    comparator = ResultComparator(
+        gas_tolerance=args.gas_tolerance,
+        allow_policy_governance_drift=getattr(args, "allow_policy_governance_drift", False),
+    )
     reporter = DiffReporter()
     
     return _execute_tests(runner, comparator, reporter, vectors, args)
@@ -111,7 +123,12 @@ def _execute_tests(runner, comparator, reporter, vectors, args) -> int:
                 print(status)
         else:
             # Compare results
-            result = comparator.compare(vector.name, py_result, cs_result)
+            result = comparator.compare(
+                vector.name,
+                py_result,
+                cs_result,
+                vector_metadata=vector.metadata,
+            )
             reporter.add_result(result)
             if args.verbose:
                 print("PASS" if result.is_match else "FAIL")
@@ -131,7 +148,7 @@ def _output_report(reporter, args) -> int:
     reporter.write_text(sys.stdout)
     
     # Return exit code
-    return 0 if reporter.report.failed == 0 else 1
+    return 0 if reporter.report.failed == 0 and reporter.report.errors == 0 else 1
 
 
 def main() -> int:

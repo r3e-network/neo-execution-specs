@@ -9,25 +9,25 @@ from typing import Any
 import pytest
 
 from neo.hardfork import Hardfork
-from neo.native.contract_management import ContractManagement, ContractState, PREFIX_CONTRACT
+from neo.native import initialize_native_contracts
+from neo.native.contract_management import PREFIX_CONTRACT, ContractManagement, ContractState
 from neo.native.native_contract import StorageItem
-from neo.native.neo_token import CandidateState, PREFIX_CANDIDATE
+from neo.native.neo_token import PREFIX_CANDIDATE, CandidateState
 from neo.native.policy import (
-    PolicyContract,
     DEFAULT_EXEC_FEE_FACTOR,
-    DEFAULT_STORAGE_PRICE,
     DEFAULT_FEE_PER_BYTE,
+    DEFAULT_STORAGE_PRICE,
+    MAX_EXEC_FEE_FACTOR,
     MAX_MAX_TRACEABLE_BLOCKS,
     MAX_MAX_VALID_UNTIL_BLOCK_INCREMENT,
     MAX_MILLISECONDS_PER_BLOCK,
-    MAX_EXEC_FEE_FACTOR,
     MAX_STORAGE_PRICE,
     PREFIX_BLOCKED_ACCOUNT,
     PREFIX_MAX_TRACEABLE_BLOCKS,
     PREFIX_MAX_VALID_UNTIL_BLOCK_INCREMENT,
     PREFIX_WHITELIST_FEE,
+    PolicyContract,
 )
-from neo.native import initialize_native_contracts
 from neo.protocol_settings import ProtocolSettings
 from neo.types import UInt160
 
@@ -115,7 +115,7 @@ def _add_contract_state(
         nef=b"\x01",
         manifest=json.dumps(manifest).encode("utf-8"),
     )
-    key = contract_management._create_storage_key(PREFIX_CONTRACT, contract_hash.data)  # noqa: SLF001
+    key = contract_management._create_storage_key(PREFIX_CONTRACT, contract_hash.data)
     snapshot.add(key, StorageItem(state.to_bytes()))
 
 
@@ -157,9 +157,9 @@ class TestPolicyContract:
     
     def test_default_constants(self):
         """Test default constant values."""
-        assert DEFAULT_EXEC_FEE_FACTOR == 1
-        assert DEFAULT_STORAGE_PRICE == 1000
-        assert DEFAULT_FEE_PER_BYTE == 20
+        assert DEFAULT_EXEC_FEE_FACTOR == 30
+        assert DEFAULT_STORAGE_PRICE == 100_000
+        assert DEFAULT_FEE_PER_BYTE == 1000
     
     def test_max_constants(self):
         """Test maximum constant values."""
@@ -179,7 +179,7 @@ class TestPolicyContract:
                 return None
 
         snap = _Snap()
-        assert policy.get_exec_pico_fee_factor(snap) == 10000
+        assert policy.get_exec_pico_fee_factor(snap) == 300_000
         assert policy.get_milliseconds_per_block(snap) == 15000
         assert policy.get_max_valid_until_block_increment(snap) == 5760
         assert policy.get_max_traceable_blocks(snap) == 2_102_400
@@ -188,7 +188,7 @@ class TestPolicyContract:
         policy = PolicyContract()
         engine = _Engine(committee=True)
 
-        trace_key = policy._create_storage_key(PREFIX_MAX_TRACEABLE_BLOCKS)  # noqa: SLF001
+        trace_key = policy._create_storage_key(PREFIX_MAX_TRACEABLE_BLOCKS)
         trace_item = StorageItem()
         trace_item.set(8_000)
         engine.snapshot.add(trace_key, trace_item)
@@ -249,18 +249,18 @@ class TestPolicyContract:
         with pytest.raises(KeyError, match="getExecPicoFeeFactor"):
             policy.get_exec_pico_fee_factor(pre_faun.snapshot)
 
-        assert policy.get_exec_pico_fee_factor(at_faun.snapshot) == 10000
+        assert policy.get_exec_pico_fee_factor(at_faun.snapshot) == 300_000
 
     def test_set_max_traceable_blocks_cannot_increase(self) -> None:
         policy = PolicyContract()
         engine = _Engine(committee=True)
 
-        trace_key = policy._create_storage_key(PREFIX_MAX_TRACEABLE_BLOCKS)  # noqa: SLF001
+        trace_key = policy._create_storage_key(PREFIX_MAX_TRACEABLE_BLOCKS)
         trace_item = StorageItem()
         trace_item.set(10_000)
         engine.snapshot.add(trace_key, trace_item)
 
-        max_vub_key = policy._create_storage_key(PREFIX_MAX_VALID_UNTIL_BLOCK_INCREMENT)  # noqa: SLF001
+        max_vub_key = policy._create_storage_key(PREFIX_MAX_VALID_UNTIL_BLOCK_INCREMENT)
         max_vub_item = StorageItem()
         max_vub_item.set(1_000)
         engine.snapshot.add(max_vub_key, max_vub_item)
@@ -272,12 +272,12 @@ class TestPolicyContract:
         policy = PolicyContract()
         engine = _Engine(committee=True)
 
-        trace_key = policy._create_storage_key(PREFIX_MAX_TRACEABLE_BLOCKS)  # noqa: SLF001
+        trace_key = policy._create_storage_key(PREFIX_MAX_TRACEABLE_BLOCKS)
         trace_item = StorageItem()
         trace_item.set(10_000)
         engine.snapshot.add(trace_key, trace_item)
 
-        max_vub_key = policy._create_storage_key(PREFIX_MAX_VALID_UNTIL_BLOCK_INCREMENT)  # noqa: SLF001
+        max_vub_key = policy._create_storage_key(PREFIX_MAX_VALID_UNTIL_BLOCK_INCREMENT)
         max_vub_item = StorageItem()
         max_vub_item.set(9_000)
         engine.snapshot.add(max_vub_key, max_vub_item)
@@ -302,7 +302,7 @@ class TestPolicyContract:
 
         policy.set_whitelist_fee_contract(engine, target_hash, "balanceOf", 1, 777)
 
-        expected_key = policy._create_storage_key(PREFIX_WHITELIST_FEE, target_hash.data, 42)  # noqa: SLF001
+        expected_key = policy._create_storage_key(PREFIX_WHITELIST_FEE, target_hash.data, 42)
         stored = engine.snapshot.get(expected_key)
         assert stored is not None
         assert int(stored) == 777
@@ -347,7 +347,7 @@ class TestPolicyContract:
             policy.remove_whitelist_fee_contract(engine, target_hash, "vote", 2)
 
         policy.set_whitelist_fee_contract(engine, target_hash, "vote", 2, 99_000)
-        key = policy._create_storage_key(PREFIX_WHITELIST_FEE, target_hash.data, 99)  # noqa: SLF001
+        key = policy._create_storage_key(PREFIX_WHITELIST_FEE, target_hash.data, 99)
         assert engine.snapshot.contains(key)
 
         policy.remove_whitelist_fee_contract(engine, target_hash, "vote", 2)
@@ -390,7 +390,7 @@ class TestPolicyContract:
         account = UInt160(b"\x62" * 20)
         candidate = b"\x02" + b"\x33" * 32
 
-        candidate_key = neo._create_storage_key(PREFIX_CANDIDATE, candidate)  # noqa: SLF001
+        candidate_key = neo._create_storage_key(PREFIX_CANDIDATE, candidate)
         engine.snapshot.add(candidate_key, StorageItem(CandidateState(registered=True, votes=0).to_bytes()))
 
         neo.mint(engine, account, 80)
@@ -400,7 +400,7 @@ class TestPolicyContract:
         assert neo.get_account_state(engine.snapshot, account).vote_to == candidate
         assert neo.get_candidate_vote(engine.snapshot, candidate) == 80
 
-        blocked_key = policy._create_storage_key(PREFIX_BLOCKED_ACCOUNT, account.data)  # noqa: SLF001
+        blocked_key = policy._create_storage_key(PREFIX_BLOCKED_ACCOUNT, account.data)
         blocked_item = engine.snapshot.get(blocked_key)
         assert blocked_item is not None
         assert blocked_item.value == b""
@@ -414,7 +414,7 @@ class TestPolicyContract:
         account = UInt160(b"\x63" * 20)
         candidate = b"\x02" + b"\x44" * 32
 
-        candidate_key = neo._create_storage_key(PREFIX_CANDIDATE, candidate)  # noqa: SLF001
+        candidate_key = neo._create_storage_key(PREFIX_CANDIDATE, candidate)
         engine.snapshot.add(candidate_key, StorageItem(CandidateState(registered=True, votes=0).to_bytes()))
 
         neo.mint(engine, account, 75)
@@ -424,7 +424,7 @@ class TestPolicyContract:
         assert neo.get_account_state(engine.snapshot, account).vote_to is None
         assert neo.get_candidate_vote(engine.snapshot, candidate) == 0
 
-        blocked_key = policy._create_storage_key(PREFIX_BLOCKED_ACCOUNT, account.data)  # noqa: SLF001
+        blocked_key = policy._create_storage_key(PREFIX_BLOCKED_ACCOUNT, account.data)
         blocked_item = engine.snapshot.get(blocked_key)
         assert blocked_item is not None
         assert int(blocked_item) == 123_456
@@ -453,7 +453,7 @@ class TestPolicyContract:
         assert policy.block_account(engine, blocked) is True
         gas.mint(engine, blocked, 10)
 
-        engine._now_ms = one_year_ms - 1  # noqa: SLF001
+        engine._now_ms = one_year_ms - 1
         with pytest.raises(ValueError, match="at least 1 year ago"):
             policy.recover_fund(engine, blocked, gas.hash)
 
@@ -473,7 +473,7 @@ class TestPolicyContract:
         assert gas.balance_of(engine.snapshot, blocked) == 250
         assert gas.balance_of(engine.snapshot, treasury.hash) == 0
 
-        engine._now_ms = one_year_ms + 1  # noqa: SLF001
+        engine._now_ms = one_year_ms + 1
         recovered = policy.recover_fund(engine, blocked, gas.hash)
 
         assert recovered is True
@@ -502,11 +502,11 @@ class TestPolicyContract:
             nef=b"\x01",
             manifest=json.dumps(manifest).encode("utf-8"),
         )
-        key = contract_management._create_storage_key(PREFIX_CONTRACT, token_hash.data)  # noqa: SLF001
+        key = contract_management._create_storage_key(PREFIX_CONTRACT, token_hash.data)
         engine.snapshot.add(key, StorageItem(state.to_bytes()))
         assert policy.block_account(engine, blocked) is True
 
-        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1  # noqa: SLF001
+        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1
         with pytest.raises(ValueError, match="does not implement NEP-17"):
             policy.recover_fund(engine, blocked, token_hash)
 
@@ -519,7 +519,7 @@ class TestPolicyContract:
         account = UInt160(b"\x75" * 20)
         candidate = b"\x02" + b"\x11" * 32
 
-        candidate_key = neo._create_storage_key(PREFIX_CANDIDATE, candidate)  # noqa: SLF001
+        candidate_key = neo._create_storage_key(PREFIX_CANDIDATE, candidate)
         engine.snapshot.add(candidate_key, StorageItem(CandidateState(registered=True, votes=0).to_bytes()))
 
         neo.mint(engine, account, 100)
@@ -540,12 +540,12 @@ class TestPolicyContract:
         account = UInt160(b"\x76" * 20)
         candidate = b"\x02" + b"\x22" * 32
 
-        candidate_key = neo._create_storage_key(PREFIX_CANDIDATE, candidate)  # noqa: SLF001
+        candidate_key = neo._create_storage_key(PREFIX_CANDIDATE, candidate)
         engine.snapshot.add(candidate_key, StorageItem(CandidateState(registered=True, votes=0).to_bytes()))
 
         neo.mint(engine, account, 50)
         assert neo.vote(engine, account, candidate) is True
-        engine._witness = False  # noqa: SLF001
+        engine._witness = False
 
         assert policy.block_account(engine, account) is True
         assert neo.get_account_state(engine.snapshot, account).vote_to is None
@@ -591,11 +591,11 @@ class TestPolicyContract:
             nef=b"\x01",
             manifest=json.dumps(manifest).encode("utf-8"),
         )
-        key = contract_management._create_storage_key(PREFIX_CONTRACT, token_hash.data)  # noqa: SLF001
+        key = contract_management._create_storage_key(PREFIX_CONTRACT, token_hash.data)
         engine.snapshot.add(key, StorageItem(state.to_bytes()))
 
         assert policy.block_account(engine, blocked) is True
-        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1  # noqa: SLF001
+        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1
 
         calls: list[tuple[UInt160, str, list[Any]]] = []
 
@@ -655,11 +655,11 @@ class TestPolicyContract:
             nef=b"\x01",
             manifest=json.dumps(manifest).encode("utf-8"),
         )
-        key = contract_management._create_storage_key(PREFIX_CONTRACT, token_hash.data)  # noqa: SLF001
+        key = contract_management._create_storage_key(PREFIX_CONTRACT, token_hash.data)
         engine.snapshot.add(key, StorageItem(state.to_bytes()))
 
         assert policy.block_account(engine, blocked) is True
-        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1  # noqa: SLF001
+        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1
 
         def _call_contract(hash_: UInt160, method: str, args: list[Any]) -> Any:
             if method == "balanceOf":
@@ -687,7 +687,7 @@ class TestPolicyContract:
 
         assert policy.block_account(engine, blocked) is True
         gas.mint(engine, blocked, 90)
-        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1  # noqa: SLF001
+        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1
 
         assert policy.recover_fund(engine, blocked, gas.hash) is True
         assert gas.balance_of(engine.snapshot, blocked) == 0
@@ -703,8 +703,8 @@ class TestPolicyContract:
 
         assert policy.block_account(engine, blocked) is True
         gas.mint(engine, blocked, 15)
-        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1  # noqa: SLF001
-        engine._almost_committee = False  # noqa: SLF001
+        engine._now_ms = 365 * 24 * 60 * 60 * 1000 + 1
+        engine._almost_committee = False
 
         with pytest.raises(PermissionError, match="Almost full committee"):
             policy.recover_fund(engine, blocked, gas.hash)

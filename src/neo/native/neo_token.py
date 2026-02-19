@@ -269,10 +269,18 @@ class NeoToken(FungibleToken):
         return NeoAccountState()
 
     def get_gas_per_block(self, snapshot: Any) -> int:
-        """Get the amount of GAS generated per block."""
-        key = self._create_storage_key(PREFIX_GAS_PER_BLOCK)
-        item = snapshot.get(key)
-        return int(item) if item else 5 * 10**8  # Default 5 GAS
+        """Get the current GAS generated per block.
+
+        Scans all PREFIX_GAS_PER_BLOCK entries (keyed by block index) and
+        returns the value with the highest index, matching the C# reference
+        which seeks backwards from the current height.
+        """
+        prefix = self._create_storage_key(PREFIX_GAS_PER_BLOCK)
+        best_value = 5 * 10**8  # Default 5 GAS
+        if hasattr(snapshot, "find"):
+            for _key, item in snapshot.find(prefix):
+                best_value = int(item)
+        return best_value
 
     def set_gas_per_block(self, engine: Any, gas_per_block: int) -> None:
         """Set GAS per block. Committee only."""

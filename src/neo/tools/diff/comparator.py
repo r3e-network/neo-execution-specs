@@ -7,6 +7,12 @@ from typing import Any
 
 from neo.tools.diff.models import ExecutionResult, StackValue
 
+_POLICY_GOVERNANCE_METHODS = {
+    "getfeeperbyte",
+    "getexecfeefactor",
+    "getstorageprice",
+}
+
 class DiffType(Enum):
     """Type of difference found."""
     STATE_MISMATCH = "state_mismatch"
@@ -53,14 +59,20 @@ class ComparisonResult:
 class ResultComparator:
     """Compare execution results between implementations."""
     
-    def __init__(self, gas_tolerance: int = 0):
+    def __init__(
+        self,
+        gas_tolerance: int = 0,
+        allow_policy_governance_drift: bool = False,
+    ):
         self.gas_tolerance = gas_tolerance
+        self.allow_policy_governance_drift = allow_policy_governance_drift
     
     def compare(
         self,
         vector_name: str,
         py_result: ExecutionResult,
         cs_result: ExecutionResult,
+        vector_metadata: dict[str, Any] | None = None,
     ) -> ComparisonResult:
         """Compare Python and C# execution results."""
         differences = []
@@ -90,6 +102,9 @@ class ResultComparator:
                     csharp_value=cs_result.gas_consumed,
                     message=f"Gas difference: {gas_diff}",
                 ))
+
+        if self.allow_policy_governance_drift and self._is_policy_governance_vector(vector_metadata):
+            differences = self._filter_policy_governance_drift_differences(differences)
         
         return ComparisonResult(
             vector_name=vector_name,
@@ -98,6 +113,32 @@ class ResultComparator:
             python_result=py_result,
             csharp_result=cs_result,
         )
+
+    @staticmethod
+    def _is_policy_governance_vector(vector_metadata: dict[str, Any] | None) -> bool:
+        if not isinstance(vector_metadata, dict):
+            return False
+        category = str(vector_metadata.get("category", "")).lower()
+        contract = str(vector_metadata.get("contract", "")).lower()
+        method = str(vector_metadata.get("method", "")).lower()
+        return (
+            category == "native"
+            and contract == "policycontract"
+            and method in _POLICY_GOVERNANCE_METHODS
+        )
+
+    @staticmethod
+    def _filter_policy_governance_drift_differences(
+        differences: list[Difference],
+    ) -> list[Difference]:
+        return [
+            difference
+            for difference in differences
+            if not (
+                difference.diff_type == DiffType.STACK_VALUE
+                and difference.path == "stack[0]"
+            )
+        ]
     
     def _compare_stacks(
         self,

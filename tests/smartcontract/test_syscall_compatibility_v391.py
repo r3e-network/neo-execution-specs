@@ -13,14 +13,13 @@ from neo.protocol_settings import ProtocolSettings
 from neo.smartcontract.application_engine import ApplicationEngine
 from neo.smartcontract.call_flags import CallFlags
 from neo.smartcontract.interop_service import get_interop_hash, get_syscall, invoke_syscall
-from neo.vm.types import ByteString, NULL
-
+from neo.vm.types import NULL, ByteString
 
 EXPECTED_SYSCALLS_V391: dict[str, tuple[int, CallFlags, Hardfork | None]] = {
     "System.Contract.Call": (1 << 15, CallFlags.READ_STATES | CallFlags.ALLOW_CALL, None),
     "System.Contract.CallNative": (0, CallFlags.NONE, None),
-    "System.Contract.CreateMultisigAccount": (0, CallFlags.NONE, None),
-    "System.Contract.CreateStandardAccount": (0, CallFlags.NONE, None),
+    "System.Contract.CreateMultisigAccount": (1 << 8, CallFlags.NONE, None),
+    "System.Contract.CreateStandardAccount": (1 << 8, CallFlags.NONE, None),
     "System.Contract.GetCallFlags": (1 << 10, CallFlags.NONE, None),
     "System.Contract.NativeOnPersist": (0, CallFlags.STATES, None),
     "System.Contract.NativePostPersist": (0, CallFlags.STATES, None),

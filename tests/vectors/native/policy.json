@@ -12,7 +12,7 @@
       "args": [],
       "pre_state": {},
       "post_state": {},
-      "result": 20
+      "result": 1000
     },
     {
       "name": "Policy_getExecFeeFactor",
@@ -22,7 +22,7 @@
       "args": [],
       "pre_state": {},
       "post_state": {},
-      "result": 1
+      "result": 30
     },
     {
       "name": "Policy_getStoragePrice",
@@ -32,7 +32,7 @@
       "args": [],
       "pre_state": {},
       "post_state": {},
-      "result": 1000
+      "result": 100000
     }
   ]
 }

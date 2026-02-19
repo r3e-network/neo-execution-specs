@@ -86,6 +86,8 @@ class TestT8N:
         sb = ScriptBuilder()
         sb.emit_push("Transfer")
         sb.emit_push(7)
+        sb.emit_push(1)
+        sb.emit(OpCode.PACK)
         sb.emit_syscall(notify_hash)
         sb.emit_push(1)
         script = sb.to_bytes()
@@ -100,7 +102,7 @@ class TestT8N:
         notification = receipt.notifications[0]
         assert notification["contract"] == f"0x{hash160(script).hex()}"
         assert notification["eventName"] == "Transfer"
-        assert notification["state"] == {"type": "Integer", "value": "7"}
+        assert notification["state"] == {"type": "Array", "value": [{"type": "Integer", "value": "7"}]}
 
     def test_post_alloc_extracts_account_entries_in_schema(self):
         addr1 = "0000000000000000000000000000000000000001"

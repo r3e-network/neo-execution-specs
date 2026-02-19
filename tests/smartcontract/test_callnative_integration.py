@@ -89,7 +89,7 @@ def test_callnative_policy_is_blocked_snapshot_signature() -> None:
 
     engine.push(ByteString(bytes([0x11]) * 20))
     engine.push(Integer(0))  # version
-    engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call_native(engine)
 
     assert engine.pop().get_integer() == 0
 
@@ -109,7 +109,7 @@ def test_callnative_notary_verify_engine_signature() -> None:
 
     engine.push(ByteString(b"\x00" * 64))
     engine.push(Integer(0))  # version
-    engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call_native(engine)
 
     assert engine.pop().get_integer() == 0
 
@@ -132,7 +132,7 @@ def test_callnative_stdlib_value_context_signature() -> None:
 
     engine.push(ByteString(b"hello"))
     engine.push(Integer(0))  # version
-    engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call_native(engine)
 
     assert engine.pop().get_string() == "aGVsbG8"
 
@@ -156,7 +156,7 @@ def test_callnative_contract_management_is_contract_hardfork_gated() -> None:
     )
     post_engine.push(ByteString(bytes([0x33]) * 20))
     post_engine.push(Integer(0))  # version
-    post_engine._contract_call_native(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call_native(post_engine)
     assert post_engine.pop().get_integer() == 0
 
 
@@ -178,8 +178,8 @@ def test_callnative_policy_get_exec_pico_fee_factor_hardfork_gated() -> None:
         settings=settings,
     )
     post_engine.push(Integer(0))  # version
-    post_engine._contract_call_native(post_engine)  # noqa: SLF001 - integration lock
-    assert post_engine.pop().get_integer() == 10_000
+    post_engine._contract_call_native(post_engine)
+    assert post_engine.pop().get_integer() == 300_000
 
 
 def test_callnative_stdlib_base64_url_encode_hardfork_gated() -> None:
@@ -201,7 +201,7 @@ def test_callnative_stdlib_base64_url_encode_hardfork_gated() -> None:
     )
     post_engine.push(ByteString(b"hello"))
     post_engine.push(Integer(0))  # version
-    post_engine._contract_call_native(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call_native(post_engine)
     assert post_engine.pop().get_string() == "aGVsbG8"
 
 
@@ -224,7 +224,7 @@ def test_callnative_cryptolib_keccak256_is_cockatrice_gated() -> None:
     )
     post_engine.push(ByteString(b"neo"))
     post_engine.push(Integer(0))  # version
-    post_engine._contract_call_native(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call_native(post_engine)
 
     result = post_engine.pop()
     assert isinstance(result, ByteString)
@@ -251,7 +251,7 @@ def test_callnative_cryptolib_verify_with_ecdsa_switches_at_cockatrice() -> None
     pre_engine.push(Integer(24))  # secp256k1Keccak256
     pre_engine.push(Integer(0))  # version
     with pytest.raises(Exception, match="curve_hash out of range"):
-        pre_engine._contract_call_native(pre_engine)  # noqa: SLF001 - integration lock
+        pre_engine._contract_call_native(pre_engine)
 
     post_snapshot = _Snapshot(settings=settings, index=150)
     post_offset = _active_method_offset(crypto, post_snapshot, "verifyWithECDsa")
@@ -267,7 +267,7 @@ def test_callnative_cryptolib_verify_with_ecdsa_switches_at_cockatrice() -> None
     post_engine.push(ByteString(b"\x00" * 64))
     post_engine.push(Integer(24))  # secp256k1Keccak256
     post_engine.push(Integer(0))  # version
-    post_engine._contract_call_native(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call_native(post_engine)
     assert post_engine.pop().get_integer() == 0
 
 
@@ -289,7 +289,7 @@ def test_callnative_rejects_insufficient_call_flags() -> None:
     engine.push(Integer(0))  # version
 
     with pytest.raises(Exception, match="Insufficient call flags"):
-        engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+        engine._contract_call_native(engine)
 
 
 def test_callnative_rejects_nonzero_version() -> None:
@@ -308,7 +308,7 @@ def test_callnative_rejects_nonzero_version() -> None:
     engine.push(Integer(1))  # unsupported native-version selector
 
     with pytest.raises(Exception, match="version 1"):
-        engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+        engine._contract_call_native(engine)
 
 
 def test_callnative_policy_offset_map_shifts_across_hardforks() -> None:
@@ -327,8 +327,8 @@ def test_callnative_policy_offset_map_shifts_across_hardforks() -> None:
         settings=settings,
     )
     pre_engine.push(Integer(0))  # version
-    pre_engine._contract_call_native(pre_engine)  # noqa: SLF001 - integration lock
-    assert pre_engine.pop().get_integer() == 1_000
+    pre_engine._contract_call_native(pre_engine)
+    assert pre_engine.pop().get_integer() == 100_000
 
     # At HF_Faun, offset 29 resolves to getExecPicoFeeFactor.
     post_snapshot = _Snapshot(settings=settings, index=200)
@@ -340,8 +340,8 @@ def test_callnative_policy_offset_map_shifts_across_hardforks() -> None:
         settings=settings,
     )
     post_engine.push(Integer(0))  # version
-    post_engine._contract_call_native(post_engine)  # noqa: SLF001 - integration lock
-    assert post_engine.pop().get_integer() == 10_000
+    post_engine._contract_call_native(post_engine)
+    assert post_engine.pop().get_integer() == 300_000
 
 
 def test_callnative_requires_active_syscall_offset_without_descriptor_fallback() -> None:
@@ -366,7 +366,7 @@ def test_callnative_requires_active_syscall_offset_without_descriptor_fallback()
     )
     engine.push(Integer(0))  # version
     with pytest.raises(Exception, match="Method not found at offset"):
-        engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+        engine._contract_call_native(engine)
 
 
 @pytest.mark.parametrize(
@@ -397,7 +397,7 @@ def test_callnative_policy_echidna_read_methods_hardfork_gated(
         settings=settings,
     )
     post_engine.push(Integer(0))  # version
-    post_engine._contract_call_native(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call_native(post_engine)
     assert post_engine.pop().get_integer() == expected
 
 
@@ -429,7 +429,7 @@ def test_callnative_stdlib_faun_codec_methods_hardfork_gated(
     )
     post_engine.push(arg)
     post_engine.push(Integer(0))  # version
-    post_engine._contract_call_native(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call_native(post_engine)
 
     result = post_engine.pop()
     assert isinstance(result, ByteString)
@@ -461,7 +461,7 @@ def test_callnative_policy_faun_iterator_methods_hardfork_gated(method_name: str
         settings=settings,
     )
     post_engine.push(Integer(0))  # version
-    post_engine._contract_call_native(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call_native(post_engine)
 
     result = post_engine.pop()
     assert isinstance(result, InteropInterface)
@@ -480,7 +480,7 @@ def test_callnative_native_list_result_pushes_vm_array() -> None:
         snapshot=snapshot,
     )
     engine.push(Integer(0))  # version
-    engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call_native(engine)
 
     result = engine.pop()
     assert isinstance(result, Array)
@@ -500,7 +500,7 @@ def test_callnative_native_uint160_result_pushes_bytestring() -> None:
         snapshot=snapshot,
     )
     engine.push(Integer(0))  # version
-    engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call_native(engine)
 
     result = engine.pop()
     assert isinstance(result, ByteString)
@@ -523,7 +523,7 @@ def test_callnative_native_list_of_strings_result_is_vm_array() -> None:
     engine.push(ByteString(b","))
     engine.push(Integer(1))  # removeEmptyEntries=True
     engine.push(Integer(0))  # version
-    engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call_native(engine)
 
     result = engine.pop()
     assert isinstance(result, Array)
@@ -543,7 +543,7 @@ def test_callnative_native_uint256_result_pushes_bytestring() -> None:
         snapshot=snapshot,
     )
     engine.push(Integer(0))  # version
-    engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call_native(engine)
 
     result = engine.pop()
     assert isinstance(result, ByteString)
@@ -564,7 +564,7 @@ def test_callnative_native_dict_result_pushes_vm_map() -> None:
     )
     engine.push(ByteString(b"{\"a\":1,\"b\":\"x\"}"))
     engine.push(Integer(0))  # version
-    engine._contract_call_native(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call_native(engine)
 
     result = engine.pop()
     assert isinstance(result, Map)

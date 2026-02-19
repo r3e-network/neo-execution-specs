@@ -47,14 +47,15 @@ Run a targeted C#/NeoGo endpoint matrix probe using expected delta vectors from
 
 ```bash
 python3 scripts/neogo_endpoint_matrix.py \
-  --output-dir reports/compat-2026-02-16-endpoints \
-  --prefix neogo-0.116-endpoint-matrix
+  --output-dir reports/compat-endpoint-matrix \
+  --prefix neogo-endpoint-matrix
 ```
 
 Behavior:
 - Builds a temporary probe vector set by selecting only expected delta vectors.
 - Runs `neo-diff` pairwise (C# vs each NeoGo endpoint) for MainNet and TestNet.
 - Verifies endpoint protocol expectations (network magic + useragent tokens) by default.
+  NeoGo checks are matched by stable token prefix (`NEO-GO:`), not a pinned patch version.
 - Writes per-endpoint reports and a summary JSON:
   - `reports/.../<prefix>-mainnet-*-csharp.json`
   - `reports/.../<prefix>-mainnet-*-neogo.json`
@@ -90,3 +91,6 @@ Behavior:
   - `neo-compat`
   - `neo-multicompat`
   - `neo-coverage`
+- For live-node `neo-diff` runs where committee-governed Policy values may drift,
+  use `--allow-policy-governance-drift` to ignore only:
+  `getFeePerByte`, `getExecFeeFactor`, and `getStoragePrice` value mismatches.

@@ -82,6 +82,19 @@ class Snapshot(ABC):
         """Get GAS balance for account."""
         return 0
 
+    # Storage helper methods for ApplicationEngine syscalls
+    def storage_get(self, key: bytes) -> bytes | None:
+        """Get storage value."""
+        return self.get(key)
+
+    def storage_put(self, key: bytes, value: bytes) -> None:
+        """Put storage value."""
+        self.put(key, value)
+
+    def storage_delete(self, key: bytes) -> None:
+        """Delete storage value."""
+        self.delete(key)
+
 @dataclass
 class MemorySnapshot(Snapshot):
     """In-memory snapshot implementation."""
@@ -138,19 +151,6 @@ class MemorySnapshot(Snapshot):
         clone._changes = dict(self._changes)
         return clone
     
-    # Storage helper methods for ApplicationEngine
-    def storage_get(self, key: bytes) -> bytes | None:
-        """Get storage value."""
-        return self.get(key)
-
-    def storage_put(self, key: bytes, value: bytes) -> None:
-        """Put storage value."""
-        self.put(key, value)
-
-    def storage_delete(self, key: bytes) -> None:
-        """Delete storage value."""
-        self.delete(key)
-
     # Contract methods
     def get_contract(self, script_hash) -> Any | None:
         """Get contract by script hash."""

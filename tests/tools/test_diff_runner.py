@@ -8,10 +8,15 @@ import urllib.error
 from pathlib import Path
 from types import SimpleNamespace
 
-from neo.tools.diff.cli import run_diff_tests
-from neo.tools.diff.models import TestVector
-from neo.tools.diff.runner import CSharpExecutor, PythonExecutor, VectorLoader
 import neo.tools.diff.runner as diff_runner
+from neo.tools.diff.cli import run_diff_tests
+from neo.tools.diff.models import (
+    ExecutionResult,
+    ExecutionSource,
+    StackValue,
+    TestVector,
+)
+from neo.tools.diff.runner import CSharpExecutor, PythonExecutor, VectorLoader
 from neo.vm.opcode import OpCode
 
 
@@ -325,13 +330,13 @@ def test_python_executor_policy_vectors_follow_v391_policy_baseline():
     storage_result = executor.execute(storage_vector)
 
     assert fee_result.state == "HALT"
-    assert fee_result.stack[0].value == 20
+    assert fee_result.stack[0].value == 1000
 
     assert exec_result.state == "HALT"
-    assert exec_result.stack[0].value == 1
+    assert exec_result.stack[0].value == 30
 
     assert storage_result.state == "HALT"
-    assert storage_result.stack[0].value == 1000
+    assert storage_result.stack[0].value == 100_000
 
 def test_python_executor_stdlib_atoi_hex_matches_neo_signed_semantics():
     """StdLib.atoi(base=16) should use signed interpretation consistent with Neo nodes."""
@@ -444,3 +449,70 @@ def test_run_diff_tests_python_only_accepts_expected_fault_vectors(tmp_path: Pat
     )
 
     assert run_diff_tests(args) == 0
+
+
+def test_run_diff_tests_can_ignore_live_policy_value_drift(
+    tmp_path: Path, monkeypatch
+) -> None:
+    vector_path = tmp_path / "policy_vector.json"
+    vector_path.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "Policy_getFeePerByte",
+                    "script": bytes([OpCode.PUSH1]).hex(),
+                    "metadata": {
+                        "category": "native",
+                        "contract": "PolicyContract",
+                        "method": "getFeePerByte",
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeRunner:
+        def __init__(self, csharp_rpc=None, python_only=False):
+            self.csharp_rpc = csharp_rpc
+            self.python_only = python_only
+
+        def run_vector(self, vector):
+            return (
+                ExecutionResult(
+                    source=ExecutionSource.PYTHON_SPEC,
+                    state="HALT",
+                    gas_consumed=0,
+                    stack=[StackValue(type="Integer", value=1000)],
+                ),
+                ExecutionResult(
+                    source=ExecutionSource.CSHARP_CLI,
+                    state="HALT",
+                    gas_consumed=0,
+                    stack=[StackValue(type="Integer", value=20)],
+                ),
+            )
+
+    monkeypatch.setattr("neo.tools.diff.cli.DiffTestRunner", FakeRunner)
+
+    strict_args = SimpleNamespace(
+        vectors=vector_path,
+        csharp_rpc="http://seed1.neo.org:10332",
+        output=None,
+        python_only=False,
+        gas_tolerance=0,
+        verbose=False,
+        allow_policy_governance_drift=False,
+    )
+    relaxed_args = SimpleNamespace(
+        vectors=vector_path,
+        csharp_rpc="http://seed1.neo.org:10332",
+        output=None,
+        python_only=False,
+        gas_tolerance=0,
+        verbose=False,
+        allow_policy_governance_drift=True,
+    )
+
+    assert run_diff_tests(strict_args) == 1
+    assert run_diff_tests(relaxed_args) == 0

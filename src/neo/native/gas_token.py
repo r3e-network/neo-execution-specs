@@ -14,8 +14,8 @@ class GasToken(FungibleToken):
     It has 8 decimal places and is generated through NEO holding.
     """
     
-    # Initial GAS distribution: 30 million GAS
-    INITIAL_GAS = 30_000_000 * 10**8
+    # Initial GAS distribution: 52 million GAS (matches C# ProtocolSettings.InitialGasDistribution)
+    INITIAL_GAS = 52_000_000 * 10**8
     
     @property
     def name(self) -> str:

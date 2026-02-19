@@ -110,7 +110,7 @@ def test_main_writes_summary_and_returns_zero(tmp_path: Path, monkeypatch) -> No
         assert expected_vectors == {"STATE_exec_try_l_no_exception"}
         assert expected_network in {860833102, 894710606}
         assert csharp_useragent_token == "Neo:3.9.1"
-        assert neogo_useragent_token == "NEO-GO:0.116.0"
+        assert neogo_useragent_token == "NEO-GO:"
         assert enforce_protocol_checks is True
         assert rpc_timeout_seconds == 5.0
 
@@ -121,7 +121,7 @@ def test_main_writes_summary_and_returns_zero(tmp_path: Path, monkeypatch) -> No
             csharp_network=860833102,
             csharp_useragent="/Neo:3.9.1/",
             neogo_network=860833102 if network == "mainnet" else 894710606,
-            neogo_useragent="/NEO-GO:0.116.0/",
+            neogo_useragent="/NEO-GO:0.117.0/",
             csharp_summary={"total": 1, "passed": 1, "failed": 0, "errors": 0},
             neogo_summary={"total": 0, "passed": 0, "failed": 1, "errors": 0},
             vector_deltas=["STATE_exec_try_l_no_exception"],
@@ -211,7 +211,7 @@ def test_main_enforces_expected_vector_match_by_default(tmp_path: Path, monkeypa
             csharp_network=860833102,
             csharp_useragent="/Neo:3.9.1/",
             neogo_network=860833102,
-            neogo_useragent="/NEO-GO:0.116.0/",
+            neogo_useragent="/NEO-GO:0.117.0/",
             csharp_summary={"total": 1, "passed": 1, "failed": 0, "errors": 0},
             neogo_summary={"total": 1, "passed": 1, "failed": 0, "errors": 0},
             vector_deltas=[],
@@ -311,13 +311,13 @@ def test_main_enforces_protocol_expectations_by_default(
             csharp_network=860833102,
             csharp_useragent="/Neo:3.9.1/",
             neogo_network=860833102,
-            neogo_useragent="/NEO-GO:0.116.0/",
+            neogo_useragent="/NEO-GO:0.117.0/",
             csharp_summary={"total": 1, "passed": 1, "failed": 0, "errors": 0},
             neogo_summary={"total": 0, "passed": 0, "failed": 1, "errors": 0},
             vector_deltas=["STATE_exec_try_l_no_exception"],
             matches_expected=True,
             protocol_matches_expected=False,
-            protocol_mismatches=["neogo_useragent_missing_token_NEO-GO:0.116.0"],
+            protocol_mismatches=["neogo_useragent_missing_token_NEO-GO:"],
             error=None,
         )
 

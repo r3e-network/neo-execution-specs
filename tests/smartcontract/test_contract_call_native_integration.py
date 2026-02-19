@@ -15,8 +15,8 @@ from neo.native.contract_management import PREFIX_CONTRACT, ContractState
 from neo.protocol_settings import ProtocolSettings
 from neo.smartcontract.application_engine import ApplicationEngine
 from neo.smartcontract.call_flags import CallFlags
-from neo.types import UInt160
 from neo.smartcontract.nef_file import MethodToken
+from neo.types import UInt160
 from neo.vm.types import Array, ByteString, Integer
 
 
@@ -61,9 +61,9 @@ def test_system_contract_call_dispatches_native_method() -> None:
     engine.push(ByteString(bytes(policy.hash)))
     engine.push(ByteString(b"getFeePerByte"))
     engine.push(Integer(int(CallFlags.READ_STATES)))
-    engine._contract_call(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call(engine)
 
-    assert engine.pop().get_integer() == 20
+    assert engine.pop().get_integer() == 1000
 
 
 def test_callt_dispatches_native_method_token() -> None:
@@ -80,9 +80,9 @@ def test_callt_dispatches_native_method_token() -> None:
 
     engine = ApplicationEngine(snapshot=_Snapshot())
     engine.load_script_with_tokens(b"\x00", [token])
-    engine._handle_token_call(engine, 0)  # noqa: SLF001 - integration lock
+    engine._handle_token_call(engine, 0)
 
-    assert engine.pop().get_integer() == 20
+    assert engine.pop().get_integer() == 1000
 
 
 def test_system_contract_call_native_argument_order_is_preserved() -> None:
@@ -103,7 +103,7 @@ def test_system_contract_call_native_argument_order_is_preserved() -> None:
     engine.push(ByteString(bytes(stdlib.hash)))
     engine.push(ByteString(b"stringSplit"))
     engine.push(Integer(int(CallFlags.NONE)))
-    engine._contract_call(engine)  # noqa: SLF001 - integration lock
+    engine._contract_call(engine)
 
     result = engine.pop()
     assert isinstance(result, Array)
@@ -138,7 +138,7 @@ def test_system_contract_call_native_enforces_caller_permissions() -> None:
     engine.push(Integer(int(CallFlags.READ_STATES)))
 
     with pytest.raises(Exception, match="Method not allowed"):
-        engine._contract_call(engine)  # noqa: SLF001 - integration lock
+        engine._contract_call(engine)
 
 
 def test_system_contract_call_native_method_is_hardfork_gated() -> None:
@@ -153,7 +153,7 @@ def test_system_contract_call_native_method_is_hardfork_gated() -> None:
     pre_engine.push(ByteString(b"getExecPicoFeeFactor"))
     pre_engine.push(Integer(int(CallFlags.READ_STATES)))
     with pytest.raises(Exception, match="Method not allowed"):
-        pre_engine._contract_call(pre_engine)  # noqa: SLF001 - integration lock
+        pre_engine._contract_call(pre_engine)
 
     post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=200), protocol_settings=settings)
     post_engine.load_script(b"\x00")
@@ -161,8 +161,8 @@ def test_system_contract_call_native_method_is_hardfork_gated() -> None:
     post_engine.push(ByteString(bytes(policy.hash)))
     post_engine.push(ByteString(b"getExecPicoFeeFactor"))
     post_engine.push(Integer(int(CallFlags.READ_STATES)))
-    post_engine._contract_call(post_engine)  # noqa: SLF001 - integration lock
-    assert post_engine.pop().get_integer() == 10_000
+    post_engine._contract_call(post_engine)
+    assert post_engine.pop().get_integer() == 300_000
 
 
 def test_callt_native_method_token_is_hardfork_gated() -> None:
@@ -181,12 +181,12 @@ def test_callt_native_method_token_is_hardfork_gated() -> None:
     pre_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=199), protocol_settings=settings)
     pre_engine.load_script_with_tokens(b"\x00", [token])
     with pytest.raises(Exception, match="Method not allowed"):
-        pre_engine._handle_token_call(pre_engine, 0)  # noqa: SLF001 - integration lock
+        pre_engine._handle_token_call(pre_engine, 0)
 
     post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=200), protocol_settings=settings)
     post_engine.load_script_with_tokens(b"\x00", [token])
-    post_engine._handle_token_call(post_engine, 0)  # noqa: SLF001 - integration lock
-    assert post_engine.pop().get_integer() == 10_000
+    post_engine._handle_token_call(post_engine, 0)
+    assert post_engine.pop().get_integer() == 300_000
 
 
 def test_system_contract_call_native_contract_activation_is_hardfork_gated() -> None:
@@ -201,7 +201,7 @@ def test_system_contract_call_native_contract_activation_is_hardfork_gated() -> 
     pre_engine.push(ByteString(b"verify"))
     pre_engine.push(Integer(int(CallFlags.READ_STATES)))
     with pytest.raises(Exception, match="Contract not found"):
-        pre_engine._contract_call(pre_engine)  # noqa: SLF001 - integration lock
+        pre_engine._contract_call(pre_engine)
 
     post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=200), protocol_settings=settings)
     post_engine.load_script(b"\x00")
@@ -209,7 +209,7 @@ def test_system_contract_call_native_contract_activation_is_hardfork_gated() -> 
     post_engine.push(ByteString(bytes(treasury.hash)))
     post_engine.push(ByteString(b"verify"))
     post_engine.push(Integer(int(CallFlags.READ_STATES)))
-    post_engine._contract_call(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call(post_engine)
     assert post_engine.pop().get_integer() == 0
 
 
@@ -225,7 +225,7 @@ def test_system_contract_call_cryptolib_keccak256_is_cockatrice_gated() -> None:
     pre_engine.push(ByteString(b"keccak256"))
     pre_engine.push(Integer(int(CallFlags.NONE)))
     with pytest.raises(Exception, match="Method not allowed"):
-        pre_engine._contract_call(pre_engine)  # noqa: SLF001 - integration lock
+        pre_engine._contract_call(pre_engine)
 
     post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=150), protocol_settings=settings)
     post_engine.load_script(b"\x00")
@@ -233,7 +233,7 @@ def test_system_contract_call_cryptolib_keccak256_is_cockatrice_gated() -> None:
     post_engine.push(ByteString(bytes(crypto.hash)))
     post_engine.push(ByteString(b"keccak256"))
     post_engine.push(Integer(int(CallFlags.NONE)))
-    post_engine._contract_call(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call(post_engine)
     result = post_engine.pop()
     assert isinstance(result, ByteString)
     assert len(result.get_bytes_unsafe()) == 32
@@ -260,7 +260,7 @@ def test_system_contract_call_cryptolib_verify_with_ecdsa_switches_at_cockatrice
     pre_engine.push(ByteString(b"verifyWithECDsa"))
     pre_engine.push(Integer(int(CallFlags.NONE)))
     with pytest.raises(Exception, match="curve_hash out of range"):
-        pre_engine._contract_call(pre_engine)  # noqa: SLF001 - integration lock
+        pre_engine._contract_call(pre_engine)
 
     post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=150), protocol_settings=settings)
     post_engine.load_script(b"\x00")
@@ -277,5 +277,5 @@ def test_system_contract_call_cryptolib_verify_with_ecdsa_switches_at_cockatrice
     post_engine.push(ByteString(bytes(crypto.hash)))
     post_engine.push(ByteString(b"verifyWithECDsa"))
     post_engine.push(Integer(int(CallFlags.NONE)))
-    post_engine._contract_call(post_engine)  # noqa: SLF001 - integration lock
+    post_engine._contract_call(post_engine)
     assert post_engine.pop().get_integer() == 0

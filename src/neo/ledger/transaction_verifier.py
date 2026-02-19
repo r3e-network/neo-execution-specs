@@ -46,9 +46,13 @@ class TransactionVerifier:
         # Check script
         if not tx.script or len(tx.script) == 0:
             return VerifyResult.INVALID
+        if len(tx.script) > 0xFFFF:
+            return VerifyResult.INVALID
 
         # Check signers
         if not tx.signers or len(tx.signers) == 0:
+            return VerifyResult.INVALID
+        if len(tx.signers) > MAX_TRANSACTION_ATTRIBUTES:
             return VerifyResult.INVALID
 
         # Check for duplicate signers
@@ -69,6 +73,8 @@ class TransactionVerifier:
         if tx.system_fee < 0:
             return VerifyResult.INVALID
         if tx.network_fee < 0:
+            return VerifyResult.INVALID
+        if tx.system_fee + tx.network_fee > 9_223_372_036_854_775_807:
             return VerifyResult.INVALID
 
         return VerifyResult.SUCCEED

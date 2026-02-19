@@ -1,7 +1,7 @@
 """Comprehensive tests for NEO and GAS tokens."""
 
-from neo.native.neo_token import NeoToken, NeoAccountState, CandidateState
 from neo.native.gas_token import GasToken
+from neo.native.neo_token import CandidateState, NeoAccountState, NeoToken
 
 
 class TestNeoToken:
@@ -93,5 +93,5 @@ class TestGasToken:
     
     def test_initial_supply(self):
         """Test GAS initial supply."""
-        # GAS has 30M initial supply
-        assert self.gas.INITIAL_GAS == 30_000_000 * 10**8
+        # GAS has 52M initial supply (C# ProtocolSettings.InitialGasDistribution)
+        assert self.gas.INITIAL_GAS == 52_000_000 * 10**8
