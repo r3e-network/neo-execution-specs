@@ -120,7 +120,7 @@ class ApplicationEngine(ExecutionEngine):
         Each context carries its own CallFlags in _shared_states.states.
         Falls back to _default_call_flags when no context is loaded.
         """
-        ctx = self.current_context
+        ctx = self.invocation_stack[-1] if self.invocation_stack else None
         if ctx is not None:
             return ctx._shared_states.states.get(_CALL_FLAGS_KEY, self._default_call_flags)
         return self._default_call_flags
@@ -128,7 +128,7 @@ class ApplicationEngine(ExecutionEngine):
     @_current_call_flags.setter
     def _current_call_flags(self, value: CallFlags) -> None:
         """Set call flags on the current execution context."""
-        ctx = self.current_context
+        ctx = self.invocation_stack[-1] if self.invocation_stack else None
         if ctx is not None:
             ctx._shared_states.states[_CALL_FLAGS_KEY] = value
         else:
@@ -334,8 +334,8 @@ class ApplicationEngine(ExecutionEngine):
         )
         register_syscall("System.Contract.CallNative", self._contract_call_native, 0)
         register_syscall("System.Contract.GetCallFlags", self._contract_get_call_flags, 1 << 10)
-        register_syscall("System.Contract.CreateStandardAccount", self._contract_create_standard_account, 0)
-        register_syscall("System.Contract.CreateMultisigAccount", self._contract_create_multisig_account, 0)
+        register_syscall("System.Contract.CreateStandardAccount", self._contract_create_standard_account, 1 << 8)
+        register_syscall("System.Contract.CreateMultisigAccount", self._contract_create_multisig_account, 1 << 8)
         register_syscall("System.Contract.NativeOnPersist", self._contract_native_on_persist, 0, CallFlags.STATES)
         register_syscall("System.Contract.NativePostPersist", self._contract_native_post_persist, 0, CallFlags.STATES)
 
@@ -363,17 +363,14 @@ class ApplicationEngine(ExecutionEngine):
         persistence snapshot. MUST NOT use wall-clock time — that would
         break consensus across nodes.
         """
+        block = None
         if self.snapshot is not None and hasattr(self.snapshot, "persisting_block"):
             block = self.snapshot.persisting_block
-            if block is not None and hasattr(block, "timestamp"):
-                self.push(Integer(block.timestamp))
-                return
-        # Fallback: use script_container timestamp if available
-        if self.script_container is not None and hasattr(self.script_container, "timestamp"):
-            self.push(Integer(self.script_container.timestamp))
-            return
-        # No block context — push 0 rather than non-deterministic wall clock
-        self.push(Integer(0))
+
+        if block is None or not hasattr(block, "timestamp"):
+            raise InvalidOperationException("GetTime can only be called with Application trigger.")
+
+        self.push(Integer(int(block.timestamp)))
 
     def _runtime_get_script_container(self, engine: ApplicationEngine) -> None:
         """Get script container (transaction)."""
@@ -382,7 +379,7 @@ class ApplicationEngine(ExecutionEngine):
         if self.script_container is not None:
             self.push(InteropInterface(self.script_container))
         else:
-            self.push(NULL)
+            raise InvalidOperationException("No script container")
 
     def _runtime_get_executing_script_hash(self, engine: ApplicationEngine) -> None:
         """Get executing script hash."""
@@ -415,42 +412,77 @@ class ApplicationEngine(ExecutionEngine):
         a valid witness (signature) for the current transaction.
         """
         from neo.crypto import hash160
+        from neo.smartcontract.syscalls.contract import _create_signature_redeem_script
+        from neo.types import ECPoint, UInt160
 
         hash_or_pubkey = self.pop()
         data = hash_or_pubkey.get_bytes_unsafe()
 
-        # Determine if this is a script hash (20 bytes) or public key (33/65 bytes)
+        # Determine if this is a script hash (20 bytes) or compressed public key (33 bytes)
         if len(data) == 20:
-            # It's a script hash (UInt160)
-            script_hash = data
-        elif len(data) in (33, 65):
-            # It's a public key - convert to script hash
-            # Standard account script: PUSHDATA1 <pubkey> SYSCALL System.Crypto.CheckSig
-            script = bytes([0x0C, len(data)]) + data + bytes([0x41, 0x56, 0xE7, 0xB3, 0x27])
-            script_hash = hash160(script)
+            account_hash = UInt160(data)
+        elif len(data) == 33:
+            # Validate compressed ECPoint encoding before script-hash derivation.
+            ECPoint.decode(data)
+            script = _create_signature_redeem_script(data)
+            account_hash = UInt160(hash160(script))
         else:
-            self.push(Integer(0))
-            return
+            raise InvalidOperationException("Invalid hashOrPubkey length")
 
-        # Check if the script hash is in the transaction signers
-        result = self._check_witness_internal(script_hash)
+        result = self._check_witness_internal(account_hash)
         self.push(Integer(1 if result else 0))
 
-    def _check_witness_internal(self, script_hash: bytes) -> bool:
+    def _check_witness_internal(self, account_hash: UInt160) -> bool:
         """Internal witness check against transaction signers."""
+        from neo.smartcontract.call_flags import CallFlags
+        from neo.types import UInt160
+
+        calling_hash = self.calling_script_hash
+        if calling_hash is not None and calling_hash == account_hash:
+            return True
+
         # If no script container (transaction), cannot verify
         if self.script_container is None:
             return False
 
-        # Check if script_hash matches any signer
+        # Check if account hash matches any transaction signer first.
         tx = self.script_container
-        if not hasattr(tx, "signers") or not tx.signers:
+        if hasattr(tx, "signers") and tx.signers:
+            for signer in tx.signers:
+                signer_account = getattr(signer, "account", None)
+                if signer_account is None:
+                    continue
+
+                if isinstance(signer_account, UInt160):
+                    account_matches = signer_account == account_hash
+                elif isinstance(signer_account, (bytes, bytearray)):
+                    account_matches = bytes(signer_account) == bytes(account_hash)
+                else:
+                    account_matches = False
+
+                if account_matches:
+                    # Found matching signer - check witness scope
+                    return self._check_witness_scope(signer)
+
+        # Non-transaction script containers (e.g., blocks) may provide
+        # script hashes for verifying. Neo requires READ_STATES for this path.
+        get_hashes = getattr(tx, "get_script_hashes_for_verifying", None)
+        if not callable(get_hashes):
             return False
 
-        for signer in tx.signers:
-            if signer.account == script_hash:
-                # Found matching signer - check witness scope
-                return self._check_witness_scope(signer)
+        if not self._check_call_flags(CallFlags.READ_STATES):
+            raise InvalidOperationException("Invalid call flags for witness verification")
+
+        try:
+            hashes_for_verifying = get_hashes(self.snapshot)
+        except TypeError:
+            hashes_for_verifying = get_hashes()
+
+        account_hash_bytes = bytes(account_hash)
+        for item in hashes_for_verifying or []:
+            item_bytes = self._coerce_hash160_to_bytes(item)
+            if item_bytes is not None and item_bytes == account_hash_bytes:
+                return True
 
         return False
 
@@ -464,16 +496,22 @@ class ApplicationEngine(ExecutionEngine):
         if scope & WitnessScope.GLOBAL:
             return True
 
-        # CalledByEntry - only valid if called from entry script
+        # CalledByEntry - valid if current IS entry or caller IS entry
         if scope & WitnessScope.CALLED_BY_ENTRY:
             if self.current_script_hash == self.entry_script_hash:
+                return True
+            if self.calling_script_hash == self.entry_script_hash:
                 return True
 
         # CustomContracts - check if current contract is in allowed list
         if scope & WitnessScope.CUSTOM_CONTRACTS:
-            current_hash = bytes(self.current_script_hash) if self.current_script_hash else None
-            if current_hash and current_hash in [c for c in signer.allowed_contracts]:
-                return True
+            current_hash = self.current_script_hash
+            if current_hash is not None:
+                current_hash_bytes = bytes(current_hash)
+                for allowed_contract in getattr(signer, "allowed_contracts", []):
+                    allowed_bytes = self._coerce_hash160_to_bytes(allowed_contract)
+                    if allowed_bytes is not None and allowed_bytes == current_hash_bytes:
+                        return True
 
         # CustomGroups - check if current contract belongs to an allowed group
         if scope & WitnessScope.CUSTOM_GROUPS:
@@ -484,7 +522,7 @@ class ApplicationEngine(ExecutionEngine):
         if scope & WitnessScope.WITNESS_RULES:
             rules = getattr(signer, "rules", [])
             for rule in rules:
-                action = getattr(rule, "action", None)
+                action = self._coerce_witness_rule_action(getattr(rule, "action", None))
                 condition = getattr(rule, "condition", None)
                 if condition is not None and action is not None:
                     if self._evaluate_witness_condition(condition):
@@ -501,8 +539,6 @@ class ApplicationEngine(ExecutionEngine):
         Looks up the current contract's manifest, then checks whether any
         of its group public keys appear in ``signer.allowed_groups``.
         """
-        import json as _json
-
         current_hash = self.current_script_hash
         if current_hash is None:
             return False
@@ -511,33 +547,30 @@ class ApplicationEngine(ExecutionEngine):
         if contract is None:
             return False
 
-        # Parse manifest to extract groups
-        manifest_bytes = getattr(contract, "manifest", None)
-        if not manifest_bytes:
+        manifest = self._parse_contract_manifest(contract)
+        if manifest is None:
             return False
 
-        try:
-            manifest_data = _json.loads(manifest_bytes)
-            groups = manifest_data.get("groups", [])
-        except (ValueError, TypeError):
+        groups = manifest.get("groups", [])
+        if not isinstance(groups, list):
             return False
 
         if not groups:
             return False
 
-        allowed = set(bytes(g) if isinstance(g, (bytes, bytearray)) else g for g in (signer.allowed_groups or []))
+        allowed = {
+            group_bytes
+            for group in (signer.allowed_groups or [])
+            if (group_bytes := self._coerce_group_to_bytes(group)) is not None
+        }
         if not allowed:
             return False
 
         for group in groups:
-            pubkey_hex = group.get("pubkey", "")
-            if pubkey_hex:
-                try:
-                    pubkey = bytes.fromhex(pubkey_hex)
-                    if pubkey in allowed:
-                        return True
-                except (ValueError, TypeError):
-                    continue
+            group_value = group.get("pubkey", "") if isinstance(group, dict) else group
+            group_bytes = self._coerce_group_to_bytes(group_value)
+            if group_bytes is not None and group_bytes in allowed:
+                return True
 
         return False
 
@@ -591,7 +624,8 @@ class ApplicationEngine(ExecutionEngine):
         # Group
         if cond_type == 0x19:
             target_group = getattr(condition, "group", None)
-            if target_group is None:
+            target_group_bytes = self._coerce_group_to_bytes(target_group)
+            if target_group_bytes is None:
                 return False
             current = self.current_script_hash
             if current is None:
@@ -603,13 +637,10 @@ class ApplicationEngine(ExecutionEngine):
             if manifest is None:
                 return False
             for g in manifest.get("groups", []):
-                pubkey_hex = g.get("pubkey", "")
-                if pubkey_hex:
-                    try:
-                        if bytes.fromhex(pubkey_hex) == bytes(target_group):
-                            return True
-                    except (ValueError, TypeError):
-                        continue
+                group_value = g.get("pubkey", "") if isinstance(g, dict) else g
+                group_bytes = self._coerce_group_to_bytes(group_value)
+                if group_bytes is not None and group_bytes == target_group_bytes:
+                    return True
             return False
 
         # CalledByEntry
@@ -629,7 +660,8 @@ class ApplicationEngine(ExecutionEngine):
         # CalledByGroup
         if cond_type == 0x29:
             target_group = getattr(condition, "group", None)
-            if target_group is None:
+            target_group_bytes = self._coerce_group_to_bytes(target_group)
+            if target_group_bytes is None:
                 return False
             calling = self.calling_script_hash
             if calling is None:
@@ -641,13 +673,10 @@ class ApplicationEngine(ExecutionEngine):
             if manifest is None:
                 return False
             for g in manifest.get("groups", []):
-                pubkey_hex = g.get("pubkey", "")
-                if pubkey_hex:
-                    try:
-                        if bytes.fromhex(pubkey_hex) == bytes(target_group):
-                            return True
-                    except (ValueError, TypeError):
-                        continue
+                group_value = g.get("pubkey", "") if isinstance(g, dict) else g
+                group_bytes = self._coerce_group_to_bytes(group_value)
+                if group_bytes is not None and group_bytes == target_group_bytes:
+                    return True
             return False
 
         return False
@@ -663,39 +692,19 @@ class ApplicationEngine(ExecutionEngine):
 
     def _runtime_get_network(self, engine: ApplicationEngine) -> None:
         """Get network magic number."""
-        self.push(Integer(self.network))
+        settings = getattr(self, "protocol_settings", None)
+        network = getattr(settings, "network", self.network)
+        self.push(Integer(int(network)))
 
     def _runtime_get_random(self, engine: ApplicationEngine) -> None:
         """Get deterministic random number.
 
-        C# reference: ``ApplicationEngine.RuntimeGetRandom``
-
-        Uses a counter-based deterministic PRNG seeded from the transaction
-        hash so that all consensus nodes produce the identical sequence.
-
-        MUST NOT use Python's ``random`` module.
+        C# reference: ``ApplicationEngine.GetRandom``.
         """
-        if not hasattr(self, "_random_state"):
-            # Initialize from tx hash
-            tx_hash = getattr(self.script_container, "hash", b"\x00" * 32)
-            if isinstance(tx_hash, bytes):
-                seed = tx_hash
-            else:
-                seed = getattr(tx_hash, "data", b"\x00" * 32)
-            from neo.crypto.hash import hash256
+        from neo.smartcontract.runtime_random import next_runtime_random
 
-            self._random_state = bytearray(hash256(seed))
-
-        # Use counter for deterministic sequence
-        from neo.crypto.hash import hash256
-
-        counter_bytes = self._random_counter.to_bytes(4, "little")
-        combined = bytes(self._random_state) + counter_bytes
-        result = hash256(combined)
-        self._random_counter += 1
-
-        # Push as integer
-        value = int.from_bytes(result, "little")
+        value, price = next_runtime_random(self)
+        self.add_gas(price)
         self.push(Integer(value))
 
     def _runtime_log(self, engine: ApplicationEngine) -> None:
@@ -704,9 +713,13 @@ class ApplicationEngine(ExecutionEngine):
         C# reference enforces a maximum message length of 1024 bytes.
         """
         message = self.pop()
-        msg_str = message.get_string()
-        if len(msg_str.encode("utf-8")) > 1024:
+        msg_bytes = message.get_bytes()
+        if len(msg_bytes) > 1024:
             raise InvalidOperationException("Log message exceeds 1024 bytes")
+        try:
+            msg_str = msg_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise InvalidOperationException("Failed to convert byte array to string: Invalid UTF-8 sequence") from exc
         script_hash = self._require_current_script_hash()
         if script_hash:
             self.write_log(script_hash, msg_str)
@@ -716,8 +729,20 @@ class ApplicationEngine(ExecutionEngine):
 
         C# pop order: state (top), then eventName.
         """
+        from neo.vm.types import Array as VMArray
+
         state = self.pop()
-        event_name = self.pop().get_string()
+        if not isinstance(state, VMArray):
+            raise InvalidOperationException("Notify state must be an Array")
+        event_name_bytes = self.pop().get_bytes()
+        if len(event_name_bytes) > 32:
+            raise InvalidOperationException(
+                f"Event name size {len(event_name_bytes)} exceeds maximum allowed size of 32 bytes"
+            )
+        try:
+            event_name = event_name_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise InvalidOperationException("Failed to convert byte array to string: Invalid UTF-8 sequence") from exc
         script_hash = self._require_current_script_hash()
         if script_hash:
             self.send_notification(script_hash, event_name, state)
@@ -725,32 +750,41 @@ class ApplicationEngine(ExecutionEngine):
     def _runtime_get_notifications(self, engine: ApplicationEngine) -> None:
         """Get notifications filtered by contract hash.
 
-        Pops a UInt160 hash filter from the stack.  If the hash is all-zero
-        (UInt160.Zero), all notifications are returned; otherwise only those
-        whose script_hash matches.
+        Pops an optional UInt160 hash filter from the stack. Null means "all
+        notifications"; a non-null value must be 20 bytes and is used as an
+        exact script hash filter.
 
         Each notification is returned as a Struct(script_hash, event_name, state).
         """
+        from neo.exceptions import InvalidOperationException
+        from neo.types import UInt160
         from neo.vm.types import ByteString as BS
         from neo.vm.types import Struct
 
         hash_item = self.pop()
-        filter_bytes = hash_item.get_bytes_unsafe() if not hash_item.is_null else None
-
-        # UInt160.Zero (20 zero bytes) means "no filter"
-        is_zero = filter_bytes is None or filter_bytes == b"\x00" * 20
+        filter_hash: UInt160 | None = None
+        if not hash_item.is_null:
+            filter_bytes = hash_item.get_bytes()
+            if len(filter_bytes) != UInt160.LENGTH:
+                raise InvalidOperationException(
+                    f"Invalid script hash length: {len(filter_bytes)}"
+                )
+            filter_hash = UInt160(filter_bytes)
 
         items: list[StackItem] = []
         for n in self._notifications:
-            if not is_zero:
-                n_hash = bytes(n.script_hash) if n.script_hash else b"\x00" * 20
-                if n_hash != filter_bytes:
-                    continue
+            if filter_hash is not None and n.script_hash != filter_hash:
+                continue
             entry = Struct(self.reference_counter)
             entry.add(BS(bytes(n.script_hash) if n.script_hash else b"\x00" * 20))
             entry.add(BS(n.event_name.encode("utf-8")))
             entry.add(n.state)
             items.append(entry)
+
+        if len(items) > self.limits.max_stack_size:
+            raise InvalidOperationException(
+                f"Notification count {len(items)} exceeds maximum stack size {self.limits.max_stack_size}"
+            )
 
         self.push(Array(items=items))
 
@@ -763,7 +797,7 @@ class ApplicationEngine(ExecutionEngine):
         """Burn specified amount of gas."""
         amount = self.pop().get_integer()
         if amount <= 0:
-            raise InvalidOperationException("Invalid gas amount")
+            raise InvalidOperationException("GAS must be positive.")
         self.add_gas(amount)
 
     def _runtime_current_signers(self, engine: ApplicationEngine) -> None:
@@ -772,10 +806,12 @@ class ApplicationEngine(ExecutionEngine):
         Each signer is returned as Struct(account, scopes, allowedContracts,
         allowedGroups, rules).
         """
+        from neo.network.payloads.transaction import Transaction
+        from neo.network.payloads.witness_scope import WitnessScope
         from neo.vm.types import ByteString as BS
         from neo.vm.types import Struct
 
-        if self.script_container is None or not hasattr(self.script_container, "signers"):
+        if not isinstance(self.script_container, Transaction):
             self.push(NULL)
             return
 
@@ -787,28 +823,106 @@ class ApplicationEngine(ExecutionEngine):
         items: list[StackItem] = []
         for s in signers:
             entry = Struct(self.reference_counter)
-            account = bytes(s.account) if s.account else b"\x00" * 20
+            account = self._coerce_hash160_to_bytes(getattr(s, "account", None))
+            if account is None:
+                account = b"\x00" * 20
+
+            raw_scopes = getattr(s, "scopes", 0)
+            try:
+                scopes = WitnessScope(int(raw_scopes))
+            except (TypeError, ValueError):
+                scopes = WitnessScope.NONE
+
             entry.add(BS(account))
-            entry.add(Integer(s.scopes))
-            # allowed_contracts as Array of ByteStrings
-            contracts = Array(items=[BS(bytes(c)) for c in (s.allowed_contracts or [])])
+            entry.add(Integer(int(scopes)))
+
+            # allowed_contracts as Array of ByteStrings when CUSTOM_CONTRACTS is set.
+            contracts_items: list[StackItem] = []
+            if scopes & WitnessScope.CUSTOM_CONTRACTS:
+                for contract in (getattr(s, "allowed_contracts", []) or []):
+                    contract_bytes = self._coerce_hash160_to_bytes(contract)
+                    if contract_bytes is not None:
+                        contracts_items.append(BS(contract_bytes))
+            contracts = Array(items=contracts_items)
             entry.add(contracts)
-            # allowed_groups as Array of ByteStrings
-            groups = Array(items=[BS(bytes(g)) for g in (s.allowed_groups or [])])
+
+            # allowed_groups as Array of ByteStrings when CUSTOM_GROUPS is set.
+            groups_items: list[StackItem] = []
+            if scopes & WitnessScope.CUSTOM_GROUPS:
+                for group in (getattr(s, "allowed_groups", []) or []):
+                    group_bytes = self._coerce_group_to_bytes(group)
+                    if group_bytes is not None:
+                        groups_items.append(BS(group_bytes))
+            groups = Array(items=groups_items)
             entry.add(groups)
+
+            # rules as Array([action, condition]) when WITNESS_RULES is set.
+            rules_items: list[StackItem] = []
+            if scopes & WitnessScope.WITNESS_RULES:
+                for rule in (getattr(s, "rules", []) or []):
+                    rules_items.append(self._witness_rule_to_stack_item(rule))
+            entry.add(Array(items=rules_items))
+
             items.append(entry)
 
         self.push(Array(items=items))
 
+    def _witness_rule_to_stack_item(self, rule: Any) -> StackItem:
+        """Convert a witness rule to VM stack-item form."""
+        from neo.vm.types import Struct
+
+        action = self._coerce_witness_rule_action(getattr(rule, "action", None))
+        if action is None:
+            action = 0
+
+        condition = getattr(rule, "condition", None)
+        entry = Struct(self.reference_counter)
+        entry.add(Integer(action))
+        entry.add(self._witness_condition_to_stack_item(condition))
+        return entry
+
+    def _witness_condition_to_stack_item(self, condition: Any) -> StackItem:
+        """Convert a witness condition to VM stack-item form."""
+        from neo.vm.types import Boolean
+        from neo.vm.types import ByteString as BS
+
+        cond_type = self._coerce_condition_type(getattr(condition, "type", 0))
+        result = Array(items=[Integer(cond_type)])
+
+        if cond_type == 0x00:
+            result.add(Boolean(bool(getattr(condition, "expression", False))))
+        elif cond_type in (0x18, 0x28):
+            hash_bytes = self._coerce_hash160_to_bytes(getattr(condition, "hash", None))
+            result.add(BS(hash_bytes if hash_bytes is not None else b"\x00" * 20))
+        elif cond_type in (0x19, 0x29):
+            group_bytes = self._coerce_group_to_bytes(getattr(condition, "group", None))
+            result.add(BS(group_bytes if group_bytes is not None else b""))
+        elif cond_type == 0x01:
+            nested = self._witness_condition_to_stack_item(getattr(condition, "expression", None))
+            result.add(nested)
+        elif cond_type in (0x02, 0x03):
+            expressions: list[StackItem] = []
+            for expr in (getattr(condition, "expressions", []) or []):
+                expressions.append(self._witness_condition_to_stack_item(expr))
+            result.add(Array(items=expressions))
+
+        return result
+
     def _runtime_get_address_version(self, engine: ApplicationEngine) -> None:
         """Get address version."""
-        self.push(Integer(53))  # Neo N3 address version
+        settings = getattr(self, "protocol_settings", None)
+        version = getattr(settings, "address_version", 53)
+        self.push(Integer(int(version)))
 
     def _runtime_load_script(self, engine: ApplicationEngine) -> None:
         """Load and execute a script dynamically.
 
-        Stack: [call_flags, script] -> []
+        Stack: [args, call_flags, script] -> []
         """
+        args_item = self.pop()
+        if not isinstance(args_item, Array):
+            raise InvalidOperationException("LoadScript arguments must be an Array")
+
         call_flags_int = self.pop().get_integer()
         script_data = self.pop().get_bytes_unsafe()
 
@@ -816,8 +930,15 @@ class ApplicationEngine(ExecutionEngine):
         if (call_flags & ~CallFlags.ALL) != 0:
             raise InvalidOperationException("Invalid call flags")
 
-        self.load_script(script_data)
-        self._current_call_flags = call_flags  # Now sets on the NEW context
+        parent_flags = self._current_call_flags
+        child_ctx = self.load_script(script_data)
+        # Match Neo C#: child context flags are restricted to caller flags
+        # and READ_ONLY capabilities.
+        effective = CallFlags(int(call_flags & parent_flags & CallFlags.READ_ONLY))
+        self._current_call_flags = effective  # set on NEW current context
+
+        for index in range(len(args_item) - 1, -1, -1):
+            child_ctx.evaluation_stack.push(args_item[index])
 
     def _require_current_script_hash(self) -> UInt160:
         script_hash = self.current_script_hash
@@ -1259,6 +1380,101 @@ class ApplicationEngine(ExecutionEngine):
                 return manifest_raw
         except (ValueError, UnicodeDecodeError, TypeError):
             pass
+        return None
+
+    @staticmethod
+    def _coerce_group_to_bytes(value: Any) -> bytes | None:
+        """Best-effort conversion of group values to canonical bytes."""
+        if isinstance(value, (bytes, bytearray)):
+            return bytes(value)
+        if isinstance(value, str):
+            candidate = value.removeprefix("0x").removeprefix("0X")
+            try:
+                return bytes.fromhex(candidate)
+            except ValueError:
+                return None
+        encode = getattr(value, "encode", None)
+        if callable(encode):
+            try:
+                encoded = encode()
+            except TypeError:
+                return None
+            if isinstance(encoded, (bytes, bytearray)):
+                return bytes(encoded)
+        return None
+
+    @staticmethod
+    def _coerce_hash160_to_bytes(value: Any) -> bytes | None:
+        """Best-effort conversion of hash160 values to canonical 20-byte bytes."""
+        from neo.types import UInt160
+
+        if isinstance(value, UInt160):
+            return bytes(value)
+        if isinstance(value, (bytes, bytearray)):
+            data = bytes(value)
+            return data if len(data) == UInt160.LENGTH else None
+        if isinstance(value, str):
+            candidate = value.removeprefix("0x").removeprefix("0X")
+            try:
+                data = bytes.fromhex(candidate)
+            except ValueError:
+                return None
+            return data if len(data) == UInt160.LENGTH else None
+
+        to_bytes = getattr(value, "to_bytes", None)
+        if callable(to_bytes):
+            try:
+                maybe = to_bytes()
+            except TypeError:
+                return None
+            if isinstance(maybe, (bytes, bytearray)):
+                data = bytes(maybe)
+                return data if len(data) == UInt160.LENGTH else None
+        return None
+
+    @staticmethod
+    def _coerce_condition_type(value: Any) -> int:
+        """Normalize witness condition type values to byte-sized ints."""
+        if isinstance(value, bool):
+            return 0
+        if isinstance(value, int):
+            return value & 0xFF
+
+        enum_value = getattr(value, "value", None)
+        if isinstance(enum_value, bool):
+            return 0
+        if isinstance(enum_value, int):
+            return enum_value & 0xFF
+
+        try:
+            return int(value) & 0xFF
+        except (TypeError, ValueError):
+            return 0
+
+    @staticmethod
+    def _coerce_witness_rule_action(value: Any) -> int | None:
+        """Best-effort normalization for witness rule actions."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value if value in (0, 1) else None
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"allow"}:
+                return 1
+            if lowered in {"deny"}:
+                return 0
+            try:
+                parsed = int(lowered, 0)
+            except ValueError:
+                return None
+            return parsed if parsed in (0, 1) else None
+
+        enum_value = getattr(value, "value", None)
+        if isinstance(enum_value, int):
+            return enum_value if enum_value in (0, 1) else None
+        if isinstance(enum_value, str):
+            return ApplicationEngine._coerce_witness_rule_action(enum_value)
         return None
 
     def _call_contract_internal(self, contract: Any, method: str, args: StackItem | None, flags: CallFlags) -> None:
