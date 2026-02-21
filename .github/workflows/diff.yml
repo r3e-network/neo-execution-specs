@@ -267,7 +267,7 @@ jobs:
             --prefix "compat-${{ matrix.network }}-triplet"
 
       - name: Upload compatibility reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: compatibility-report-${{ matrix.network }}
