@@ -59,7 +59,7 @@ def _engine_for_native_method(
     engine.load_script(b"\x00" * (offset + 1))
     assert engine.current_context is not None
     engine.current_context.ip = offset
-    engine._require_current_script_hash = lambda: contract.hash  # type: ignore[attr-defined]
+    engine._require_current_script_hash = lambda: contract.hash  # type: ignore[method-assign]
     return engine
 
 

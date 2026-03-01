@@ -448,7 +448,7 @@ def test_run_diff_tests_python_only_accepts_expected_fault_vectors(tmp_path: Pat
         verbose=False,
     )
 
-    assert run_diff_tests(args) == 0
+    assert run_diff_tests(args) == 0  # type: ignore
 
 
 def test_run_diff_tests_can_ignore_live_policy_value_drift(

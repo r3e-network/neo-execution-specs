@@ -54,7 +54,7 @@ def test_capability_list_helpers_roundtrip_and_duplicate_guard() -> None:
     serialize_capabilities(
         writer,
         [
-            NodeCapabilityType.TCP_SERVER,
+            NodeCapability(type=NodeCapabilityType.TCP_SERVER, port=0),
             NodeCapability(type=NodeCapabilityType.FULL_NODE, start_height=7),
             NodeCapability(type=0xFE, data=b"\xAA"),
         ],
@@ -73,7 +73,7 @@ def test_capability_list_helpers_roundtrip_and_duplicate_guard() -> None:
     with pytest.raises(ValueError):
         serialize_capabilities(
             BinaryWriter(),
-            [NodeCapabilityType.TCP_SERVER, NodeCapabilityType.TCP_SERVER],
+            [NodeCapability(type=NodeCapabilityType.TCP_SERVER, port=0), NodeCapability(type=NodeCapabilityType.TCP_SERVER, port=0)],
         )
 
 
@@ -190,8 +190,8 @@ def test_version_payload_serialize_revalidates_mutated_capabilities() -> None:
     )
     payload.capabilities.extend(
         [
-            NodeCapabilityType.TCP_SERVER,
-            NodeCapabilityType.TCP_SERVER,
+            NodeCapability(type=NodeCapabilityType.TCP_SERVER, port=0),
+            NodeCapability(type=NodeCapabilityType.TCP_SERVER, port=0),
         ]
     )
 
@@ -206,7 +206,7 @@ def test_network_address_serialize_revalidates_mutated_capabilities() -> None:
         capabilities=[],
     )
     address.capabilities.extend(
-        [NodeCapabilityType.TCP_SERVER] * (MAX_CAPABILITIES + 1)
+        [NodeCapability(type=NodeCapabilityType.TCP_SERVER, port=0)] * (MAX_CAPABILITIES + 1)
     )
 
     with pytest.raises(ValueError):
@@ -218,7 +218,7 @@ def test_network_address_serialize_revalidates_mutated_capabilities() -> None:
         capabilities=[],
     )
     duplicate_types.capabilities.extend(
-        [NodeCapabilityType.TCP_SERVER, NodeCapabilityType.TCP_SERVER]
+        [NodeCapability(type=NodeCapabilityType.TCP_SERVER, port=0), NodeCapability(type=NodeCapabilityType.TCP_SERVER, port=0)]
     )
 
     with pytest.raises(ValueError):

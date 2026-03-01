@@ -4,6 +4,7 @@
 import sys
 import json
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -129,7 +130,7 @@ def validate_vm_vector(vector: dict) -> tuple[bool, str]:
             return False, f"Expected HALT but got: {engine.state}"
         
         expected_stack = vector["post"].get("stack", [])
-        actual_stack = []
+        actual_stack: list[Any] = []
         
         # Get results from result_stack
         while len(engine.result_stack) > 0:

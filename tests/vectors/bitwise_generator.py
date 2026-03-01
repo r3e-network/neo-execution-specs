@@ -7,8 +7,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from neo.vm.opcode import OpCode
-from generator import VMVector, VectorCollection, VectorCategory, script_to_hex
-from vm_generator import push_int, build_script
+from tests.vectors.generator import VMVector, VectorCollection, VectorCategory, script_to_hex
+from tests.vectors.vm_generator import push_int, build_script
 
 
 def generate_bitwise_vectors() -> VectorCollection:

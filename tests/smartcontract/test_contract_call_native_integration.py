@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -54,7 +54,7 @@ def test_system_contract_call_dispatches_native_method() -> None:
     contracts = initialize_native_contracts()
     policy = contracts["PolicyContract"]
 
-    engine = ApplicationEngine(snapshot=_Snapshot())
+    engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)())
     engine.load_script(b"\x00")
 
     engine.push(Array(items=[]))
@@ -78,7 +78,7 @@ def test_callt_dispatches_native_method_token() -> None:
         call_flags=int(CallFlags.READ_STATES),
     )
 
-    engine = ApplicationEngine(snapshot=_Snapshot())
+    engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)())
     engine.load_script_with_tokens(b"\x00", [token])
     engine._handle_token_call(engine, 0)
 
@@ -89,7 +89,7 @@ def test_system_contract_call_native_argument_order_is_preserved() -> None:
     contracts = initialize_native_contracts()
     stdlib = contracts["StdLib"]
 
-    engine = ApplicationEngine(snapshot=_Snapshot())
+    engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)())
     engine.load_script(b"\x00")
 
     args = Array(
@@ -114,7 +114,7 @@ def test_system_contract_call_native_enforces_caller_permissions() -> None:
     contracts = initialize_native_contracts()
     policy = contracts["PolicyContract"]
 
-    engine = ApplicationEngine(snapshot=_Snapshot())
+    engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)())
     caller_script = b"\x01"
     callee_script = b"\x02"
     caller_hash = UInt160(hash160(caller_script))
@@ -146,7 +146,7 @@ def test_system_contract_call_native_method_is_hardfork_gated() -> None:
     policy = contracts["PolicyContract"]
     settings = _settings_with_hardforks(echidna=100, faun=200)
 
-    pre_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=199), protocol_settings=settings)
+    pre_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=199), protocol_settings=settings)
     pre_engine.load_script(b"\x00")
     pre_engine.push(Array(items=[]))
     pre_engine.push(ByteString(bytes(policy.hash)))
@@ -155,7 +155,7 @@ def test_system_contract_call_native_method_is_hardfork_gated() -> None:
     with pytest.raises(Exception, match="Method not allowed"):
         pre_engine._contract_call(pre_engine)
 
-    post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=200), protocol_settings=settings)
+    post_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=200), protocol_settings=settings)
     post_engine.load_script(b"\x00")
     post_engine.push(Array(items=[]))
     post_engine.push(ByteString(bytes(policy.hash)))
@@ -178,12 +178,12 @@ def test_callt_native_method_token_is_hardfork_gated() -> None:
         call_flags=int(CallFlags.READ_STATES),
     )
 
-    pre_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=199), protocol_settings=settings)
+    pre_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=199), protocol_settings=settings)
     pre_engine.load_script_with_tokens(b"\x00", [token])
     with pytest.raises(Exception, match="Method not allowed"):
         pre_engine._handle_token_call(pre_engine, 0)
 
-    post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=200), protocol_settings=settings)
+    post_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=200), protocol_settings=settings)
     post_engine.load_script_with_tokens(b"\x00", [token])
     post_engine._handle_token_call(post_engine, 0)
     assert post_engine.pop().get_integer() == 300_000
@@ -194,7 +194,7 @@ def test_system_contract_call_native_contract_activation_is_hardfork_gated() -> 
     treasury = contracts["Treasury"]
     settings = _settings_with_hardforks(echidna=100, faun=200)
 
-    pre_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=199), protocol_settings=settings)
+    pre_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=199), protocol_settings=settings)
     pre_engine.load_script(b"\x00")
     pre_engine.push(Array(items=[]))
     pre_engine.push(ByteString(bytes(treasury.hash)))
@@ -203,7 +203,7 @@ def test_system_contract_call_native_contract_activation_is_hardfork_gated() -> 
     with pytest.raises(Exception, match="Contract not found"):
         pre_engine._contract_call(pre_engine)
 
-    post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=200), protocol_settings=settings)
+    post_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=200), protocol_settings=settings)
     post_engine.load_script(b"\x00")
     post_engine.push(Array(items=[]))
     post_engine.push(ByteString(bytes(treasury.hash)))
@@ -218,7 +218,7 @@ def test_system_contract_call_cryptolib_keccak256_is_cockatrice_gated() -> None:
     crypto = contracts["CryptoLib"]
     settings = _settings_with_hardforks(echidna=100, cockatrice=150, faun=200)
 
-    pre_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=149), protocol_settings=settings)
+    pre_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=149), protocol_settings=settings)
     pre_engine.load_script(b"\x00")
     pre_engine.push(Array(items=[ByteString(b"neo")]))
     pre_engine.push(ByteString(bytes(crypto.hash)))
@@ -227,7 +227,7 @@ def test_system_contract_call_cryptolib_keccak256_is_cockatrice_gated() -> None:
     with pytest.raises(Exception, match="Method not allowed"):
         pre_engine._contract_call(pre_engine)
 
-    post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=150), protocol_settings=settings)
+    post_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=150), protocol_settings=settings)
     post_engine.load_script(b"\x00")
     post_engine.push(Array(items=[ByteString(b"neo")]))
     post_engine.push(ByteString(bytes(crypto.hash)))
@@ -253,7 +253,7 @@ def test_system_contract_call_cryptolib_verify_with_ecdsa_switches_at_cockatrice
         ]
     )
 
-    pre_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=149), protocol_settings=settings)
+    pre_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=149), protocol_settings=settings)
     pre_engine.load_script(b"\x00")
     pre_engine.push(args)
     pre_engine.push(ByteString(bytes(crypto.hash)))
@@ -262,7 +262,7 @@ def test_system_contract_call_cryptolib_verify_with_ecdsa_switches_at_cockatrice
     with pytest.raises(Exception, match="curve_hash out of range"):
         pre_engine._contract_call(pre_engine)
 
-    post_engine = ApplicationEngine(snapshot=_Snapshot(settings=settings, index=150), protocol_settings=settings)
+    post_engine = ApplicationEngine(snapshot=cast(Any, _Snapshot)(settings=settings, index=150), protocol_settings=settings)
     post_engine.load_script(b"\x00")
     post_engine.push(
         Array(

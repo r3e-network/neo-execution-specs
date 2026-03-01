@@ -141,9 +141,9 @@ def _engine_with_hardfork_index(
         now_ms=now_ms,
         witness=witness,
     )
-    engine.protocol_settings = settings
-    engine.snapshot.protocol_settings = settings
-    engine.snapshot.persisting_block = SimpleNamespace(index=index)
+    engine.protocol_settings = settings  # type: ignore
+    engine.snapshot.protocol_settings = settings  # type: ignore
+    engine.snapshot.persisting_block = SimpleNamespace(index=index)  # type: ignore
     return engine
 
 

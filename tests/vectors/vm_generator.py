@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from neo.vm.opcode import OpCode
-from generator import VMVector, VectorCollection, VectorCategory, script_to_hex
+from tests.vectors.generator import VMVector, VectorCollection, VectorCategory, script_to_hex
 
 
 def push_int(n: int) -> list:

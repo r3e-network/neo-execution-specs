@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import fields
 
-from neo.network.p2p.capabilities.node_capability import NodeCapabilityType
+from neo.network.p2p.capabilities.node_capability import NodeCapability, NodeCapabilityType
 from neo.network.p2p.message_command import MessageCommand
 from neo.network.payloads.addr import AddrPayload, NetworkAddress
 from neo.network.payloads.ping import PingPayload
@@ -83,7 +83,7 @@ def test_version_payload_shape_matches_neo_v391() -> None:
     )
     assert payload.allow_compression is True
 
-    payload.capabilities = [NodeCapabilityType.DISABLE_COMPRESSION]
+    payload.capabilities = [NodeCapability(type=NodeCapabilityType.DISABLE_COMPRESSION)]
     assert payload.allow_compression is False
 
 
@@ -96,7 +96,7 @@ def test_addr_payload_shape_matches_neo_v391() -> None:
             NetworkAddress(
                 timestamp=1,
                 address="127.0.0.1",
-                capabilities=[NodeCapabilityType.TCP_SERVER],
+                capabilities=[NodeCapability(type=NodeCapabilityType.TCP_SERVER, port=8080)],
             )
         ]
     )

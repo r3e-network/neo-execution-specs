@@ -33,7 +33,7 @@ class VMVector:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary, excluding None values."""
-        result = {
+        result: Dict[str, Any] = {
             "name": self.name,
             "description": self.description,
             "pre": self.pre,

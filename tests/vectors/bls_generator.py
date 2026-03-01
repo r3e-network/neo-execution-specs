@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from generator import CryptoVector, VectorCollection, VectorCategory
+from tests.vectors.generator import CryptoVector, VectorCollection, VectorCategory
 
 
 def generate_bls_vectors() -> VectorCollection:

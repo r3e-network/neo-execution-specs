@@ -16,16 +16,16 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 
 # Import all generators
-from vm_generator import generate_arithmetic_vectors
-from stack_generator import generate_stack_vectors
-from bitwise_generator import generate_bitwise_vectors
-from comparison_generator import generate_comparison_vectors
-from boolean_generator import generate_boolean_vectors
-from compound_generator import generate_compound_vectors
-from crypto_generator import generate_hash_vectors
-from bls_generator import generate_bls_vectors
-from native_generator import generate_neo_token_vectors, generate_gas_token_vectors
-from state_generator import generate_state_vectors
+from tests.vectors.vm_generator import generate_arithmetic_vectors
+from tests.vectors.stack_generator import generate_stack_vectors
+from tests.vectors.bitwise_generator import generate_bitwise_vectors
+from tests.vectors.comparison_generator import generate_comparison_vectors
+from tests.vectors.boolean_generator import generate_boolean_vectors
+from tests.vectors.compound_generator import generate_compound_vectors
+from tests.vectors.crypto_generator import generate_hash_vectors
+from tests.vectors.bls_generator import generate_bls_vectors
+from tests.vectors.native_generator import generate_neo_token_vectors, generate_gas_token_vectors
+from tests.vectors.state_generator import generate_state_vectors
 
 
 def generate_all(output_dir: Path, verify: bool = False):

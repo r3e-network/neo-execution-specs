@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from generator import StateVector, VectorCollection, VectorCategory
+from tests.vectors.generator import StateVector, VectorCollection, VectorCategory
 
 
 def generate_state_vectors() -> VectorCollection:

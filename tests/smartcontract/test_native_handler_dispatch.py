@@ -11,7 +11,9 @@ from neo.smartcontract.application_engine import ApplicationEngine
 from neo.vm.types import ByteString, Integer
 
 
-def _engine_with_context(*, snapshot: object | None = None, settings: object | None = None) -> ApplicationEngine:
+from typing import Any
+
+def _engine_with_context(*, snapshot: Any | None = None, settings: Any | None = None) -> ApplicationEngine:
     engine = ApplicationEngine(snapshot=snapshot, protocol_settings=settings)
     engine.load_script(bytes([0x40]))  # RET; creates an execution context with an eval stack
     return engine

@@ -35,7 +35,7 @@ def _make_iter(
 ) -> StorageIterator:
     """Build a StorageIterator from raw (key_bytes, value_bytes) pairs."""
     typed = [_pair(k, v) for k, v in pairs]
-    return StorageIterator(iter(typed), prefix_len, FindOptions(options))
+    return StorageIterator(iter(typed), prefix_len, FindOptions(options))  # type: ignore
 
 
 def _collect(it: StorageIterator) -> list:

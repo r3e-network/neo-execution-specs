@@ -204,8 +204,8 @@ class TestApplicationEngineRuntimeNotifications:
     @staticmethod
     def _get_notifications_result(engine: ApplicationEngine, filter_item):
         pushed_items = []
-        engine.pop = lambda: filter_item
-        engine.push = lambda item: pushed_items.append(item)
+        engine.pop = lambda: filter_item  # type: ignore
+        engine.push = lambda item: pushed_items.append(item)  # type: ignore
         engine._runtime_get_notifications(engine)
         assert len(pushed_items) == 1
         return pushed_items[0]
@@ -215,7 +215,7 @@ class TestApplicationEngineRuntimeNotifications:
         from neo.vm.types import Integer, NULL, Array
 
         engine = ApplicationEngine()
-        engine._notifications = [
+        engine._notifications = [  # type: ignore
             Notification(script_hash=UInt160(b"\x01" * 20), event_name="A", state=Integer(1)),
             Notification(script_hash=UInt160(b"\x00" * 20), event_name="B", state=Integer(2)),
         ]
@@ -229,7 +229,7 @@ class TestApplicationEngineRuntimeNotifications:
         from neo.vm.types import ByteString, Integer, Array
 
         engine = ApplicationEngine()
-        engine._notifications = [
+        engine._notifications = [  # type: ignore
             Notification(script_hash=UInt160(b"\x01" * 20), event_name="A", state=Integer(1)),
             Notification(script_hash=UInt160(b"\x00" * 20), event_name="Zero", state=Integer(2)),
         ]
@@ -244,7 +244,7 @@ class TestApplicationEngineRuntimeNotifications:
         from neo.vm.types import ByteString
 
         engine = ApplicationEngine()
-        engine._notifications = []
+        engine._notifications = []  # type: ignore
 
         with pytest.raises(InvalidOperationException, match="Invalid script hash length"):
             self._get_notifications_result(engine, ByteString(b"\x01"))
@@ -255,7 +255,7 @@ class TestApplicationEngineRuntimeNotifications:
         from neo.vm.types import Integer, NULL
 
         engine = ApplicationEngine()
-        engine._notifications = [
+        engine._notifications = [  # type: ignore
             Notification(script_hash=UInt160(b"\x01" * 20), event_name="A", state=Integer(1))
             for _ in range(engine.limits.max_stack_size + 1)
         ]
@@ -277,10 +277,10 @@ class TestApplicationEngineRuntimeCheckWitness:
         engine = ApplicationEngine(script_container=SimpleNamespace(
             signers=[Signer(account=account, scopes=WitnessScope.GLOBAL)]
         ))
-        engine.pop = lambda: ByteString(b"\x11" * 20)
+        engine.pop = lambda: ByteString(b"\x11" * 20)  # type: ignore
 
         pushed_items: list = []
-        engine.push = lambda item: pushed_items.append(item)
+        engine.push = lambda item: pushed_items.append(item)  # type: ignore
 
         engine._runtime_check_witness(engine)
 
@@ -293,7 +293,7 @@ class TestApplicationEngineRuntimeCheckWitness:
         from neo.vm.types import ByteString
 
         engine = ApplicationEngine()
-        engine.pop = lambda: ByteString(b"\x04" + (b"\x01" * 64))
+        engine.pop = lambda: ByteString(b"\x04" + (b"\x01" * 64))  # type: ignore
 
         with pytest.raises(InvalidOperationException, match="Invalid hashOrPubkey length"):
             engine._runtime_check_witness(engine)
@@ -335,7 +335,7 @@ class TestApplicationEngineRuntimeCheckWitness:
                 return [account]
 
         engine = ApplicationEngine(script_container=_Container(), snapshot=SimpleNamespace())
-        engine._default_call_flags = CallFlags.NONE
+        engine._default_call_flags = CallFlags.NONE  # type: ignore
 
         with pytest.raises(InvalidOperationException, match="call flags"):
             engine._check_witness_internal(account)
@@ -460,7 +460,7 @@ class TestApplicationEngineRuntimeGetRandom:
     @staticmethod
     def _get_random_output(engine: ApplicationEngine) -> int:
         pushed_items: list = []
-        engine.push = lambda item: pushed_items.append(item)
+        engine.push = lambda item: pushed_items.append(item)  # type: ignore
         engine._runtime_get_random(engine)
         assert len(pushed_items) == 1
         return pushed_items[0].get_integer()
@@ -540,7 +540,7 @@ class TestApplicationEngineRuntimeNetworkMetadata:
     @staticmethod
     def _single_pushed_integer(engine: ApplicationEngine, method_name: str) -> int:
         pushed_items: list = []
-        engine.push = lambda item: pushed_items.append(item)
+        engine.push = lambda item: pushed_items.append(item)  # type: ignore
         getattr(engine, method_name)(engine)
         assert len(pushed_items) == 1
         return pushed_items[0].get_integer()
@@ -580,7 +580,7 @@ class TestApplicationEngineRuntimeGetTime:
             )
         )
         pushed_items: list = []
-        engine.push = lambda item: pushed_items.append(item)
+        engine.push = lambda item: pushed_items.append(item)  # type: ignore
 
         engine._runtime_get_time(engine)
 
@@ -596,7 +596,7 @@ class TestApplicationEngineRuntimeGetScriptContainer:
         from neo.exceptions import InvalidOperationException
 
         engine = ApplicationEngine(script_container=None)
-        engine.push = lambda _item: None
+        engine.push = lambda _item: None  # type: ignore
         with pytest.raises(InvalidOperationException):
             engine._runtime_get_script_container(engine)
 
@@ -609,7 +609,7 @@ class TestApplicationEngineRuntimeLog:
         from neo.vm.types import ByteString
 
         engine = ApplicationEngine()
-        engine.pop = lambda: ByteString(b"\xFF")
+        engine.pop = lambda: ByteString(b"\xFF")  # type: ignore
 
         with pytest.raises(InvalidOperationException, match="Invalid UTF-8 sequence"):
             engine._runtime_log(engine)
@@ -624,7 +624,7 @@ class TestApplicationEngineRuntimeNotify:
 
         values = iter([Array(), ByteString(b"A" * 33)])
         engine = ApplicationEngine()
-        engine.pop = lambda: next(values)
+        engine.pop = lambda: next(values)  # type: ignore
 
         with pytest.raises(InvalidOperationException, match="Event name size"):
             engine._runtime_notify(engine)
@@ -636,9 +636,9 @@ class TestApplicationEngineRuntimeNotify:
 
         values = iter([Integer(1), ByteString(b"Evt")])
         engine = ApplicationEngine()
-        engine.pop = lambda: next(values)
-        engine._require_current_script_hash = lambda: UInt160(b"\x01" * 20)
-        engine.send_notification = lambda _hash, _name, _state: None
+        engine.pop = lambda: next(values)  # type: ignore
+        engine._require_current_script_hash = lambda: UInt160(b"\x01" * 20)  # type: ignore
+        engine.send_notification = lambda _hash, _name, _state: None  # type: ignore
 
         with pytest.raises(InvalidOperationException, match="Array"):
             engine._runtime_notify(engine)
@@ -659,7 +659,7 @@ class TestApplicationEngineRuntimeCurrentSigners:
         )
         engine = ApplicationEngine(script_container=SimpleNamespace(signers=[signer]))
         pushed_items: list = []
-        engine.push = lambda item: pushed_items.append(item)
+        engine.push = lambda item: pushed_items.append(item)  # type: ignore
 
         engine._runtime_current_signers(engine)
 
@@ -689,7 +689,7 @@ class TestApplicationEngineRuntimeCurrentSigners:
         )
         engine = ApplicationEngine(script_container=Transaction(signers=[signer]))
         pushed_items: list = []
-        engine.push = lambda item: pushed_items.append(item)
+        engine.push = lambda item: pushed_items.append(item)  # type: ignore
 
         engine._runtime_current_signers(engine)
 
@@ -729,7 +729,7 @@ class TestApplicationEngineRuntimeCurrentSigners:
         )
         engine = ApplicationEngine(script_container=Transaction(signers=[signer]))
         pushed_items: list = []
-        engine.push = lambda item: pushed_items.append(item)
+        engine.push = lambda item: pushed_items.append(item)  # type: ignore
 
         engine._runtime_current_signers(engine)
 
@@ -753,7 +753,7 @@ class TestApplicationEngineRuntimeLoadScript:
 
         engine = ApplicationEngine()
         engine.load_script(bytes([OpCode.RET]))
-        engine._current_call_flags = CallFlags.STATES
+        engine._current_call_flags = CallFlags.STATES  # type: ignore
 
         engine.push(ByteString(bytes([OpCode.RET])))
         engine.push(Integer(int(CallFlags.ALL)))
@@ -769,7 +769,7 @@ class TestApplicationEngineRuntimeLoadScript:
 
         engine = ApplicationEngine()
         engine.load_script(bytes([OpCode.RET]))
-        engine._current_call_flags = CallFlags.NONE
+        engine._current_call_flags = CallFlags.NONE  # type: ignore
 
         engine.push(ByteString(bytes([OpCode.RET])))
         engine.push(Integer(int(CallFlags.ALLOW_CALL)))
@@ -785,7 +785,7 @@ class TestApplicationEngineRuntimeLoadScript:
 
         engine = ApplicationEngine()
         engine.load_script(bytes([OpCode.RET]))
-        engine._current_call_flags = CallFlags.READ_ONLY
+        engine._current_call_flags = CallFlags.READ_ONLY  # type: ignore
 
         args = Array(items=[Integer(11), Integer(22)])
         engine.push(ByteString(bytes([OpCode.RET])))
@@ -805,7 +805,7 @@ class TestApplicationEngineRuntimeLoadScript:
 
         engine = ApplicationEngine()
         engine.load_script(bytes([OpCode.RET]))
-        engine._current_call_flags = CallFlags.READ_ONLY
+        engine._current_call_flags = CallFlags.READ_ONLY  # type: ignore
 
         engine.push(ByteString(bytes([OpCode.RET])))
         engine.push(Integer(int(CallFlags.READ_ONLY)))
@@ -823,7 +823,7 @@ class TestApplicationEngineRuntimeBurnGas:
         from neo.vm.types import Integer
 
         engine = ApplicationEngine()
-        engine.pop = lambda: Integer(0)
+        engine.pop = lambda: Integer(0)  # type: ignore
 
         with pytest.raises(InvalidOperationException, match="positive"):
             engine._runtime_burn_gas(engine)

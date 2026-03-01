@@ -96,7 +96,7 @@ def test_storage_local_syscall_hardfork_gating() -> None:
         persisting_block=SimpleNamespace(index=99),
         get=lambda _key: None,
     )
-    engine = ApplicationEngine(protocol_settings=settings, snapshot=snapshot_pre)
+    engine = ApplicationEngine(protocol_settings=settings, snapshot=snapshot_pre)  # type: ignore[arg-type]
     engine.load_script(bytes([0x40]))
 
     engine.push(ByteString(b"key"))
@@ -107,7 +107,7 @@ def test_storage_local_syscall_hardfork_gating() -> None:
         persisting_block=SimpleNamespace(index=100),
         get=lambda _key: None,
     )
-    engine.snapshot = snapshot_post
+    engine.snapshot = snapshot_post  # type: ignore[assignment]
 
     engine.push(ByteString(b"key"))
     invoke_syscall(engine, get_interop_hash("System.Storage.Local.Get"))
