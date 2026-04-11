@@ -42,10 +42,10 @@ dev = [
     "ruff>=0.1",
 ]
 bls = [
-    "py_ecc>=7.0",
+    "py_ecc>=8.0.0",
 ]
 crypto = [
-    "py_ecc>=7.0",
+    "py_ecc>=8.0.0",
 ]
 all = [
     "neo-execution-specs[dev,crypto]",
