@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
     "regex>=2024.0",
-    "cryptography>=41.0",
+    "cryptography>=46.0.7",
     "pycryptodome>=3.19",
 ]
 
