@@ -13,3 +13,5 @@ class FindOptions(IntFlag):
     PICK_FIELD0 = 16
     PICK_FIELD1 = 32
     BACKWARDS = 128
+    # All valid flags combined (C# FindOptions.All = 191).
+    ALL_MASK = KEYS_ONLY | REMOVE_PREFIX | VALUES_ONLY | DESERIALIZE_VALUES | PICK_FIELD0 | PICK_FIELD1 | BACKWARDS

@@ -13,6 +13,49 @@ if TYPE_CHECKING:
 # Storage price constants (in datoshi)
 STORAGE_PRICE = 100000  # Per byte
 
+# Storage size limits (Neo.SmartContract.ApplicationEngine.Storage.cs:24,29)
+MAX_STORAGE_KEY_SIZE = 64       # MaxStorageKeySize
+MAX_STORAGE_VALUE_SIZE = 65535  # MaxStorageValueSize (ushort.MaxValue)
+
+
+def _validate_find_options(options: int) -> None:
+    """Validate Storage.Find options, mirroring C# ApplicationEngine.Storage.cs:183-202.
+
+    Raises a faulting exception on any invalid/conflicting option combination so
+    that the fault occurs at the Find call site (before the iterator is pushed).
+    """
+    from neo.smartcontract.storage.find_options import FindOptions
+
+    # 1. Out-of-range bits (anything outside FindOptions.All).
+    if (options & ~int(FindOptions.ALL_MASK)) != 0:
+        raise ValueError(f"Invalid find options: {options}")
+
+    keys_only = bool(options & FindOptions.KEYS_ONLY)
+    values_only = bool(options & FindOptions.VALUES_ONLY)
+    deserialize = bool(options & FindOptions.DESERIALIZE_VALUES)
+    pick0 = bool(options & FindOptions.PICK_FIELD0)
+    pick1 = bool(options & FindOptions.PICK_FIELD1)
+    remove_prefix = bool(options & FindOptions.REMOVE_PREFIX)
+
+    # 2. KeysOnly cannot combine with ValuesOnly/DeserializeValues/PickField0/PickField1.
+    if keys_only and (values_only or deserialize or pick0 or pick1):
+        raise ValueError(
+            "KeysOnly cannot be used with ValuesOnly, DeserializeValues, "
+            "PickField0, or PickField1"
+        )
+
+    # 3. ValuesOnly cannot combine with KeysOnly or RemovePrefix.
+    if values_only and (keys_only or remove_prefix):
+        raise ValueError("ValuesOnly cannot be used with KeysOnly or RemovePrefix")
+
+    # 4. PickField0 and PickField1 cannot both be set.
+    if pick0 and pick1:
+        raise ValueError("PickField0 and PickField1 cannot be used together")
+
+    # 5. PickField0/PickField1 require DeserializeValues.
+    if (pick0 or pick1) and not deserialize:
+        raise ValueError("PickField0 or PickField1 requires DeserializeValues")
+
 
 def storage_get_context(engine: "ApplicationEngine") -> None:
     """System.Storage.GetContext
@@ -129,20 +172,45 @@ def storage_put(engine: "ApplicationEngine") -> None:
     ctx = ctx_item.value
     if not isinstance(ctx, StorageContext):
         raise ValueError("Invalid storage context")
-    
+
+    # Validate sizes, then read-only — order mirrors C# Put (key -> value -> read-only).
+    if len(key) > MAX_STORAGE_KEY_SIZE:
+        raise ValueError(
+            f"Key length {len(key)} exceeds maximum allowed size of "
+            f"{MAX_STORAGE_KEY_SIZE} bytes."
+        )
+    if len(value) > MAX_STORAGE_VALUE_SIZE:
+        raise ValueError(
+            f"Value length {len(value)} exceeds maximum allowed size of "
+            f"{MAX_STORAGE_VALUE_SIZE} bytes."
+        )
     if ctx.is_read_only:
-        raise ValueError("Cannot write to read-only context")
-    
-    # Validate key length
-    if len(key) > 64:
-        raise ValueError("Key too long")
-    
+        raise ValueError("StorageContext is read-only")
+
     # Build full storage key
     storage_key = _build_storage_key(ctx, key)
-    
-    # Calculate and charge gas
-    engine.add_gas(STORAGE_PRICE * (len(key) + len(value)))
-    
+
+    # Compute the differential newDataSize exactly like C# ApplicationEngine.Storage.cs Put.
+    old_value = None
+    if hasattr(engine, 'snapshot') and engine.snapshot is not None:
+        old_value = engine.snapshot.storage_get(storage_key)
+
+    if old_value is None:
+        new_data_size = len(key) + len(value)
+    else:
+        if len(value) == 0:
+            new_data_size = 0
+        elif len(value) <= len(old_value):
+            new_data_size = (len(value) - 1) // 4 + 1
+        elif len(old_value) == 0:
+            new_data_size = len(value)
+        else:
+            new_data_size = (len(old_value) - 1) // 4 + 1 + len(value) - len(old_value)
+
+    # Charge before writing the new value (matching C# order). add_gas is in plain
+    # GAS-datoshi here, so the C# FeeFactor pico multiplier is not applied (it cancels).
+    engine.add_gas(new_data_size * STORAGE_PRICE)
+
     # Put to snapshot
     if hasattr(engine, 'snapshot') and engine.snapshot is not None:
         engine.snapshot.storage_put(storage_key, value)
@@ -193,9 +261,12 @@ def storage_find(engine: "ApplicationEngine") -> None:
     ctx = ctx_item.value
     if not isinstance(ctx, StorageContext):
         raise ValueError("Invalid storage context")
-    
+
+    # Validate options BEFORE constructing the iterator (C# ApplicationEngine.Storage.cs:183-202).
+    _validate_find_options(options)
+
     storage_key = _build_storage_key(ctx, prefix)
-    
+
     # Create iterator
     iterator = StorageIterator(engine, storage_key, options)
     stack.push(InteropInterface(iterator))
