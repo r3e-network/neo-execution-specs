@@ -64,33 +64,35 @@ def crypto_check_multisig(engine: "ApplicationEngine") -> None:
     else:
         pubkeys = [keys_item.get_bytes()]
     
+    from neo.exceptions import VMAbortException
+
     n = len(pubkeys)
     m = len(signatures)
-    
-    # Validate counts
+
+    # Count validation faults (C# ApplicationEngine.Crypto.cs:64-66 throw
+    # ArgumentException, which is NOT a CatchableException -> uncatchable fault).
     if n == 0:
-        stack.push(Boolean(False))
-        return
+        raise VMAbortException("pubkeys array cannot be empty.")
     if m == 0:
-        stack.push(Boolean(False))
-        return
+        raise VMAbortException("signatures array cannot be empty.")
     if m > n:
-        stack.push(Boolean(False))
-        return
-    
+        raise VMAbortException(
+            f"signatures count ({m}) cannot be greater than pubkeys count ({n})."
+        )
+
     # Add fee based on number of pubkeys
     engine.add_gas(CHECK_SIG_PRICE * n)
-    
+
     # Get message to verify
     message = _get_sign_data(engine)
-    
+
     try:
         result = _check_multisig_internal(
             message, signatures, pubkeys, SECP256R1
         )
     except (ValueError, TypeError):
         result = False
-    
+
     stack.push(Boolean(result))
 
 def _check_multisig_internal(

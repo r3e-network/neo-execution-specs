@@ -68,6 +68,10 @@ class ApplicationEngine(ExecutionEngine):
     Extends ExecutionEngine with smart contract execution capabilities.
     """
 
+    # Maximum number of notifications an Application execution may emit
+    # (C# ApplicationEngine.Runtime.cs:42 MaxNotificationCount = 512).
+    MAX_NOTIFICATION_COUNT = 512
+
     def __init__(
         self,
         trigger: TriggerType = TriggerType.APPLICATION,
@@ -184,7 +188,23 @@ class ApplicationEngine(ExecutionEngine):
             raise OutOfGasException("Out of gas")
 
     def send_notification(self, script_hash: UInt160, event_name: str, state: StackItem) -> None:
-        """Send a notification event."""
+        """Send a notification event.
+
+        C# SendNotification (ApplicationEngine.Runtime.cs:406-420) restricts the
+        number of notifications for Application executions post-HF_Echidna; the
+        limit is NOT applied for System/Verification triggers.
+        """
+        from neo.hardfork import Hardfork
+        from neo.smartcontract.interop_service import _is_hardfork_enabled
+
+        if (
+            _is_hardfork_enabled(self, Hardfork.HF_ECHIDNA)
+            and self.trigger == TriggerType.APPLICATION
+            and len(self._notifications) >= self.MAX_NOTIFICATION_COUNT
+        ):
+            raise InvalidOperationException(
+                f"Maximum number of notifications `{self.MAX_NOTIFICATION_COUNT}` is reached."
+            )
         self._notifications.append(Notification(script_hash, event_name, state))
 
     def write_log(self, script_hash: UInt160, message: str) -> None:
@@ -334,8 +354,8 @@ class ApplicationEngine(ExecutionEngine):
         )
         register_syscall("System.Contract.CallNative", self._contract_call_native, 0)
         register_syscall("System.Contract.GetCallFlags", self._contract_get_call_flags, 1 << 10)
-        register_syscall("System.Contract.CreateStandardAccount", self._contract_create_standard_account, 1 << 8)
-        register_syscall("System.Contract.CreateMultisigAccount", self._contract_create_multisig_account, 1 << 8)
+        register_syscall("System.Contract.CreateStandardAccount", self._contract_create_standard_account, 0)
+        register_syscall("System.Contract.CreateMultisigAccount", self._contract_create_multisig_account, 0)
         register_syscall("System.Contract.NativeOnPersist", self._contract_native_on_persist, 0, CallFlags.STATES)
         register_syscall("System.Contract.NativePostPersist", self._contract_native_post_persist, 0, CallFlags.STATES)
 
@@ -728,7 +748,14 @@ class ApplicationEngine(ExecutionEngine):
         """Send notification.
 
         C# pop order: state (top), then eventName.
+
+        Mirrors C# RuntimeNotify (ApplicationEngine.Runtime.cs:357-386). Post
+        HF_Basilisk the event name and argument types are validated against the
+        current contract's manifest. Pre-Basilisk (RuntimeNotifyV1) only the
+        dynamic-script (no contract) check applies.
         """
+        from neo.hardfork import Hardfork
+        from neo.smartcontract.interop_service import _is_hardfork_enabled
         from neo.vm.types import Array as VMArray
 
         state = self.pop()
@@ -743,9 +770,150 @@ class ApplicationEngine(ExecutionEngine):
             event_name = event_name_bytes.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise InvalidOperationException("Failed to convert byte array to string: Invalid UTF-8 sequence") from exc
-        script_hash = self._require_current_script_hash()
-        if script_hash:
-            self.send_notification(script_hash, event_name, state)
+
+        is_basilisk = _is_hardfork_enabled(self, Hardfork.HF_BASILISK)
+
+        # Resolve the current contract. Notifications are not allowed in dynamic
+        # scripts (no deployed/native contract for the current script hash) in
+        # BOTH V1 and Basilisk paths (RuntimeNotify[V1] lines 368-369 / 392-393).
+        script_hash = self.current_script_hash
+        contract = self._get_contract(script_hash) if script_hash is not None else None
+        if contract is None:
+            raise InvalidOperationException("Notifications are not allowed in dynamic scripts.")
+
+        if is_basilisk:
+            self._validate_notify_event(contract, event_name, list(state))
+
+        self.send_notification(script_hash, event_name, state)
+
+    def _validate_notify_event(self, contract: Any, name: str, state: list[StackItem]) -> None:
+        """Validate the event name and argument types against the manifest.
+
+        Port of the HF_Basilisk branch of C# RuntimeNotify
+        (ApplicationEngine.Runtime.cs:370-381) plus CheckItemType (467+).
+        """
+        from neo.native.native_contract import NativeContract
+
+        events = self._resolve_manifest_events(contract)
+        # Match the event by exact (ordinal) name.
+        event = None
+        for ev in events:
+            if ev.get("name") == name:
+                event = ev
+                break
+        if event is None:
+            raise InvalidOperationException(f"Event `{name}` does not exist.")
+
+        params = event.get("parameters", [])
+        if len(params) != len(state):
+            raise InvalidOperationException(
+                "The number of the arguments does not match the formal parameters of the event."
+            )
+        for param, item in zip(params, state):
+            param_type = self._parse_parameter_type(param.get("type"))
+            if not self._check_item_type(item, param_type):
+                raise InvalidOperationException(
+                    f"The type of the argument `{param.get('name')}` does not match the formal parameter."
+                )
+
+    @staticmethod
+    def _resolve_manifest_events(contract: Any) -> list[dict]:
+        """Return the manifest ABI events as a list of JSON-like dicts."""
+        from neo.native.native_contract import NativeContract
+
+        if isinstance(contract, NativeContract):
+            manifest = getattr(contract, "manifest", None)
+            # Native manifests may be objects or JSON; normalise to events list.
+            if hasattr(manifest, "abi") and hasattr(manifest.abi, "events"):
+                result = []
+                for ev in manifest.abi.events:
+                    result.append(
+                        {
+                            "name": getattr(ev, "name", None),
+                            "parameters": [
+                                {"name": getattr(p, "name", None), "type": getattr(p, "type", None)}
+                                for p in getattr(ev, "parameters", [])
+                            ],
+                        }
+                    )
+                return result
+        manifest_data = ApplicationEngine._parse_contract_manifest(contract)
+        if manifest_data is None:
+            return []
+        abi = manifest_data.get("abi") or {}
+        return abi.get("events", []) or []
+
+    @staticmethod
+    def _parse_parameter_type(raw: Any) -> Any:
+        """Normalise a manifest parameter type token to ContractParameterType."""
+        from neo.smartcontract.contract_parameter_type import ContractParameterType
+
+        if isinstance(raw, ContractParameterType):
+            return raw
+        if isinstance(raw, int):
+            try:
+                return ContractParameterType(raw)
+            except ValueError:
+                return ContractParameterType.ANY
+        if isinstance(raw, str):
+            token = raw.strip().upper().replace(" ", "_")
+            # Accept both PascalCase ("ByteArray") and enum-name ("BYTE_ARRAY").
+            aliases = {
+                "BYTEARRAY": "BYTE_ARRAY",
+                "PUBLICKEY": "PUBLIC_KEY",
+                "INTEROPINTERFACE": "INTEROP_INTERFACE",
+            }
+            token = aliases.get(token, token)
+            try:
+                return ContractParameterType[token]
+            except KeyError:
+                return ContractParameterType.ANY
+        return ContractParameterType.ANY
+
+    @staticmethod
+    def _check_item_type(item: StackItem, param_type: Any) -> bool:
+        """Port of C# ApplicationEngine.CheckItemType (Runtime.cs:467-519)."""
+        from neo.smartcontract.contract_parameter_type import ContractParameterType as CPT
+        from neo.vm.types.stack_item import StackItemType as SIT
+
+        a_type = item.type
+        if a_type == SIT.POINTER:
+            return False
+        if param_type == CPT.ANY:
+            return True
+        if param_type == CPT.BOOLEAN:
+            return a_type == SIT.BOOLEAN
+        if param_type == CPT.INTEGER:
+            return a_type == SIT.INTEGER
+        if param_type == CPT.BYTE_ARRAY:
+            return a_type in (SIT.ANY, SIT.BYTESTRING, SIT.BUFFER)
+        if param_type == CPT.STRING:
+            if a_type in (SIT.BYTESTRING, SIT.BUFFER):
+                try:
+                    item.get_span().decode("utf-8")  # strict UTF-8 round-trip
+                    return True
+                except (UnicodeDecodeError, TypeError):
+                    return False
+            return False
+        if param_type in (CPT.HASH160, CPT.HASH256, CPT.PUBLIC_KEY, CPT.SIGNATURE):
+            if a_type == SIT.ANY:
+                return True
+            if a_type not in (SIT.BYTESTRING, SIT.BUFFER):
+                return False
+            expected = {
+                CPT.HASH160: 20,
+                CPT.HASH256: 32,
+                CPT.PUBLIC_KEY: 33,
+                CPT.SIGNATURE: 64,
+            }[param_type]
+            return len(item.get_span()) == expected
+        if param_type == CPT.ARRAY:
+            return a_type in (SIT.ANY, SIT.ARRAY, SIT.STRUCT)
+        if param_type == CPT.MAP:
+            return a_type in (SIT.ANY, SIT.MAP)
+        if param_type == CPT.INTEROP_INTERFACE:
+            return a_type in (SIT.ANY, SIT.INTEROP_INTERFACE)
+        return False
 
     def _runtime_get_notifications(self, engine: ApplicationEngine) -> None:
         """Get notifications filtered by contract hash.
@@ -1182,6 +1350,35 @@ class ApplicationEngine(ExecutionEngine):
         requested = CallFlags(int(flags))
         return (requested & self._current_call_flags) == requested
 
+    def _assert_not_blocked(self, contract: Any) -> None:
+        """Fault when the target contract has been blocked by PolicyContract.
+
+        Mirrors C# CallContractInternal (ApplicationEngine.cs:577-580) which
+        funnels both deployed and native call paths through a single
+        ``Policy.IsBlocked`` check. Native contracts are never blocked, so this
+        is effectively a no-op for native targets.
+        """
+        from neo.native.native_contract import NativeContract
+
+        if isinstance(contract, NativeContract):
+            return
+        if self.snapshot is None:
+            return
+        target_hash = getattr(contract, "hash", None)
+        if target_hash is None:
+            return
+        policy = NativeContract.get_contract_by_name("PolicyContract")
+        if policy is None:
+            return
+        try:
+            blocked = policy.is_blocked(self.snapshot, target_hash)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return
+        if blocked:
+            raise InvalidOperationException(
+                f"The contract {target_hash} has been blocked."
+            )
+
     def _get_contract(self, contract_hash: UInt160) -> Any | None:
         """Get contract state from storage."""
         if self.snapshot is None:
@@ -1488,6 +1685,11 @@ class ApplicationEngine(ExecutionEngine):
         """
         from neo.native.native_contract import NativeContract
         from neo.vm.types import Array, Struct
+
+        # C# CallContractInternal (ApplicationEngine.cs:577-580): reject blocked
+        # target contracts. Native contracts cannot be blocked (block_account
+        # rejects native hashes), so this is a no-op for native targets.
+        self._assert_not_blocked(contract)
 
         if isinstance(contract, NativeContract):
             metadata = contract.get_method_if_active(method, self)
@@ -1932,8 +2134,15 @@ class ApplicationEngine(ExecutionEngine):
     def _contract_create_standard_account(self, engine: ApplicationEngine) -> None:
         """Create standard account from public key."""
         from neo.crypto import hash160
+        from neo.hardfork import Hardfork
+        from neo.smartcontract.interop_service import _is_hardfork_enabled
 
         pubkey = self.pop()
+        # C# CreateStandardAccount fee (ApplicationEngine.Contract.cs:122-127):
+        # CheckSigPrice (1<<15) post-Aspidochelone else 1<<8. The spec applies
+        # exec-fee-factor at the runner boundary, so charge the raw base fee.
+        fee = (1 << 15) if _is_hardfork_enabled(self, Hardfork.HF_ASPIDOCHELONE) else (1 << 8)
+        self.add_gas(fee)
         # Create script hash from public key
         pubkey_bytes = pubkey.get_bytes_unsafe()
         script = bytes([0x0C, len(pubkey_bytes)]) + pubkey_bytes + bytes([0x41, 0x56, 0xE7, 0xB3, 0x27])
@@ -1947,6 +2156,8 @@ class ApplicationEngine(ExecutionEngine):
         standard multisig verification script, and pushes its hash160.
         """
         from neo.crypto import hash160
+        from neo.hardfork import Hardfork
+        from neo.smartcontract.interop_service import _is_hardfork_enabled
         from neo.smartcontract.syscalls.contract import _create_multisig_redeem_script
 
         m_item = self.pop()
@@ -1961,6 +2172,11 @@ class ApplicationEngine(ExecutionEngine):
             pubkeys = [pubkeys_item.get_bytes_unsafe()]
 
         n = len(pubkeys)
+        # C# CreateMultisigAccount fee (ApplicationEngine.Contract.cs:140-144):
+        # CheckSigPrice * n post-Aspidochelone, else a FLAT 1<<8 (not *n).
+        fee = ((1 << 15) * n) if _is_hardfork_enabled(self, Hardfork.HF_ASPIDOCHELONE) else (1 << 8)
+        self.add_gas(fee)
+
         if m < 1 or m > n or n > 1024:
             raise InvalidOperationException(f"Invalid multisig parameters: m={m}, n={n}")
 
@@ -2021,6 +2237,9 @@ class ApplicationEngine(ExecutionEngine):
         """
         from neo.crypto.ecc.curve import SECP256R1
         from neo.crypto.ecc.signature import verify_signature
+        from neo.exceptions import VMAbortException
+        from neo.hardfork import Hardfork
+        from neo.smartcontract.interop_service import _is_hardfork_enabled
 
         signature = self.pop()
         pubkey = self.pop()
@@ -2037,21 +2256,29 @@ class ApplicationEngine(ExecutionEngine):
             self.push(Integer(0))
             return
 
-        # Validate input lengths
-        if len(sig_bytes) != 64:
-            self.push(Integer(0))
-            return
-
+        # Malformed pubkey faults UNCONDITIONALLY (C# ECPoint.DecodePoint throws
+        # FormatException in both pre- and post-Gorgon paths via CreateECDsa).
         if len(pubkey_bytes) not in (33, 65):
+            raise VMAbortException("Invalid public key encoding.")
+
+        is_gorgon = _is_hardfork_enabled(self, Hardfork.HF_GORGON)
+
+        # Malformed signature length: post-Gorgon faults (Crypto.VerifySignature
+        # FormatException, Crypto.cs:278-279); pre-Gorgon returns False
+        # (VerifySignatureV0, Crypto.cs:188).
+        if len(sig_bytes) != 64:
+            if is_gorgon:
+                raise VMAbortException("Signature size should be 64 bytes.")
             self.push(Integer(0))
             return
 
-        # Verify the signature
+        # Verify the signature. The narrow try/except wraps only the verification
+        # math so a legitimate verify failure returns False, not a swallowed fault.
         try:
             result = verify_signature(message_hash, sig_bytes, pubkey_bytes, SECP256R1)
-            self.push(Integer(1 if result else 0))
         except (ValueError, TypeError):
-            self.push(Integer(0))
+            result = False
+        self.push(Integer(1 if result else 0))
 
     def _crypto_check_multisig(self, engine: ApplicationEngine) -> None:
         """Check multiple ECDSA signatures.
@@ -2061,6 +2288,9 @@ class ApplicationEngine(ExecutionEngine):
         """
         from neo.crypto.ecc.curve import SECP256R1
         from neo.crypto.ecc.signature import verify_signature
+        from neo.exceptions import VMAbortException
+        from neo.hardfork import Hardfork
+        from neo.smartcontract.interop_service import _is_hardfork_enabled
 
         # C# pop order: pubkeys (top), signatures
         pubkeys_item = self.pop()
@@ -2088,33 +2318,62 @@ class ApplicationEngine(ExecutionEngine):
             self.push(Integer(0))
             return
 
-        # Validate: need at least as many pubkeys as signatures
-        if len(pubkeys) < len(signatures) or len(signatures) == 0:
-            self.push(Integer(0))
-            return
+        # Count validation faults (C# ApplicationEngine.Crypto.cs:64-66 throw
+        # ArgumentException, which is NOT a CatchableException -> uncatchable VM
+        # fault). m = len(signatures), n = len(pubkeys).
+        m = len(signatures)
+        n = len(pubkeys)
+        if n == 0:
+            raise VMAbortException("pubkeys array cannot be empty.")
+        if m == 0:
+            raise VMAbortException("signatures array cannot be empty.")
+        if m > n:
+            raise VMAbortException(
+                f"signatures count ({m}) cannot be greater than pubkeys count ({n})."
+            )
 
-        # Verify signatures in order
-        # Each signature must match a pubkey, and pubkeys must be used in order
-        sig_idx = 0
-        for pubkey in pubkeys:
-            if sig_idx >= len(signatures):
-                break
+        # C# charges CheckSigPrice * n (* _execFeeFactor) before the loop.
+        # The spec has no exec-fee-factor, so charge the raw CheckSigPrice * n.
+        self.add_gas((1 << 15) * n)
 
-            sig = signatures[sig_idx]
+        is_gorgon = _is_hardfork_enabled(self, Hardfork.HF_GORGON)
 
-            # Validate lengths
-            if len(sig) != 64 or len(pubkey) not in (33, 65):
-                continue
+        # Verify signatures in order, mirroring C# loop semantics exactly
+        # (ApplicationEngine.Crypto.cs:68-78). Post-Gorgon a wrong-length
+        # signature faults via Crypto.VerifySignature (FormatException).
+        i = 0  # signature index
+        j = 0  # pubkey index
+        while i < m and j < n:
+            sig = signatures[i]
+            pubkey = pubkeys[j]
+            # Pubkey decode-fault is UNCONDITIONAL: both VerifySignature and
+            # VerifySignatureV0 call ECPoint.DecodePoint(pubkey, curve), which
+            # throws FormatException on a bad prefix/length (Crypto.cs:337/351).
+            if len(pubkey) not in (33, 65):
+                raise VMAbortException("Invalid public key encoding.")
+            if is_gorgon:
+                # Crypto.VerifySignature: length != 64 raises FormatException
+                # (uncatchable) (Crypto.cs:278-279).
+                if len(sig) != 64:
+                    raise VMAbortException("Signature size should be 64 bytes.")
+                ok = verify_signature(message_hash, sig, pubkey, SECP256R1)
+            else:
+                # VerifySignatureV0: length != 64 -> False (no fault).
+                if len(sig) != 64:
+                    ok = False
+                else:
+                    try:
+                        ok = verify_signature(message_hash, sig, pubkey, SECP256R1)
+                    except (ValueError, TypeError, OverflowError):
+                        ok = False
+            if ok:
+                i += 1
+            j += 1
+            if m - i > n - j:
+                self.push(Integer(0))
+                return
 
-            try:
-                if verify_signature(message_hash, sig, pubkey, SECP256R1):
-                    sig_idx += 1
-            except (ValueError, TypeError, OverflowError):
-                continue
-
-        # All signatures must have been verified
-        result = sig_idx == len(signatures)
-        self.push(Integer(1 if result else 0))
+        self.push(Integer(1))
 
     # Iterator syscall implementations
     def _iterator_next(self, engine: ApplicationEngine) -> None:

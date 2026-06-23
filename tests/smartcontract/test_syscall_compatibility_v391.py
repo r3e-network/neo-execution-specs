@@ -18,8 +18,10 @@ from neo.vm.types import NULL, ByteString
 EXPECTED_SYSCALLS_V391: dict[str, tuple[int, CallFlags, Hardfork | None]] = {
     "System.Contract.Call": (1 << 15, CallFlags.READ_STATES | CallFlags.ALLOW_CALL, None),
     "System.Contract.CallNative": (0, CallFlags.NONE, None),
-    "System.Contract.CreateMultisigAccount": (1 << 8, CallFlags.NONE, None),
-    "System.Contract.CreateStandardAccount": (1 << 8, CallFlags.NONE, None),
+    # v3.10.0: FixedPrice=0; the dynamic fee (HF_Aspidochelone-gated) is
+    # charged inside the handler (ApplicationEngine.Contract.cs:45,51,121-145).
+    "System.Contract.CreateMultisigAccount": (0, CallFlags.NONE, None),
+    "System.Contract.CreateStandardAccount": (0, CallFlags.NONE, None),
     "System.Contract.GetCallFlags": (1 << 10, CallFlags.NONE, None),
     "System.Contract.NativeOnPersist": (0, CallFlags.STATES, None),
     "System.Contract.NativePostPersist": (0, CallFlags.STATES, None),

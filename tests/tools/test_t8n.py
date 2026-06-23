@@ -81,7 +81,13 @@ class TestT8N:
         assert receipt.exception is not None
         assert "Stack underflow" in receipt.exception
 
-    def test_receipt_projects_notifications(self):
+    def test_receipt_projects_notification_fault_for_dynamic_script(self):
+        # A raw transaction entry script has no associated deployed contract
+        # (ExecutionContextState.Contract is null), so System.Runtime.Notify
+        # faults with "Notifications are not allowed in dynamic scripts." in
+        # both RuntimeNotifyV1 and the HF_Basilisk path
+        # (ApplicationEngine.Runtime.cs:368-369, 392-393). This test verifies
+        # the t8n receipt projects that fault and its exception message.
         notify_hash = get_interop_hash("System.Runtime.Notify")
         sb = ScriptBuilder()
         sb.emit_push("Transfer")
@@ -96,13 +102,9 @@ class TestT8N:
         output = t8n.run()
 
         receipt = output.result.receipts[0]
-        assert receipt.vm_state == "HALT"
-        assert receipt.stack == [{"type": "Integer", "value": "1"}]
-        assert len(receipt.notifications) == 1
-        notification = receipt.notifications[0]
-        assert notification["contract"] == f"0x{hash160(script).hex()}"
-        assert notification["eventName"] == "Transfer"
-        assert notification["state"] == {"type": "Array", "value": [{"type": "Integer", "value": "7"}]}
+        assert receipt.vm_state == "FAULT"
+        assert receipt.exception is not None
+        assert "dynamic scripts" in receipt.exception
 
     def test_post_alloc_extracts_account_entries_in_schema(self):
         addr1 = "0000000000000000000000000000000000000001"

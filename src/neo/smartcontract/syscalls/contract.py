@@ -108,12 +108,18 @@ def contract_create_standard_account(engine: "ApplicationEngine") -> None:
     from neo.vm.types import ByteString
     from neo.crypto import hash160
     
+    from neo.hardfork import Hardfork
+    from neo.smartcontract.interop_service import _is_hardfork_enabled
+
     stack = engine.current_context.evaluation_stack
     pubkey = stack.pop().get_bytes()
-    
-    # Add fee
-    engine.add_gas(1 << 15)  # CheckSigPrice
-    
+
+    # Add fee (ApplicationEngine.Contract.cs:121-129): CheckSigPrice (1<<15)
+    # post-Aspidochelone, else 1<<8. Base price only; exec-fee-factor is applied
+    # at the runner boundary in this spec.
+    fee = (1 << 15) if _is_hardfork_enabled(engine, Hardfork.HF_ASPIDOCHELONE) else (1 << 8)
+    engine.add_gas(fee)
+
     # Create signature redeem script: PUSHDATA1 <pubkey> SYSCALL CheckSig
     script = _create_signature_redeem_script(pubkey)
     script_hash = hash160(script)
@@ -136,16 +142,21 @@ def contract_create_multisig_account(engine: "ApplicationEngine") -> None:
     pubkeys_item = stack.pop()
     m = stack.pop().get_integer()
     
+    from neo.hardfork import Hardfork
+    from neo.smartcontract.interop_service import _is_hardfork_enabled
+
     if isinstance(pubkeys_item, Array):
         pubkeys = [item.get_bytes() for item in pubkeys_item]
     else:
         pubkeys = [pubkeys_item.get_bytes()]
-    
+
     n = len(pubkeys)
-    
-    # Add fee
-    engine.add_gas((1 << 15) * n)  # CheckSigPrice * n
-    
+
+    # Add fee (ApplicationEngine.Contract.cs:138-145): CheckSigPrice * n
+    # post-Aspidochelone, else a FLAT 1<<8 (not *n). Base price only.
+    fee = ((1 << 15) * n) if _is_hardfork_enabled(engine, Hardfork.HF_ASPIDOCHELONE) else (1 << 8)
+    engine.add_gas(fee)
+
     # Create multisig redeem script
     script = _create_multisig_redeem_script(m, pubkeys)
     script_hash = hash160(script)
