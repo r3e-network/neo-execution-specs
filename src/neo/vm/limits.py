@@ -22,6 +22,7 @@ class ExecutionEngineLimits:
     max_invocation_stack_size: int = MAX_INVOCATION_STACK_SIZE
     max_script_length: int = MAX_SCRIPT_LENGTH
     max_try_nesting_depth: int = 16
+    max_comparable_size: int = MAX_COMPARABLE_SIZE
 
     def assert_max_item_size(self, size: int) -> None:
         """Assert that item size is within limits."""

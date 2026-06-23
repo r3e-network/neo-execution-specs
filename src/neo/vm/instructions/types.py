@@ -84,15 +84,20 @@ def convert(engine: ExecutionEngine, instruction: Instruction) -> None:
 
 def _convert_to(item, target_type: int, engine):
     """Convert a stack item to the target type."""
+    # Handle Null specially (mirrors C# Null.ConvertTo). This MUST run before
+    # the same-type early return, so Null->Any faults while Null->any other
+    # defined type returns the Null item unchanged.
+    if item is NULL or item.type == StackItemType.ANY:
+        valid_types = {t.value for t in StackItemType}
+        if target_type == StackItemType.ANY or target_type not in valid_types:
+            raise InvalidOperationException(
+                f"Type Null can't be converted to StackItemType: {target_type}"
+            )
+        return item
+
     # If already the target type, return as-is
     if item.type == target_type:
         return item
-    
-    # Handle Null specially
-    if item is NULL or item.type == StackItemType.ANY:
-        if target_type == StackItemType.ANY:
-            return NULL
-        raise InvalidOperationException(f"Cannot convert Null to {StackItemType(target_type).name}")
     
     # Convert based on target type
     if target_type == StackItemType.BOOLEAN:
@@ -170,8 +175,11 @@ def _convert_to(item, target_type: int, engine):
         raise InvalidOperationException(f"Cannot convert {item.type} to Pointer")
     
     elif target_type == StackItemType.ANY:
-        return NULL
-    
+        # Mirrors C# StackItem.ConvertTo: converting a non-Null item to Any
+        # is not the same type (Null is handled above) and Any!=Boolean, so
+        # it throws InvalidCastException.
+        raise InvalidOperationException(f"Cannot convert {item.type} to Any")
+
     else:
         raise InvalidOperationException(f"Unknown target type: {target_type}")
 

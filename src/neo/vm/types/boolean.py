@@ -35,9 +35,13 @@ class Boolean(StackItem):
         if isinstance(other, Boolean):
             return self._value == other._value
         return False
-    
+
     def __hash__(self) -> int:
         return hash(self._value)
+
+    def _equals_impl(self, other: "StackItem", limits: object) -> bool:
+        """Check equality with another Boolean (mirrors C# Boolean.Equals)."""
+        return isinstance(other, Boolean) and self._value == other._value
 
 
 Boolean.TRUE = Boolean(True)
