@@ -39,22 +39,43 @@ class ECPoint:
     
     @classmethod
     def decode(cls, data: bytes, curve: "ECCurve") -> "ECPoint":
-        """Decode point from bytes."""
-        if len(data) == 0 or data[0] == 0x00:
-            return cls(0, 0, curve)
-        
+        """Decode point from bytes.
+
+        Mirrors C# ECPoint.DecodePoint: there is no infinity/empty branch
+        (DecodePoint indexes encoded[0] and an unknown/0x00 prefix or empty
+        input raises FormatException), encoding lengths must match exactly,
+        and coordinates must lie below the curve's prime field size
+        (ECFieldElement throws when value >= curve.Q).
+        """
+        if len(data) == 0:
+            raise ValueError("Invalid ECPoint encoding: empty data")
+
+        if data[0] in (0x02, 0x03):  # Compressed
+            if len(data) != 33:
+                raise ValueError(
+                    f"Invalid compressed ECPoint encoding length: "
+                    f"expected 33 bytes, got {len(data)}"
+                )
+            x = int.from_bytes(data[1:33], 'big')
+            if x >= curve.p:
+                raise ValueError("Invalid ECPoint: x coordinate out of field range")
+            y = cls._decompress_y(x, data[0] == 0x03, curve)
+            return cls(x, y, curve)
+
         if data[0] == 0x04:  # Uncompressed
+            if len(data) != 65:
+                raise ValueError(
+                    f"Invalid uncompressed ECPoint encoding length: "
+                    f"expected 65 bytes, got {len(data)}"
+                )
             x = int.from_bytes(data[1:33], 'big')
             y = int.from_bytes(data[33:65], 'big')
+            if x >= curve.p or y >= curve.p:
+                raise ValueError("Invalid ECPoint: coordinate out of field range")
             if not cls._is_on_curve(x, y, curve):
                 raise ValueError("Invalid point: not on curve")
             return cls(x, y, curve)
-        
-        if data[0] in (0x02, 0x03):  # Compressed
-            x = int.from_bytes(data[1:33], 'big')
-            y = cls._decompress_y(x, data[0] == 0x03, curve)
-            return cls(x, y, curve)
-        
+
         raise ValueError(f"Invalid point encoding: {data[0]:#x}")
     
     def __neg__(self) -> "ECPoint":
