@@ -22,6 +22,18 @@ if TYPE_CHECKING:
     from neo.vm.execution_engine import ExecutionEngine, Instruction
 
 
+def _to_int32(value: int) -> int:
+    """Truncate to a signed 32-bit integer, mirroring C#'s ``(int)BigInteger`` cast.
+
+    C# casts the popped shift/exponent with ``(int)`` (low 32 bits, two's
+    complement, non-throwing) before the shift-bounds check. Large values that
+    wrap into [0, MaxShift] therefore HALT, while values wrapping to negative or
+    above MaxShift FAULT — matching the VM exactly.
+    """
+    masked = int(value) & 0xFFFFFFFF
+    return masked - (1 << 32) if masked >= (1 << 31) else masked
+
+
 def sign(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Push sign of integer (-1, 0, or 1)."""
     x = engine.pop().get_integer()
@@ -108,9 +120,7 @@ def mod(engine: ExecutionEngine, instruction: Instruction) -> None:
 
 def pow_(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Raise integer to power."""
-    exponent = int(engine.pop().get_integer())
-    if exponent < 0:
-        raise InvalidOperationException("Exponent must be non-negative")
+    exponent = _to_int32(engine.pop().get_integer())
     engine.limits.assert_shift(exponent)
     value = engine.pop().get_integer()
     engine.push(Integer(value**exponent))
@@ -148,27 +158,31 @@ def modpow(engine: ExecutionEngine, instruction: Instruction) -> None:
     modulus = engine.pop().get_integer()
     exponent = engine.pop().get_integer()
     value = engine.pop().get_integer()
-    if modulus == 0:
-        raise InvalidOperationException("Modulus cannot be zero")
-    if exponent < -1:
-        raise InvalidOperationException("Exponent must be >= -1")
-    if modulus == 1:
-        engine.push(Integer(0))
-        return
     if exponent == -1:
-        # Modular inverse — fails if value and modulus are not coprime
+        # Modular inverse path — mirrors C# Utility.ModInverse, which is
+        # evaluated for exponent == -1 regardless of modulus, and faults on
+        # value <= 0 or modulus < 2 (ThrowIfNegativeOrZero / ThrowIfLessThan).
+        if value <= 0:
+            raise InvalidOperationException("Value must be positive for modular inverse")
+        if modulus < 2:
+            raise InvalidOperationException("Modulus must be >= 2 for modular inverse")
         try:
             result = pow(value, -1, modulus)
         except ValueError:
             raise InvalidOperationException("Modular inverse does not exist")
     else:
+        # BigInteger.ModPow faults on a zero modulus or a negative exponent.
+        if modulus == 0:
+            raise InvalidOperationException("Modulus cannot be zero")
+        if exponent < 0:
+            raise InvalidOperationException("Exponent must be non-negative")
         result = pow(value, exponent, modulus)
     engine.push(Integer(result))
 
 
 def shl(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Left shift integer."""
-    shift = int(engine.pop().get_integer())
+    shift = _to_int32(engine.pop().get_integer())
     engine.limits.assert_shift(shift)
     x = engine.pop().get_integer()
     if shift == 0:
@@ -179,7 +193,7 @@ def shl(engine: ExecutionEngine, instruction: Instruction) -> None:
 
 def shr(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Right shift integer."""
-    shift = int(engine.pop().get_integer())
+    shift = _to_int32(engine.pop().get_integer())
     engine.limits.assert_shift(shift)
     x = engine.pop().get_integer()
     if shift == 0:
