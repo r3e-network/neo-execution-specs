@@ -1,29 +1,33 @@
 """Comprehensive tests for Notary deposit/withdraw lifecycle.
 
-Covers:
-- Deposit serialization round-trip
-- on_nep17_payment: deposit creation, amount accumulation, till extension
+Behaviour is pinned to C# Neo v3.10.0 (Neo.SmartContract.Native.Notary):
+
+- Deposit serialization round-trip (StackItem Struct-of-Integers encoding)
+- on_nep17_payment: exactly-2-element data, till lower bound (CurrentIndex+2),
+  allowedChangeTill (tx.Sender == to), first-deposit minimum, unconditional till
 - balance_of / expiration_of lookups
-- lock_deposit_until: extend, reject shrink, missing deposit
-- withdraw: expired deposit, non-expired rejection, witness check
-- get/set max_not_valid_before_delta with committee check
-- initialize on genesis
+- lock_deposit_until: extend, reject shrink, missing deposit, till lower bound
+- withdraw: expired deposit transfers GAS from the Notary, non-expired rejected
+- get/set max_not_valid_before_delta with [ValidatorsCount, maxVUB/2] bounds
+- initialize seeds the default delta
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 import pytest
 
 from neo.native.gas_token import GasToken
-from neo.native.native_contract import NativeContract, StorageKey
+from neo.native.native_contract import NativeContract, StorageItem, StorageKey
 from neo.native.notary import (
+    DEFAULT_DEPOSIT_DELTA_TILL,
     DEFAULT_MAX_NOT_VALID_BEFORE_DELTA,
     Deposit,
     Notary,
 )
+from neo.native.policy import PolicyContract
 from neo.types import UInt160
 
 # ---------------------------------------------------------------------------
@@ -72,6 +76,9 @@ class MockSnapshot:
 class _MockProtocolSettings:
     initial_gas_distribution: int = 100_000_000 * 10**8
     standby_committee: list = None
+    network: int = 0x4F454E
+    validators_count: int = 7
+    max_valid_until_block_increment: int = 5760
 
     def __post_init__(self):
         if self.standby_committee is None:
@@ -88,6 +95,17 @@ class _MockProtocolSettings:
 @dataclass
 class _MockBlock:
     index: int = 0
+    transactions: list = field(default_factory=list)
+    primary_index: int = 0
+
+
+@dataclass
+class _MockTransaction:
+    sender: Optional[UInt160] = None
+    signers: list = field(default_factory=list)
+    attributes: list = field(default_factory=list)
+    system_fee: int = 0
+    network_fee: int = 0
 
 
 class MockEngine:
@@ -103,7 +121,10 @@ class MockEngine:
         self._is_committee = is_committee
         self._witness_accounts = witness_accounts or set()
         self.protocol_settings = _MockProtocolSettings()
-        self.notifications = []
+        self.network = self.protocol_settings.network
+        self.notifications: list = []
+        self.script_container: Optional[_MockTransaction] = None
+        self.calling_script_hash: Optional[UInt160] = None
 
     def check_committee(self) -> bool:
         return self._is_committee
@@ -115,8 +136,7 @@ class MockEngine:
         self.notifications.append((script_hash, event_name, state))
 
     def is_contract(self, account: UInt160) -> bool:
-        """Check if an account is a contract. For testing, we assume only known contracts are contracts."""
-        return False  # Keep simple - assume no contracts in tests
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -137,32 +157,36 @@ def _fresh_notary() -> Notary:
 
 
 def _initialized_notary(block_index: int = 0):
-    """Return (notary, snapshot, engine) with storage initialized."""
-    # Clear registry first
+    """Return (notary, snapshot, engine) with storage initialized.
+
+    Registers Notary, GasToken and PolicyContract so the C#-equivalent helper
+    lookups (attribute fee) resolve.  LedgerContract is intentionally not
+    registered so that ``_current_index`` falls back to the persisting block's
+    index (these mocks have no persisted ledger state).
+    """
     NativeContract._contracts.clear()
     NativeContract._contracts_by_id.clear()
     NativeContract._contracts_by_name.clear()
     NativeContract._id_counter = 0
 
-    # Create Notary first (clears registry again)
     n = Notary()
-
-    # Now create GasToken (will be registered after Notary)
     gas = GasToken()
+    PolicyContract()
 
     snap = MockSnapshot()
     snap.persisting_block = _MockBlock(index=block_index)
     engine = MockEngine(snap, witness_accounts={ACCOUNT_A, ACCOUNT_B})
-    # Set up calling_script_hash to simulate GasToken caller
-    gas_hash = gas.hash
-    engine.calling_script_hash = gas_hash
+    engine.calling_script_hash = gas.hash
+    # A default container whose sender matches the deposit owner so that
+    # allowedChangeTill is True (caller may freely set `till`).
+    engine.script_container = _MockTransaction(sender=ACCOUNT_A)
     gas.initialize(engine)
     n.initialize(engine)
     return n, snap, engine
 
 
 # ===========================================================================
-# Tests: Deposit serialization
+# Tests: Deposit serialization (C# StackItem Struct-of-Integers)
 # ===========================================================================
 
 
@@ -181,11 +205,18 @@ class TestDepositSerialization:
         assert restored.amount == 0
         assert restored.till == 0
 
-    def test_serialize_length(self):
+    def test_struct_encoding(self):
+        # C# Struct: 0x41, VarInt count=2, then two Integer (0x21) elements.
         d = Deposit(amount=1, till=1)
         data = d.serialize()
-        # VarInt(1) = 1 byte + 4 bytes till = 5
-        assert len(data) == 5
+        # 0x41 0x02 | 0x21 0x01 0x01 | 0x21 0x01 0x01
+        assert data == bytes([0x41, 0x02, 0x21, 0x01, 0x01, 0x21, 0x01, 0x01])
+
+    def test_zero_encodes_empty_bytes(self):
+        # Zero values serialize with empty (0-length) integer payloads.
+        d = Deposit(amount=0, till=0)
+        data = d.serialize()
+        assert data == bytes([0x41, 0x02, 0x21, 0x00, 0x21, 0x00])
 
 
 # ===========================================================================
@@ -211,36 +242,48 @@ class TestOnNep17Payment:
         assert n.balance_of(snap, ACCOUNT_A) == 80_000_000
 
     def test_extend_till_on_deposit(self):
+        # allowedChangeTill (tx.Sender == to) -> till is set unconditionally.
         n, snap, engine = _initialized_notary()
         n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 100])
         n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 200])
 
         assert n.expiration_of(snap, ACCOUNT_A) == 200
 
-    def test_till_not_reduced_on_deposit(self):
+    def test_till_below_previous_rejected(self):
+        # C# raises when till < deposit.Till (it does not silently keep max).
         n, snap, engine = _initialized_notary()
         n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 200])
-        n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 100])
-
-        # till should stay at 200 (higher value wins)
+        with pytest.raises(ValueError, match="previous value"):
+            n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 100])
+        # till unchanged
         assert n.expiration_of(snap, ACCOUNT_A) == 200
 
     def test_deposit_to_different_account(self):
+        # to = ACCOUNT_B, sender = ACCOUNT_A -> not allowedChangeTill, so a
+        # first deposit defaults till to currentHeight + DEFAULT_DEPOSIT_DELTA_TILL.
         n, snap, engine = _initialized_notary()
         n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [ACCOUNT_B, 300])
 
         assert n.balance_of(snap, ACCOUNT_B) == 10_000_000
         assert n.balance_of(snap, ACCOUNT_A) == 0
+        assert n.expiration_of(snap, ACCOUNT_B) == DEFAULT_DEPOSIT_DELTA_TILL
 
-    def test_zero_amount_raises(self):
-        n, snap, engine = _initialized_notary()
-        with pytest.raises(ValueError, match="positive"):
-            n.on_nep17_payment(engine, ACCOUNT_A, 0, [None, 100])
+    def test_till_below_lower_bound_raises(self):
+        # till must be >= CurrentIndex + 2.
+        n, snap, engine = _initialized_notary(block_index=100)
+        with pytest.raises(ValueError, match="chain's height"):
+            n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 101])
 
-    def test_negative_amount_raises(self):
+    def test_data_must_have_two_elements(self):
         n, snap, engine = _initialized_notary()
-        with pytest.raises(ValueError, match="positive"):
-            n.on_nep17_payment(engine, ACCOUNT_A, -1, [None, 100])
+        with pytest.raises(ValueError, match="array of 2 elements"):
+            n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [500])
+
+    def test_only_gas_accepted(self):
+        n, snap, engine = _initialized_notary()
+        engine.calling_script_hash = UInt160(b"\x09" * 20)
+        with pytest.raises(ValueError, match="GAS"):
+            n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 500])
 
 
 # ===========================================================================
@@ -292,6 +335,13 @@ class TestLockDepositUntil:
         assert result is False
         assert n.expiration_of(snap, ACCOUNT_A) == 200
 
+    def test_reject_below_lower_bound(self):
+        # till < CurrentIndex + 2 -> rejected.
+        n, snap, engine = _initialized_notary(block_index=100)
+        n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 500])
+        result = n.lock_deposit_until(engine, ACCOUNT_A, 101)
+        assert result is False
+
     def test_no_deposit_returns_false(self):
         n, snap, engine = _initialized_notary()
         result = n.lock_deposit_until(engine, ACCOUNT_A, 100)
@@ -300,54 +350,73 @@ class TestLockDepositUntil:
     def test_witness_required(self):
         n, snap, engine = _initialized_notary()
         n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 100])
-        # Create engine without witness for ACCOUNT_A
         engine_no_witness = MockEngine(snap, witness_accounts=set())
         with pytest.raises(PermissionError):
             n.lock_deposit_until(engine_no_witness, ACCOUNT_A, 200)
 
 
 # ===========================================================================
-# Tests: withdraw
+# Tests: withdraw (transfers GAS from the Notary, mirroring C#)
 # ===========================================================================
 
 
+def _fund_notary_gas(notary: Notary, gas: GasToken, engine: MockEngine, amount: int) -> None:
+    """Credit the Notary contract's real GAS balance (deposits back this)."""
+    gas.mint(engine, notary.hash, amount, False)
+
+
 class TestWithdraw:
-    """withdraw with expiration check."""
+    """withdraw with expiration check + GAS transfer from the Notary."""
+
+    def _prepare(self):
+        """Deposit at height 0 (till must be >= 2), then advance the chain."""
+        n, snap, engine = _initialized_notary(block_index=0)
+        gas = NativeContract.get_contract_by_name("GasToken")
+        # The Notary can witness itself for the internal transfer.
+        engine._witness_accounts.add(n.hash)
+        return n, snap, engine, gas
 
     def test_withdraw_expired_deposit(self):
-        n, snap, engine = _initialized_notary(block_index=200)
+        n, snap, engine, gas = self._prepare()
         n.on_nep17_payment(engine, ACCOUNT_A, 50_000_000, [None, 100])
+        _fund_notary_gas(n, gas, engine, 50_000_000)
+        engine.calling_script_hash = n.hash
+        snap.persisting_block.index = 200  # advance past till=100
 
-        # Block index 200 > till 100, so withdrawal should succeed
         result = n.withdraw(engine, ACCOUNT_A, ACCOUNT_B)
         assert result is True
-        # Deposit should be removed
         assert n.balance_of(snap, ACCOUNT_A) == 0
+        assert gas.balance_of(snap, ACCOUNT_B) == 50_000_000
 
     def test_withdraw_non_expired_rejected(self):
-        n, snap, engine = _initialized_notary(block_index=50)
+        n, snap, engine, gas = self._prepare()
         n.on_nep17_payment(engine, ACCOUNT_A, 50_000_000, [None, 100])
+        snap.persisting_block.index = 50  # before till=100
 
-        # Block index 50 < till 100, so withdrawal should fail
         result = n.withdraw(engine, ACCOUNT_A, ACCOUNT_B)
         assert result is False
-        # Deposit should remain
         assert n.balance_of(snap, ACCOUNT_A) == 50_000_000
 
     def test_withdraw_no_deposit_returns_false(self):
-        n, snap, engine = _initialized_notary(block_index=200)
+        n, snap, engine, gas = self._prepare()
+        snap.persisting_block.index = 200
         result = n.withdraw(engine, ACCOUNT_A, ACCOUNT_B)
         assert result is False
 
     def test_withdraw_to_self(self):
-        n, snap, engine = _initialized_notary(block_index=200)
+        n, snap, engine, gas = self._prepare()
         n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 100])
+        _fund_notary_gas(n, gas, engine, 10_000_000)
+        engine.calling_script_hash = n.hash
+        snap.persisting_block.index = 200
+
         result = n.withdraw(engine, ACCOUNT_A, None)
         assert result is True
         assert n.balance_of(snap, ACCOUNT_A) == 0
+        assert gas.balance_of(snap, ACCOUNT_A) == 10_000_000
 
     def test_withdraw_witness_required(self):
-        n, snap, engine = _initialized_notary(block_index=200)
+        n, snap, engine, gas = self._prepare()
         n.on_nep17_payment(engine, ACCOUNT_A, 10_000_000, [None, 100])
         engine_no_witness = MockEngine(snap, witness_accounts=set())
         engine_no_witness.snapshot.persisting_block = _MockBlock(index=200)
@@ -361,7 +430,7 @@ class TestWithdraw:
 
 
 class TestMaxNotValidBeforeDelta:
-    """get/set max_not_valid_before_delta with committee check."""
+    """get/set max_not_valid_before_delta with [ValidatorsCount, maxVUB/2] bounds."""
 
     def test_get_default_delta(self):
         n, snap, engine = _initialized_notary()
@@ -369,14 +438,20 @@ class TestMaxNotValidBeforeDelta:
         assert delta == DEFAULT_MAX_NOT_VALID_BEFORE_DELTA
 
     def test_set_delta(self):
+        # Within [validators_count=7, maxVUB(5760)/2=2880].
         n, snap, engine = _initialized_notary()
         n.set_max_not_valid_before_delta(engine, 200)
         assert n.get_max_not_valid_before_delta(snap) == 200
 
-    def test_set_delta_zero_raises(self):
+    def test_set_delta_below_validators_count_raises(self):
         n, snap, engine = _initialized_notary()
-        with pytest.raises(ValueError, match="positive"):
-            n.set_max_not_valid_before_delta(engine, 0)
+        with pytest.raises(ValueError, match="less than"):
+            n.set_max_not_valid_before_delta(engine, 6)
+
+    def test_set_delta_above_half_max_vub_raises(self):
+        n, snap, engine = _initialized_notary()
+        with pytest.raises(ValueError, match="more than"):
+            n.set_max_not_valid_before_delta(engine, 3000)
 
     def test_set_delta_committee_only(self):
         n, snap, engine = _initialized_notary()
