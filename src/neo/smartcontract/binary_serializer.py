@@ -132,96 +132,118 @@ class BinarySerializer:
 
         raise ValueError(f"Cannot serialize type: {item_type}")
 
+    # StackItem types allowed as Map keys (C# PrimitiveType: Boolean, Integer,
+    # ByteString). Buffer derives from StackItem, not PrimitiveType, so a Buffer
+    # key faults via the `(PrimitiveType)key` cast in C#.
+    _PRIMITIVE_KEY_TYPES = (
+        StackItemType.BOOLEAN,
+        StackItemType.INTEGER,
+        StackItemType.BYTESTRING,
+    )
+
     @classmethod
     def deserialize(cls, data: bytes, max_size: int = MAX_SIZE) -> StackItem:
-        """Deserialize bytes to a stack item."""
+        """Deserialize bytes to a stack item.
+
+        Mirrors C# BinarySerializer.Deserialize: a flat work-stack bounded by a
+        single cumulative item count (MaxStackSize), not per-container length.
+        """
         if len(data) > max_size:
             raise ValueError(f"Data size {len(data)} exceeds max {max_size}")
 
         reader = BytesIO(data)
-        return cls._deserialize_item(reader, 0)
+        max_items = cls.MAX_ITEMS
 
-    @classmethod
-    def _deserialize_item(cls, reader: BinaryIO, depth: int) -> StackItem:
-        """Deserialize a single stack item."""
-        if depth > 128:
-            raise ValueError("Deserialization depth exceeded")
-
-        type_byte = reader.read(1)
-        if not type_byte:
-            raise ValueError("Unexpected end of data")
-
-        item_type = type_byte[0]
-
-        if item_type == StackItemType.ANY:
-            return NULL
-
-        if item_type == StackItemType.BOOLEAN:
-            value_byte = reader.read(1)
-            if not value_byte:
+        # Phase 1: flat parse. Each produced node (leaf or container
+        # placeholder) increments the running count, faulting when it exceeds
+        # maxItems (strict >), matching C# `deserialized.Count > maxItems`.
+        deserialized: list[StackItem] = []
+        # ContainerPlaceholder is encoded as a (type, element_count) tuple.
+        undeserialized = 1
+        while undeserialized > 0:
+            undeserialized -= 1
+            type_byte = reader.read(1)
+            if not type_byte:
                 raise ValueError("Unexpected end of data")
-            return Boolean(value_byte[0] != 0)
+            item_type = type_byte[0]
 
-        if item_type == StackItemType.INTEGER:
-            length = cls._read_var_int(reader)
-            if length == 0:
-                return Integer(0)
-            if length > 32:
-                raise ValueError(f"Integer too large: {length} bytes")
-            data = reader.read(length)
-            if len(data) != length:
-                raise ValueError("Unexpected end of data")
-            int_value = int.from_bytes(data, 'little', signed=True)
-            return Integer(int_value)
+            if item_type == StackItemType.ANY:
+                deserialized.append(NULL)
+            elif item_type == StackItemType.BOOLEAN:
+                value_byte = reader.read(1)
+                if not value_byte:
+                    raise ValueError("Unexpected end of data")
+                deserialized.append(Boolean(value_byte[0] != 0))
+            elif item_type == StackItemType.INTEGER:
+                length = cls._read_var_int(reader, 32)  # Integer.MaxSize
+                data_bytes = reader.read(length)
+                if len(data_bytes) != length:
+                    raise ValueError("Unexpected end of data")
+                if length == 0:
+                    deserialized.append(Integer(0))
+                else:
+                    deserialized.append(
+                        Integer(int.from_bytes(data_bytes, 'little', signed=True))
+                    )
+            elif item_type == StackItemType.BYTESTRING:
+                length = cls._read_var_int(reader, max_size)
+                data_bytes = reader.read(length)
+                if len(data_bytes) != length:
+                    raise ValueError("Unexpected end of data")
+                deserialized.append(ByteString(data_bytes))
+            elif item_type == StackItemType.BUFFER:
+                length = cls._read_var_int(reader, max_size)
+                data_bytes = reader.read(length)
+                if len(data_bytes) != length:
+                    raise ValueError("Unexpected end of data")
+                deserialized.append(Buffer(bytearray(data_bytes)))
+            elif item_type in (StackItemType.ARRAY, StackItemType.STRUCT):
+                count = cls._read_var_int(reader, max_items)
+                deserialized.append((item_type, count))
+                undeserialized += count
+            elif item_type == StackItemType.MAP:
+                count = cls._read_var_int(reader, max_items)
+                deserialized.append((item_type, count))
+                undeserialized += count * 2
+            else:
+                raise ValueError(f"Unknown type: {item_type:#x}")
 
-        if item_type == StackItemType.BYTESTRING:
-            length = cls._read_var_int(reader)
-            if length > cls.MAX_SIZE:
-                raise ValueError(f"ByteString too large: {length}")
-            data = reader.read(length)
-            if len(data) != length:
-                raise ValueError("Unexpected end of data")
-            return ByteString(data)
+            if len(deserialized) > max_items:
+                raise ValueError(
+                    f"Deserialized count({len(deserialized)}) is out of range "
+                    f"(max:{max_items})"
+                )
 
-        if item_type == StackItemType.BUFFER:
-            length = cls._read_var_int(reader)
-            if length > cls.MAX_SIZE:
-                raise ValueError(f"Buffer too large: {length}")
-            data = reader.read(length)
-            if len(data) != length:
-                raise ValueError("Unexpected end of data")
-            return Buffer(bytearray(data))
+        # Phase 2: rebuild containers from placeholders, popping children.
+        stack_temp: list[StackItem] = []
+        while deserialized:
+            item = deserialized.pop()
+            if isinstance(item, tuple):
+                placeholder_type, element_count = item
+                if placeholder_type == StackItemType.ARRAY:
+                    array_items: list[StackItem] = []
+                    for _ in range(element_count):
+                        array_items.append(stack_temp.pop())
+                    item = Array(items=array_items)
+                elif placeholder_type == StackItemType.STRUCT:
+                    struct_items: list[StackItem] = []
+                    for _ in range(element_count):
+                        struct_items.append(stack_temp.pop())
+                    item = Struct(items=struct_items)
+                else:  # MAP
+                    result = Map()
+                    for _ in range(element_count):
+                        key = stack_temp.pop()
+                        value = stack_temp.pop()
+                        # C# casts `(PrimitiveType)key`; non-primitive (incl.
+                        # Buffer) keys fault here.
+                        if key.type not in cls._PRIMITIVE_KEY_TYPES:
+                            raise ValueError("Map key is not a PrimitiveType")
+                        result[key] = value
+                    item = result
+            stack_temp.append(item)
 
-        if item_type == StackItemType.ARRAY:
-            count = cls._read_var_int(reader)
-            if count > cls.MAX_ITEMS:
-                raise ValueError(f"Array too large: {count}")
-            array_items: list[StackItem] = []
-            for _ in range(count):
-                array_items.append(cls._deserialize_item(reader, depth + 1))
-            return Array(items=array_items)
-
-        if item_type == StackItemType.STRUCT:
-            count = cls._read_var_int(reader)
-            if count > cls.MAX_ITEMS:
-                raise ValueError(f"Struct too large: {count}")
-            struct_items: list[StackItem] = []
-            for _ in range(count):
-                struct_items.append(cls._deserialize_item(reader, depth + 1))
-            return Struct(items=struct_items)
-
-        if item_type == StackItemType.MAP:
-            count = cls._read_var_int(reader)
-            if count > cls.MAX_ITEMS:
-                raise ValueError(f"Map too large: {count}")
-            result = Map()
-            for _ in range(count):
-                key_item = cls._deserialize_item(reader, depth + 1)
-                map_value = cls._deserialize_item(reader, depth + 1)
-                result[key_item] = map_value
-            return result
-
-        raise ValueError(f"Unknown type: {item_type:#x}")
+        return stack_temp[-1]
 
     @staticmethod
     def _write_var_int(writer: BinaryIO, value: int) -> None:
@@ -241,27 +263,35 @@ class BinarySerializer:
             writer.write(value.to_bytes(8, 'little'))
 
     @staticmethod
-    def _read_var_int(reader: BinaryIO) -> int:
-        """Read a variable-length integer."""
+    def _read_var_int(reader: BinaryIO, max_value: int = 0xFFFFFFFFFFFFFFFF) -> int:
+        """Read a variable-length integer, faulting if it exceeds max_value.
+
+        Mirrors C# MemoryReader.ReadVarInt(max) which throws FormatException
+        when the decoded value exceeds the supplied maximum.
+        """
         first = reader.read(1)
         if not first:
             raise ValueError("Unexpected end of data")
 
         fb = first[0]
         if fb < 0xFD:
-            return fb
-        if fb == 0xFD:
+            value = fb
+        elif fb == 0xFD:
             data = reader.read(2)
             if len(data) != 2:
                 raise ValueError("Unexpected end of data")
-            return int.from_bytes(data, 'little')
-        if fb == 0xFE:
+            value = int.from_bytes(data, 'little')
+        elif fb == 0xFE:
             data = reader.read(4)
             if len(data) != 4:
                 raise ValueError("Unexpected end of data")
-            return int.from_bytes(data, 'little')
+            value = int.from_bytes(data, 'little')
+        else:
+            data = reader.read(8)
+            if len(data) != 8:
+                raise ValueError("Unexpected end of data")
+            value = int.from_bytes(data, 'little')
 
-        data = reader.read(8)
-        if len(data) != 8:
-            raise ValueError("Unexpected end of data")
-        return int.from_bytes(data, 'little')
+        if value > max_value:
+            raise ValueError(f"VarInt value {value} exceeds max {max_value}")
+        return value

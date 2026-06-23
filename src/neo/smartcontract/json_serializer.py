@@ -5,7 +5,6 @@ Reference: Neo.SmartContract.JsonSerializer
 
 from __future__ import annotations
 
-import base64
 import json
 from typing import Any
 
@@ -31,6 +30,11 @@ class JsonSerializer:
 
     MAX_SIZE = 1024 * 1024  # 1MB max
     MAX_ITEMS = 2048
+    # C# Neo.Json.JNumber safe-integer bounds (2^53 - 1)
+    MAX_SAFE_INTEGER = (1 << 53) - 1
+    MIN_SAFE_INTEGER = -MAX_SAFE_INTEGER
+    # C# ExecutionEngineLimits.MaxStackSize, used as the cumulative deserialize budget
+    MAX_STACK_SIZE = 2048
 
     @classmethod
     def serialize(cls, item: StackItem, max_size: int = MAX_SIZE) -> bytes:
@@ -63,17 +67,23 @@ class JsonSerializer:
         if item_type == StackItemType.INTEGER:
             if not isinstance(item, Integer):
                 raise ValueError("Invalid Integer item")
-            return int(item.value)
+            value = int(item.value)
+            # C# JsonSerializer faults when the integer is outside the
+            # JavaScript safe-integer range (writes it as a double otherwise).
+            if value > cls.MAX_SAFE_INTEGER or value < cls.MIN_SAFE_INTEGER:
+                raise ValueError("Integer is out of safe-integer range")
+            return value
 
         if item_type == StackItemType.BYTESTRING:
             if not isinstance(item, ByteString):
                 raise ValueError("Invalid ByteString item")
-            return base64.b64encode(item.value).decode('ascii')
+            # C# writes GetString() = strict UTF-8 decoding; invalid UTF-8 faults.
+            return cls._to_strict_utf8(item.value)
 
         if item_type == StackItemType.BUFFER:
             if not isinstance(item, Buffer):
                 raise ValueError("Invalid Buffer item")
-            return base64.b64encode(bytes(item.value)).decode('ascii')
+            return cls._to_strict_utf8(bytes(item.value))
 
         if item_type == StackItemType.ARRAY:
             if not isinstance(item, Array):
@@ -107,14 +117,27 @@ class JsonSerializer:
 
     @classmethod
     def _key_to_string(cls, key: StackItem) -> str:
-        """Convert a map key to string."""
-        if key.type == StackItemType.BOOLEAN:
-            return "true" if key.get_boolean() else "false"
-        if key.type == StackItemType.INTEGER and isinstance(key, Integer):
-            return str(int(key.value))
+        """Convert a map key to string.
+
+        C# only permits ByteString keys (JsonSerializer.cs:136) and writes the
+        key via GetString() = strict UTF-8 (JsonSerializer.cs:146). Boolean and
+        Integer keys fault.
+        """
         if key.type == StackItemType.BYTESTRING and isinstance(key, ByteString):
-            return base64.b64encode(key.value).decode('ascii')
-        raise ValueError(f"Invalid map key type: {key.type}")
+            return cls._to_strict_utf8(key.value)
+        raise ValueError("Key is not a ByteString")
+
+    @staticmethod
+    def _to_strict_utf8(data: bytes) -> str:
+        """Decode bytes as strict UTF-8, faulting on invalid sequences.
+
+        Mirrors C# StackItem.GetString() = GetSpan().ToStrictUtf8String(),
+        which throws on invalid UTF-8.
+        """
+        try:
+            return data.decode('utf-8')
+        except UnicodeDecodeError as exc:
+            raise ValueError("Invalid UTF-8 byte sequence") from exc
 
     @classmethod
     def deserialize(cls, data: bytes, max_size: int = MAX_SIZE) -> StackItem:
@@ -123,11 +146,23 @@ class JsonSerializer:
             raise ValueError(f"Data size {len(data)} exceeds max {max_size}")
 
         json_value = json.loads(data.decode('utf-8'))
-        return cls._from_json(json_value, 0)
+        # C# JsonSerializer.Deserialize bounds the whole tree by a single
+        # decrementing node budget seeded at MaxStackSize (not per-collection
+        # length or depth). Use a mutable one-element list as the counter.
+        budget = [cls.MAX_STACK_SIZE]
+        return cls._from_json(json_value, 0, budget)
 
     @classmethod
-    def _from_json(cls, value: Any, depth: int) -> StackItem:
+    def _from_json(cls, value: Any, depth: int, budget: list[int]) -> StackItem:
         """Convert JSON value to stack item."""
+        # Cumulative node budget: check-then-decrement once per node,
+        # mirroring C# `if (maxStackSize-- == 0) throw`.
+        if budget[0] == 0:
+            raise ValueError("Max stack size reached")
+        budget[0] -= 1
+
+        # Harmless extra safety bound (not what C# uses; never fires before
+        # the cumulative budget on wide inputs).
         if depth > 128:
             raise ValueError("Deserialization depth exceeded")
 
@@ -144,18 +179,19 @@ class JsonSerializer:
             return ByteString(value.encode('utf-8'))
 
         if isinstance(value, list):
-            if len(value) > cls.MAX_ITEMS:
-                raise ValueError(f"Array too large: {len(value)}")
-            items = [cls._from_json(v, depth + 1) for v in value]
+            items = [cls._from_json(v, depth + 1, budget) for v in value]
             return Array(items=items)
 
         if isinstance(value, dict):
-            if len(value) > cls.MAX_ITEMS:
-                raise ValueError(f"Map too large: {len(value)}")
             result = Map()
             for k, v in value.items():
+                # C# decrements once per map property before recursing
+                # into the value (JsonSerializer.cs:213).
+                if budget[0] == 0:
+                    raise ValueError("Max stack size reached")
+                budget[0] -= 1
                 key = ByteString(k.encode('utf-8'))
-                result[key] = cls._from_json(v, depth + 1)
+                result[key] = cls._from_json(v, depth + 1, budget)
             return result
 
         raise ValueError(f"Unsupported JSON type: {type(value)}")
