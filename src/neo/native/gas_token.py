@@ -67,14 +67,15 @@ class GasToken(FungibleToken):
                 attr_fee = self._get_attribute_fee(engine, 0x22)
                 total_network_fee -= (n_keys + 1) * attr_fee
         
-        # Mint network fee to primary validator
-        if total_network_fee > 0:
-            validators = engine.get_next_block_validators()
-            if validators:
-                primary_index = engine.persisting_block.primary_index
-                primary_pubkey = validators[primary_index % len(validators)]
-                primary = engine.get_script_hash_from_pubkey(primary_pubkey)
-                self.mint(engine, primary, total_network_fee, False)
+        # Mint network fee to primary validator.
+        # C# GasToken.OnPersistAsync calls Mint unconditionally; mint() early-returns
+        # at amount==0 and raises (faults) on amount<0, so this is path-equivalent.
+        validators = engine.get_next_block_validators()
+        if validators:
+            primary_index = engine.persisting_block.primary_index
+            primary_pubkey = validators[primary_index % len(validators)]
+            primary = engine.get_script_hash_from_pubkey(primary_pubkey)
+            self.mint(engine, primary, total_network_fee, False)
     
     @staticmethod
     def _find_attribute(tx: Any, attr_type: int) -> Any:
