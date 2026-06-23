@@ -8,6 +8,7 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import Any
 
+from neo.exceptions import InvalidOperationException
 from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract
 
@@ -92,11 +93,21 @@ class RoleManagement(NativeContract):
         """
         if not isinstance(role, int) or role not in _VALID_ROLES:
             raise ValueError(f"Invalid role: {role}")
+        # C# uses uint for index; the spec uses signed int so keep the lower
+        # bound. (RoleManagement.cs:54-56 enforces only the upper bound.)
         if index < 0:
             raise ValueError("Index must be non-negative")
 
         if snapshot is None:
             return []
+
+        # C# v3.10.0 RoleManagement.cs:54-56: fault when the requested index
+        # is more than one block ahead of the chain tip.
+        current_index = self._ledger_current_index(snapshot)
+        if current_index + 1 < index:
+            raise InvalidOperationException(
+                f"Index {index} exceeds current index + 1 ({current_index + 1})"
+            )
 
         prefix = self._create_storage_key(PREFIX_DESIGNATION, bytes([role]))
         prefix_bytes: bytes
@@ -117,7 +128,8 @@ class RoleManagement(NativeContract):
                 full_key_bytes = b""
             suffix = full_key_bytes[len(prefix_bytes) :]
             if len(suffix) >= 4:
-                stored_index = int.from_bytes(suffix[:4], "little")
+                # Storage key index is 4-byte big-endian (KeyBuilder.AddBigEndian).
+                stored_index = int.from_bytes(suffix[:4], "big")
                 if stored_index <= index and stored_index > best_index:
                     best_index = stored_index
                     best_value = value
@@ -125,6 +137,21 @@ class RoleManagement(NativeContract):
         if best_value is None:
             return []
         return self._deserialize_nodes(best_value)
+
+    def _ledger_current_index(self, snapshot: Any) -> int:
+        """Return Ledger.CurrentIndex for *snapshot*.
+
+        Mirrors C# Ledger.CurrentIndex(snapshot). When the Ledger native is
+        not registered or its current-block record is absent, this returns 0
+        (the same default the Ledger native uses when uninitialized).
+        """
+        ledger = NativeContract.get_contract_by_name("LedgerContract")
+        if ledger is None or not hasattr(ledger, "current_index"):
+            return 0
+        try:
+            return ledger.current_index(snapshot)
+        except Exception:
+            return 0
 
     def designate_as_role(
         self,
@@ -143,10 +170,13 @@ class RoleManagement(NativeContract):
             ValueError: If role is invalid or nodes list is empty
             PermissionError: If caller is not the committee
         """
+        # C# RoleManagement.cs:65-72 ordering: nodes-bounds, role, committee.
+        if len(nodes) == 0 or len(nodes) > 32:
+            raise InvalidOperationException(
+                f"Nodes count {len(nodes)} must be between 1 and 32"
+            )
         if not isinstance(role, int) or role not in _VALID_ROLES:
             raise ValueError(f"Invalid role: {role}")
-        if not nodes:
-            raise ValueError("Nodes list must not be empty")
         if hasattr(engine, "check_committee") and not engine.check_committee():
             raise PermissionError("Committee signature required")
 
@@ -154,18 +184,73 @@ class RoleManagement(NativeContract):
         if snapshot is None:
             raise RuntimeError("Snapshot not available")
 
-        block_index = 0
-        if hasattr(snapshot, "persisting_block") and snapshot.persisting_block:
-            block_index = getattr(snapshot.persisting_block, "index", 0)
+        # C# RoleManagement.cs:73-74: fault when there is no persisting block.
+        persisting_block = getattr(engine, "persisting_block", None)
+        if persisting_block is None and snapshot is not None:
+            persisting_block = getattr(snapshot, "persisting_block", None)
+        if persisting_block is None:
+            raise InvalidOperationException("Persisting block is null")
+        block_index = getattr(persisting_block, "index", 0)
+
+        # C# RoleManagement.cs:76-79: storage index = PersistingBlock.Index + 1,
+        # fault if already designated at this index.
+        index = block_index + 1
+        key = self._create_storage_key(
+            PREFIX_DESIGNATION, bytes([role]) + index.to_bytes(4, "big")
+        )
+        if hasattr(snapshot, "contains") and snapshot.contains(key):
+            raise InvalidOperationException("Role already designated")
+
+        # C# RoleManagement.cs:81-82: reject duplicate public keys.
+        encoded = [n.encode(compressed=True) for n in nodes]
+        if len(set(encoded)) != len(encoded):
+            raise InvalidOperationException("Duplicate publickeys are not allowed")
 
         # Sort nodes by encoded form for deterministic storage
         sorted_nodes = sorted(nodes, key=lambda n: n.encode(compressed=True))
-
-        key = self._create_storage_key(
-            PREFIX_DESIGNATION, bytes([role]) + (block_index + 1).to_bytes(4, "little")
-        )
         data = self._serialize_nodes(sorted_nodes)
         snapshot.put(key, data)
+
+        # C# RoleManagement.cs:88-98: emit the Designation notification.
+        self._emit_designation(engine, snapshot, role, block_index, index, nodes)
+
+    def _emit_designation(
+        self,
+        engine: Any,
+        snapshot: Any,
+        role: int,
+        block_index: int,
+        index: int,
+        nodes: list,
+    ) -> None:
+        """Emit the Designation notification, matching C# RoleManagement.cs:88-98."""
+        if not hasattr(engine, "send_notification"):
+            return
+        try:
+            from neo.vm.types import Array, ByteString, Integer
+        except Exception:
+            return
+
+        echidna = False
+        try:
+            echidna = self.is_hardfork_enabled(engine, Hardfork.HF_ECHIDNA)
+        except Exception:
+            echidna = False
+
+        if echidna:
+            old_points = self.get_designated_by_role(snapshot, role, index - 1)
+            old_nodes = Array(
+                items=[ByteString(p.encode(compressed=True)) for p in old_points]
+            )
+            new_nodes = Array(
+                items=[ByteString(n.encode(compressed=True)) for n in nodes]
+            )
+            state = Array(
+                items=[Integer(int(role)), Integer(block_index), old_nodes, new_nodes]
+            )
+        else:
+            state = Array(items=[Integer(int(role)), Integer(block_index)])
+        engine.send_notification(self.hash, "Designation", state)
 
     def _serialize_nodes(self, nodes: list) -> bytes:
         """Serialize node list to storage format."""

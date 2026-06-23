@@ -59,9 +59,40 @@ class OracleRequest:
     callback_method: str = ""
     user_data: bytes = b""
     
+    def to_stack_item(self) -> Any:
+        """Build the IInteroperable stack item (C# OracleRequest.ToStackItem).
+
+        Reference: SmartContract/Native/OracleRequest.cs:71-83. The element
+        order is [OriginalTxid, GasForResponse, Url, Filter|Null,
+        CallbackContract, CallbackMethod, UserData].
+        """
+        from neo.vm.types import NULL, Array, ByteString, Integer
+
+        filter_item: Any
+        if self.filter is None:
+            filter_item = NULL
+        else:
+            filter_item = ByteString(self.filter.encode("utf-8"))
+
+        return Array(
+            items=[
+                ByteString(self.original_txid.data),
+                Integer(self.gas_for_response),
+                ByteString(self.url.encode("utf-8")),
+                filter_item,
+                ByteString(self.callback_contract.data),
+                ByteString(self.callback_method.encode("utf-8")),
+                ByteString(bytes(self.user_data)),
+            ]
+        )
+
     def serialize(self) -> bytes:
-        """Serialize request to bytes."""
-        # Validate field lengths before serialization
+        """Serialize request via BinarySerializer of the IInteroperable item.
+
+        Matches C# StorageItem(IInteroperable) persistence: the stored bytes
+        are BinarySerializer.Serialize(request.ToStackItem()).
+        """
+        # Validate field lengths before serialization (parity with C# Request).
         url_bytes = self.url.encode('utf-8')
         if len(url_bytes) > MAX_URL_LENGTH:
             raise ValueError(f"URL exceeds max length of {MAX_URL_LENGTH}")
@@ -73,119 +104,33 @@ class OracleRequest:
         if len(self.user_data) > MAX_USER_DATA_LENGTH:
             raise ValueError("User data exceeds max length")
 
-        result = bytearray()
-        
-        # Original txid (32 bytes)
-        result.extend(self.original_txid.data)
-        
-        # Gas for response (8 bytes, little-endian)
-        result.extend(self.gas_for_response.to_bytes(8, 'little'))
-        
-        # URL (variable-length encoded)
-        if len(url_bytes) < 0xFD:
-            result.append(len(url_bytes))
-        elif len(url_bytes) <= 0xFFFF:
-            result.append(0xFD)
-            result.extend(len(url_bytes).to_bytes(2, 'little'))
-        else:
-            result.append(0xFE)
-            result.extend(len(url_bytes).to_bytes(4, 'little'))
-        result.extend(url_bytes)
-        
-        # Filter (length-prefixed, 0 for None)
-        if self.filter is None:
-            result.append(0)
-        else:
-            filter_bytes = self.filter.encode('utf-8')
-            result.append(len(filter_bytes))
-            result.extend(filter_bytes)
-        
-        # Callback contract (20 bytes)
-        result.extend(self.callback_contract.data)
-        
-        # Callback method (length-prefixed)
-        result.append(len(method_bytes))
-        result.extend(method_bytes)
-        
-        # User data (var-int length-prefixed)
-        ud_len = len(self.user_data)
-        if ud_len < 0xFD:
-            result.append(ud_len)
-        elif ud_len <= 0xFFFF:
-            result.append(0xFD)
-            result.extend(ud_len.to_bytes(2, 'little'))
-        else:
-            result.append(0xFE)
-            result.extend(ud_len.to_bytes(4, 'little'))
-        result.extend(self.user_data)
-        
-        return bytes(result)
-    
+        from neo.smartcontract.binary_serializer import BinarySerializer
+
+        return BinarySerializer.serialize(self.to_stack_item())
+
     @classmethod
     def deserialize(cls, data: bytes) -> OracleRequest:
-        """Deserialize request from bytes."""
-        offset = 0
-        
-        # Original txid
-        original_txid = UInt256(data[offset:offset + 32])
-        offset += 32
-        
-        # Gas for response
-        gas_for_response = int.from_bytes(data[offset:offset + 8], 'little')
-        offset += 8
-        
-        # URL (var-int length)
-        first_byte = data[offset]
-        offset += 1
-        if first_byte < 0xFD:
-            url_len = first_byte
-        elif first_byte == 0xFD:
-            url_len = int.from_bytes(data[offset:offset + 2], 'little')
-            offset += 2
-        elif first_byte == 0xFE:
-            url_len = int.from_bytes(data[offset:offset + 4], 'little')
-            offset += 4
-        else:
-            url_len = int.from_bytes(data[offset:offset + 8], 'little')
-            offset += 8
-        url = data[offset:offset + url_len].decode('utf-8')
-        offset += url_len
-        
-        # Filter
-        filter_len = data[offset]
-        offset += 1
-        if filter_len == 0:
+        """Deserialize request from BinarySerializer bytes (C# FromStackItem)."""
+        from neo.smartcontract.binary_serializer import BinarySerializer
+        from neo.vm.types import StackItemType
+
+        array = BinarySerializer.deserialize(data)
+        items = list(array)
+
+        original_txid = UInt256(bytes(items[0].value))
+        gas_for_response = int(items[1].value)
+        url = bytes(items[2].value).decode("utf-8")
+
+        filter_item = items[3]
+        if filter_item is None or filter_item.type == StackItemType.ANY:
             filter_val = None
         else:
-            filter_val = data[offset:offset + filter_len].decode('utf-8')
-            offset += filter_len
-        
-        # Callback contract
-        callback_contract = UInt160(data[offset:offset + 20])
-        offset += 20
-        
-        # Callback method
-        method_len = data[offset]
-        offset += 1
-        callback_method = data[offset:offset + method_len].decode('utf-8')
-        offset += method_len
-        
-        # User data (var-int length)
-        fb = data[offset]
-        offset += 1
-        if fb < 0xFD:
-            user_data_len = fb
-        elif fb == 0xFD:
-            user_data_len = int.from_bytes(data[offset:offset + 2], 'little')
-            offset += 2
-        elif fb == 0xFE:
-            user_data_len = int.from_bytes(data[offset:offset + 4], 'little')
-            offset += 4
-        else:
-            user_data_len = int.from_bytes(data[offset:offset + 8], 'little')
-            offset += 8
-        user_data = data[offset:offset + user_data_len]
-        
+            filter_val = bytes(filter_item.value).decode("utf-8")
+
+        callback_contract = UInt160(bytes(items[4].value))
+        callback_method = bytes(items[5].value).decode("utf-8")
+        user_data = bytes(items[6].value)
+
         return cls(
             original_txid=original_txid,
             gas_for_response=gas_for_response,
@@ -429,23 +374,25 @@ class OracleContract(NativeContract):
         snapshot.put(key, self._serialize_id_list(id_list))
     
     def _serialize_id_list(self, id_list: list[int]) -> bytes:
-        """Serialize ID list to bytes."""
-        result = bytearray()
-        result.append(len(id_list))
-        for id_val in id_list:
-            result.extend(id_val.to_bytes(8, 'little'))
-        return bytes(result)
-    
+        """Serialize ID list to bytes.
+
+        Matches C# InteroperableList<ulong>: an Array of Integer elements
+        persisted via BinarySerializer (OracleContract.cs:295-306).
+        """
+        from neo.smartcontract.binary_serializer import BinarySerializer
+        from neo.vm.types import Array, Integer
+
+        item = Array(items=[Integer(i) for i in id_list])
+        return BinarySerializer.serialize(item)
+
     def _deserialize_id_list(self, data: bytes) -> list[int]:
-        """Deserialize ID list from bytes."""
+        """Deserialize ID list from BinarySerializer bytes."""
         if not data:
             return []
-        count = data[0]
-        result = []
-        for i in range(count):
-            offset = 1 + i * 8
-            result.append(int.from_bytes(data[offset:offset + 8], 'little'))
-        return result
+        from neo.smartcontract.binary_serializer import BinarySerializer
+
+        array = BinarySerializer.deserialize(data)
+        return [int(elem.value) for elem in array]
     
     def get_request(self, snapshot: Any, request_id: int) -> OracleRequest | None:
         """Get a pending request by ID."""
