@@ -46,8 +46,9 @@ class BloomFilter:
             element: The element to add (as bytes)
         """
         for i in range(self.k):
-            # Use different seeds for each hash function
-            h = murmur32(element, self.seed + i) % self.m
+            # Per-function seed matches C#: _seeds[p] = (uint)p * 0xFBA4C795 + nTweak
+            seed = (i * 0xFBA4C795 + self.seed) & 0xFFFFFFFF
+            h = murmur32(element, seed) % self.m
             byte_index = h // 8
             bit_index = h % 8
             self.bits[byte_index] |= 1 << bit_index
@@ -63,7 +64,8 @@ class BloomFilter:
             False if the element is definitely not in the set.
         """
         for i in range(self.k):
-            h = murmur32(element, self.seed + i) % self.m
+            seed = (i * 0xFBA4C795 + self.seed) & 0xFFFFFFFF
+            h = murmur32(element, seed) % self.m
             byte_index = h // 8
             bit_index = h % 8
             if not (self.bits[byte_index] & (1 << bit_index)):
