@@ -39,7 +39,7 @@ class ContractManifest:
     def from_json(cls, json: dict[str, Any]) -> ContractManifest:
         """Create from JSON object."""
         trusts_val = json.get("trusts", "*")
-        return cls(
+        manifest = cls(
             name=json.get("name", ""),
             groups=[ContractGroup.from_json(g) for g in json.get("groups", [])],
             supported_standards=json.get("supportedstandards", []),
@@ -48,3 +48,28 @@ class ContractManifest:
             trusts=[] if trusts_val == "*" else [bytes.fromhex(t) for t in trusts_val],
             extra=json.get("extra")
         )
+
+        # C# ContractManifest.FromJson validation (v3.10.0).
+        if not manifest.name:
+            raise ValueError("Name in ContractManifest is empty")
+        # Duplicate group public keys are rejected (ToDictionary(p => p.PubKey)).
+        group_keys = [g.pubkey for g in manifest.groups]
+        if len(set(group_keys)) != len(group_keys):
+            raise ValueError("Duplicate group key in ContractManifest")
+        # The features field must be present and empty.
+        features = json.get("features")
+        if not isinstance(features, dict) or len(features) != 0:
+            raise ValueError("Features field must be empty")
+        if any(not s for s in manifest.supported_standards):
+            raise ValueError("SupportedStandards in ContractManifest has empty string")
+        # Duplicate supported standards are rejected.
+        if len(set(manifest.supported_standards)) != len(manifest.supported_standards):
+            raise ValueError("Duplicate supported standard in ContractManifest")
+        # Duplicate permission contracts are rejected.
+        permission_contracts = [p.contract for p in manifest.permissions]
+        if len(set(permission_contracts)) != len(permission_contracts):
+            raise ValueError("Duplicate permission contract in ContractManifest")
+        # Duplicate trusts are rejected.
+        if len(set(manifest.trusts)) != len(manifest.trusts):
+            raise ValueError("Duplicate trust in ContractManifest")
+        return manifest

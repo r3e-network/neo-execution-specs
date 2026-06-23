@@ -45,7 +45,13 @@ class ContractGroup:
     @classmethod
     def from_json(cls, json: dict[str, Any]) -> ContractGroup:
         """Create from JSON object."""
-        return cls(
+        group = cls(
             pubkey=bytes.fromhex(json.get("pubkey", "")),
             signature=bytes.fromhex(json.get("signature", ""))
         )
+        # C# ContractGroup.FromJson rejects signatures whose length != 64.
+        if len(group.signature) != 64:
+            raise ValueError(
+                f"Signature length({len(group.signature)}) is not 64"
+            )
+        return group

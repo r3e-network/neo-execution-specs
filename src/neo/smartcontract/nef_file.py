@@ -68,11 +68,11 @@ class NefFile:
         for token in self.tokens:
             data.extend(token.hash)
             method_bytes = token.method.encode('utf-8')
-            data.extend(struct.pack('<I', len(method_bytes)))
+            data.extend(self._write_var_int(len(method_bytes)))
             data.extend(method_bytes)
             data.extend(struct.pack('<H', token.parameters_count))
             data.append(1 if token.has_return_value else 0)
-            data.extend(struct.pack('<H', token.call_flags))
+            data.append(token.call_flags & 0xFF)
         # Reserve 2 bytes
         data.extend(b'\x00\x00')
         # Script
@@ -136,20 +136,30 @@ class NefFile:
 
         # Tokens
         token_count, offset = cls._read_var_int(data, offset)
+        # C# ReadSerializableArray<MethodToken>(128) caps token count at 128.
+        if token_count > 128:
+            raise ValueError("Max length exceeded")
         tokens: list[MethodToken] = []
         for _ in range(token_count):
             t_hash = data[offset:offset + 20]
             offset += 20
-            m_len = struct.unpack_from('<I', data, offset)[0]
-            offset += 4
+            # Method is a var-string capped at 32 bytes (C# ReadVarString(32)).
+            m_len, offset = cls._read_var_int(data, offset)
+            if m_len > 32:
+                raise ValueError("Max length exceeded")
             method = data[offset:offset + m_len].decode('utf-8')
             offset += m_len
+            if method.startswith('_'):
+                raise ValueError(f"Method('{method}') cannot start with '_'")
             params = struct.unpack_from('<H', data, offset)[0]
             offset += 2
             has_rv = data[offset] != 0
             offset += 1
-            flags = struct.unpack_from('<H', data, offset)[0]
-            offset += 2
+            # CallFlags is a single byte.
+            flags = data[offset]
+            offset += 1
+            if (flags & ~0x0F) != 0:
+                raise ValueError(f"CallFlags({flags}) is not valid")
             tokens.append(MethodToken(t_hash, method, params, has_rv, flags))
 
         # Reserve 2 bytes

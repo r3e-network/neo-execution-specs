@@ -1,5 +1,7 @@
 """Tests for ContractGroup."""
 
+import pytest
+
 from neo.smartcontract.manifest.contract_group import ContractGroup
 from neo.types import UInt160
 
@@ -49,21 +51,33 @@ class TestContractGroup:
         assert json["signature"] == "040506"
     
     def test_from_json(self):
-        """Test JSON deserialization."""
+        """Test JSON deserialization with a valid 64-byte signature.
+
+        C# v3.10.0 ContractGroup.FromJson rejects any signature whose length
+        is not 64, so the deserialized value must carry a 64-byte signature.
+        """
+        json = {
+            "pubkey": "010203",
+            "signature": bytes(range(64)).hex()
+        }
+        group = ContractGroup.from_json(json)
+        assert group.pubkey == bytes([1, 2, 3])
+        assert group.signature == bytes(range(64))
+
+    def test_from_json_short_signature_rejected(self):
+        """A signature shorter than 64 bytes is rejected (C# v3.10.0)."""
         json = {
             "pubkey": "010203",
             "signature": "040506"
         }
-        group = ContractGroup.from_json(json)
-        assert group.pubkey == bytes([1, 2, 3])
-        assert group.signature == bytes([4, 5, 6])
-    
+        with pytest.raises(ValueError, match="Signature length"):
+            ContractGroup.from_json(json)
+
     def test_from_json_empty(self):
-        """Test JSON deserialization with empty data."""
+        """Empty/missing signature is rejected (length 0 != 64, C# v3.10.0)."""
         json = {}
-        group = ContractGroup.from_json(json)
-        assert group.pubkey == b""
-        assert group.signature == b""
+        with pytest.raises(ValueError, match="Signature length"):
+            ContractGroup.from_json(json)
     
     def test_roundtrip_json(self):
         """Test JSON roundtrip."""

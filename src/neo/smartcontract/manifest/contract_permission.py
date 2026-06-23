@@ -39,8 +39,15 @@ class ContractPermission:
         """Create from JSON object."""
         contract_val = json.get("contract", "*")
         methods_val = json.get("methods", "*")
-        
+
+        methods = [] if methods_val == "*" else methods_val
+        # C# ContractPermission.FromJson rejects empty and duplicate method names.
+        if any(not m for m in methods):
+            raise ValueError("Methods in ContractPermission has empty string")
+        if len(set(methods)) != len(methods):
+            raise ValueError("Duplicate method in ContractPermission")
+
         return cls(
             contract=None if contract_val == "*" else bytes.fromhex(contract_val),
-            methods=[] if methods_val == "*" else methods_val
+            methods=methods
         )
