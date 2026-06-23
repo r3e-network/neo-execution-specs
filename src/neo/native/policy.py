@@ -32,6 +32,11 @@ DEFAULT_MAX_VALID_UNTIL_BLOCK_INCREMENT = 5760
 DEFAULT_MAX_TRACEABLE_BLOCKS = 2_102_400
 REQUIRED_TIME_FOR_RECOVER_FUND_MS = 365 * 24 * 60 * 60 * 1_000
 
+# Defined TransactionAttributeType values (mirrors C# TransactionAttributeType enum).
+ATTRIBUTE_TYPE_NOTARY_ASSISTED = 0x22
+_DEFINED_ATTRIBUTE_TYPES = frozenset({0x01, 0x11, 0x20, 0x21, 0x22})
+DEFAULT_NOTARY_ASSISTED_ATTRIBUTE_FEE = 10_000_000
+
 # Maximum values
 MAX_EXEC_FEE_FACTOR = 100
 MAX_STORAGE_PRICE = 10000000
@@ -315,9 +320,15 @@ class PolicyContract(NativeContract):
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
 
+        old_value = self.get_milliseconds_per_block(engine.snapshot)
         key = self._create_storage_key(PREFIX_MILLISECONDS_PER_BLOCK)
         item = engine.snapshot.get_and_change(key, lambda: StorageItem())
         item.set(value)
+
+        if hasattr(engine, "send_notification"):
+            engine.send_notification(
+                self.hash, "MillisecondsPerBlockChanged", [old_value, value]
+            )
 
     def get_max_valid_until_block_increment(self, snapshot: Any) -> int:
         """Get max valid-until-block increment."""
@@ -464,33 +475,76 @@ class PolicyContract(NativeContract):
         engine.snapshot.delete(key)
         return True
     
-    def get_attribute_fee(self, snapshot: Any, attribute_type: int) -> int:
+    @staticmethod
+    def _assert_attribute_type(attribute_type: int, allow_notary_assisted: bool) -> None:
+        """Validate an attribute type, mirroring C# PolicyContract.GetAttributeFee.
+
+        Faults (raises) when the attribute type is not one of the defined
+        TransactionAttributeType values {0x01, 0x11, 0x20, 0x21, 0x22}, or when
+        NotaryAssisted (0x22) is requested in a context that does not allow it.
+        """
+        if attribute_type not in _DEFINED_ATTRIBUTE_TYPES or (
+            not allow_notary_assisted and attribute_type == ATTRIBUTE_TYPE_NOTARY_ASSISTED
+        ):
+            raise ValueError(f"Attribute type {attribute_type} is not supported.")
+
+    def get_attribute_fee(
+        self, snapshot: Any, attribute_type: int, allow_notary_assisted: bool | None = None
+    ) -> int:
         """Get fee for a transaction attribute type.
-        
+
+        Mirrors C# getAttributeFee V0/V1: before HF_Echidna the NotaryAssisted
+        (0x22) attribute type is not supported and faults; afterwards it is.
+        When *allow_notary_assisted* is None (the default ABI entry point) the
+        gating is derived from whether HF_Echidna is enabled in *snapshot*.
+
         Args:
             snapshot: Storage snapshot
             attribute_type: Attribute type byte
-            
+            allow_notary_assisted: Override for the NotaryAssisted gating
+
         Returns:
             Fee in datoshi
         """
+        if allow_notary_assisted is None:
+            allow_notary_assisted = NativeContract.is_hardfork_enabled(
+                snapshot, Hardfork.HF_ECHIDNA
+            )
+        self._assert_attribute_type(attribute_type, allow_notary_assisted)
         key = self._create_storage_key(PREFIX_ATTRIBUTE_FEE, attribute_type)
         item = snapshot.get(key)
         return int(item) if item else DEFAULT_ATTRIBUTE_FEE
-    
-    def set_attribute_fee(self, engine: Any, attribute_type: int, value: int) -> None:
+
+    def set_attribute_fee(
+        self,
+        engine: Any,
+        attribute_type: int,
+        value: int,
+        allow_notary_assisted: bool | None = None,
+    ) -> None:
         """Set attribute fee. Committee only.
-        
+
+        Mirrors C# setAttributeFee V0/V1: before HF_Echidna the NotaryAssisted
+        (0x22) attribute type is not supported and faults; afterwards it is.
+        When *allow_notary_assisted* is None (the default ABI entry point) the
+        gating is derived from whether HF_Echidna is enabled in *engine*.
+
         Args:
             engine: Application engine
             attribute_type: Attribute type byte
             value: Fee (must be <= 10_0000_0000)
+            allow_notary_assisted: Override for the NotaryAssisted gating
         """
+        if allow_notary_assisted is None:
+            allow_notary_assisted = NativeContract.is_hardfork_enabled(
+                engine, Hardfork.HF_ECHIDNA
+            )
+        self._assert_attribute_type(attribute_type, allow_notary_assisted)
         if value < 0 or value > MAX_ATTRIBUTE_FEE:
             raise ValueError(f"AttributeFee must be between [0, {MAX_ATTRIBUTE_FEE}], got {value}")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
-        
+
         key = self._create_storage_key(PREFIX_ATTRIBUTE_FEE, attribute_type)
         item = engine.snapshot.get_and_change(key, lambda: StorageItem())
         item.set(value)
@@ -576,6 +630,13 @@ class PolicyContract(NativeContract):
         item = engine.snapshot.get_and_change(key, lambda: StorageItem())
         item.set(fixed_fee)
 
+        if hasattr(engine, "send_notification"):
+            engine.send_notification(
+                self.hash,
+                "WhitelistFeeChanged",
+                [contract_hash, method, arg_count, fixed_fee],
+            )
+
     def remove_whitelist_fee_contract(
         self, engine: Any, contract_hash: UInt160, method: str, arg_count: int
     ) -> None:
@@ -590,6 +651,13 @@ class PolicyContract(NativeContract):
         if hasattr(engine.snapshot, "contains") and not engine.snapshot.contains(key):
             raise ValueError("Whitelist not found")
         engine.snapshot.delete(key)
+
+        if hasattr(engine, "send_notification"):
+            engine.send_notification(
+                self.hash,
+                "WhitelistFeeChanged",
+                [contract_hash, method, arg_count, None],
+            )
 
     def recover_fund(self, engine: Any, account: UInt160, token: UInt160) -> bool:
         """Recover blocked-account funds to Treasury.
