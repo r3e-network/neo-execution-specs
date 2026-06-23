@@ -16,7 +16,12 @@ from neo.tools.diff.models import (
     StackValue,
     TestVector,
 )
-from neo.tools.diff.runner import CSharpExecutor, PythonExecutor, VectorLoader
+from neo.tools.diff.runner import (
+    CSharpExecutor,
+    DEFAULT_EXEC_FEE_FACTOR,
+    PythonExecutor,
+    VectorLoader,
+)
 from neo.vm.opcode import OpCode
 
 
@@ -225,15 +230,21 @@ def test_parse_stack_reverses_rpc_bottom_to_top_order():
 
 
 def test_python_executor_tracks_opcode_gas_for_vm_vectors():
-    """Python executor should report Neo v3.9.1 opcode gas for VM scripts."""
+    """Python executor reports opcode gas in datoshi, matching a live node.
+
+    A real C#/neo-rs node charges ``ExecFeeFactor * base_price`` per opcode and
+    reports ``gasconsumed`` in datoshi. The executor applies the same default
+    ExecFeeFactor (30) so vector gas can be compared against the node without a
+    spurious ~30x ``gas_mismatch``.
+    """
     executor = PythonExecutor()
 
-    # PUSH3, PUSH5, ADD, RET => 1 + 1 + 8 + 0 = 10
+    # PUSH3, PUSH5, ADD, RET => base (1 + 1 + 8 + 0) = 10; datoshi = 10 * 30.
     vector = TestVector(name="ADD_basic", script=bytes.fromhex("13159e40"))
     result = executor.execute(vector)
 
     assert result.state == "HALT"
-    assert result.gas_consumed == 10
+    assert result.gas_consumed == 10 * DEFAULT_EXEC_FEE_FACTOR
 
 
 def test_csharp_executor_parses_integer_and_fixed_point_gas_formats():

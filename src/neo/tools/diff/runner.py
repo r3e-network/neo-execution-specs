@@ -221,6 +221,13 @@ OPCODE_PRICE_TABLE_V391: dict[int, int] = {
     int(OpCode.CONVERT): 1<<13,
 }
 
+# Default Policy ExecFeeFactor (mirrors neo.native.policy.DEFAULT_EXEC_FEE_FACTOR).
+# A live node multiplies every opcode base price by this factor when reporting
+# `gasconsumed` in datoshi, so the diff runner applies it too. Defined locally to
+# keep this module import-light (importing neo.native pulls the full native
+# package); the value is the protocol default and is stable across v3.9.1..v3.10.0.
+DEFAULT_EXEC_FEE_FACTOR = 30
+
 _NON_VM_CATEGORIES = {"native", "crypto", "state"}
 _NON_VECTOR_JSON_FILES = {"checklist_coverage.json"}
 _CRYPTO_HEX_METHODS = {"sha256", "ripemd160"}
@@ -498,10 +505,18 @@ class PythonExecutor:
         return value
 
     def _execute_with_gas(self, engine) -> tuple:
-        """Execute while tracking opcode gas using Neo v3.9.1 prices."""
+        """Execute while tracking opcode gas, reported in datoshi.
+
+        Each opcode's base price (stable across Neo v3.9.1..v3.10.0) is
+        multiplied by the default ExecFeeFactor, mirroring how the C#/neo-rs
+        ``ApplicationEngine`` charges ``ExecFeeFactor * price`` for every
+        opcode. Without this multiplier the spec reported raw base units while
+        a live node reports datoshi (base x 30), producing spurious
+        ``gas_mismatch`` diffs on every non-trivial pure-opcode vector.
+        """
         from neo.vm.execution_engine import VMState
 
-        gas_consumed = 0
+        base_gas = 0
         engine.state = VMState.NONE
 
         while engine.state == VMState.NONE:
@@ -509,10 +524,10 @@ class PythonExecutor:
             if context is not None:
                 instruction = context.current_instruction
                 if instruction is not None:
-                    gas_consumed += OPCODE_PRICE_TABLE_V391.get(instruction.opcode, 0)
+                    base_gas += OPCODE_PRICE_TABLE_V391.get(instruction.opcode, 0)
             engine.execute_next()
 
-        return engine.state, gas_consumed
+        return engine.state, base_gas * DEFAULT_EXEC_FEE_FACTOR
 
     def _extract_stack(self, engine) -> list[StackValue]:
         """Extract stack values from engine."""
