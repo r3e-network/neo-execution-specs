@@ -13,11 +13,46 @@ This module implements all compound type opcodes (0xBE-0xD4):
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from neo.exceptions import InvalidOperationException
+from neo.exceptions import CatchableException, InvalidOperationException
 from neo.vm.types import (
-    Integer, Boolean, Array, Struct, Map, Buffer,
+    Integer, Boolean, ByteString, Array, Struct, Map, Buffer,
     StackItemType, NULL
 )
+
+
+# PrimitiveType-equivalent stack items (C# PrimitiveType: Integer, ByteString,
+# Boolean). Used to mirror C#'s `engine.Pop<PrimitiveType>()` key/operand
+# checks, which fault UNCATCHABLY (InvalidCastException -> OnFault).
+_PRIMITIVE_TYPES = (Integer, ByteString, Boolean)
+
+
+def _require_primitive_key(key):
+    """Mirror C# `Pop<PrimitiveType>()` — fault uncatchably on a non-primitive
+    key (InvalidCastException routed through OnFault in C#)."""
+    if not isinstance(key, _PRIMITIVE_TYPES):
+        raise InvalidOperationException(
+            f"Key must be a primitive type, got {type(key).__name__}"
+        )
+
+
+def _primitive_span(x) -> bytes:
+    """Return the C# GetSpan() bytes for a PrimitiveType operand.
+
+    - ByteString: raw bytes.
+    - Integer: minimal two's-complement little-endian bytes (empty for zero),
+      matching C# Integer.Memory (BigInteger.ToByteArray()).
+    - Boolean: single byte 0x01/0x00, matching C# Boolean.GetSpan().
+    """
+    if isinstance(x, ByteString):
+        return x.get_span()
+    if isinstance(x, Integer):
+        v = int(x.value)
+        if v == 0:
+            return b""
+        return x.value.to_bytes_le()
+    if isinstance(x, Boolean):
+        return b"\x01" if x.get_boolean() else b"\x00"
+    raise InvalidOperationException(f"Not a primitive type: {type(x).__name__}")
 
 if TYPE_CHECKING:
     from neo.vm.execution_engine import ExecutionEngine, Instruction
@@ -174,17 +209,41 @@ def size(engine: ExecutionEngine, instruction: Instruction) -> None:
 
 
 def haskey(engine: ExecutionEngine, instruction: Instruction) -> None:
-    """Check if compound type has key."""
+    """Check if compound type has key.
+
+    Implements the C# v3.10.0 DefaultJumpTable (post-HF_Gorgon) behavior:
+    Array/Buffer/ByteString operands fault (uncatchably) when the index is
+    negative or >= MaxItemSize, otherwise push (index < count/size). The key
+    is popped as a PrimitiveType (uncatchable on a non-primitive). The
+    pre-Gorgon HasKey_Before543 override (negative-only check) lives in
+    ApplicationEngine, outside the pure VM jump table.
+    """
     key = engine.pop()
+    _require_primitive_key(key)
     x = engine.pop()
     if isinstance(x, Array):
         idx = int(key.get_integer())
-        engine.push(Boolean(0 <= idx < len(x)))
+        if idx < 0 or idx >= engine.limits.max_item_size:
+            raise InvalidOperationException(
+                f"The index {idx} is invalid for OpCode HASKEY."
+            )
+        engine.push(Boolean(idx < len(x)))
     elif isinstance(x, Map):
         engine.push(Boolean(key in x))
     elif isinstance(x, Buffer):
         idx = int(key.get_integer())
-        engine.push(Boolean(0 <= idx < len(x)))
+        if idx < 0 or idx >= engine.limits.max_item_size:
+            raise InvalidOperationException(
+                f"The index {idx} is invalid for OpCode HASKEY."
+            )
+        engine.push(Boolean(idx < len(x)))
+    elif isinstance(x, ByteString):
+        idx = int(key.get_integer())
+        if idx < 0 or idx >= engine.limits.max_item_size:
+            raise InvalidOperationException(
+                f"The index {idx} is invalid for OpCode HASKEY."
+            )
+        engine.push(Boolean(idx < len(x.get_span())))
     else:
         raise InvalidOperationException(f"Invalid type for HASKEY: {x.type}")
 
@@ -206,12 +265,14 @@ def values(engine: ExecutionEngine, instruction: Instruction) -> None:
     if isinstance(x, Map):
         result = Array(engine.reference_counter)
         for value in x.values():
-            result.add(value)
+            # C# clones top-level Struct elements (Struct.Clone), other items
+            # by reference.
+            result.add(value.clone() if isinstance(value, Struct) else value)
         engine.push(result)
     elif isinstance(x, Array):
         result = Array(engine.reference_counter)
         for item in x:
-            result.add(item)
+            result.add(item.clone() if isinstance(item, Struct) else item)
         engine.push(result)
     else:
         raise InvalidOperationException(f"Invalid type for VALUES: {x.type}")
@@ -220,21 +281,36 @@ def values(engine: ExecutionEngine, instruction: Instruction) -> None:
 def pickitem(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Get item from compound type by key/index."""
     key = engine.pop()
+    _require_primitive_key(key)
     x = engine.pop()
     if isinstance(x, Array):
         idx = int(key.get_integer())
         if idx < 0 or idx >= len(x):
-            raise InvalidOperationException(f"Index out of range: {idx}")
+            raise CatchableException(
+                f"The index of Array is out of range, {idx}/[0, {len(x)})."
+            )
         engine.push(x[idx])
     elif isinstance(x, Map):
         if key not in x:
-            raise InvalidOperationException("Key not found in map")
+            raise CatchableException(f"Key {key} not found in Map.")
         engine.push(x[key])
     elif isinstance(x, Buffer):
         idx = int(key.get_integer())
         if idx < 0 or idx >= len(x):
-            raise InvalidOperationException(f"Index out of range: {idx}")
+            raise CatchableException(
+                f"The index of Buffer is out of range, {idx}/[0, {len(x)})."
+            )
         engine.push(Integer(x[idx]))
+    elif isinstance(x, _PRIMITIVE_TYPES):
+        # PrimitiveType (ByteString/Integer/Boolean): index into the GetSpan()
+        # bytes and push the byte value, matching C#'s `case PrimitiveType`.
+        span = _primitive_span(x)
+        idx = int(key.get_integer())
+        if idx < 0 or idx >= len(span):
+            raise CatchableException(
+                f"The index of PrimitiveType is out of range, {idx}/[0, {len(span)})."
+            )
+        engine.push(Integer(span[idx]))
     else:
         raise InvalidOperationException(f"Invalid type for PICKITEM: {x.type}")
 
@@ -253,25 +329,40 @@ def append(engine: ExecutionEngine, instruction: Instruction) -> None:
 def setitem(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Set item in compound type by key/index."""
     value = engine.pop()
+    if isinstance(value, Struct):
+        value = value.clone()
     key = engine.pop()
+    _require_primitive_key(key)
     x = engine.pop()
     if isinstance(x, Array):
         idx = int(key.get_integer())
         if idx < 0 or idx >= len(x):
-            raise InvalidOperationException(f"Index out of range: {idx}")
+            raise CatchableException(
+                f"The index of Array is out of range, {idx}/[0, {len(x)})."
+            )
         x[idx] = value
     elif isinstance(x, Map):
-        if len(x) >= engine.limits.max_stack_size and key not in x:
-            raise InvalidOperationException("Map size limit exceeded")
+        # C# SETITEM has no Map-size check (only the global ref-counter
+        # MaxStackSize bound, enforced via PostExecuteInstruction).
         x[key] = value
     elif isinstance(x, Buffer):
         idx = int(key.get_integer())
         if idx < 0 or idx >= len(x):
-            raise InvalidOperationException(f"Index out of range: {idx}")
+            raise CatchableException(
+                f"The index of Buffer is out of range, {idx}/[0, {len(x)})."
+            )
+        # Non-primitive value and byte-range overflow are UNCATCHABLE faults
+        # (C# throws InvalidOperationException, not CatchableException).
+        if not isinstance(value, _PRIMITIVE_TYPES):
+            raise InvalidOperationException(
+                "Only primitive type values can be set in Buffer in SETITEM."
+            )
         val = int(value.get_integer())
-        if val < 0 or val > 255:
-            raise InvalidOperationException(f"Value out of byte range: {val}")
-        x[idx] = val
+        if val < -128 or val > 255:
+            raise InvalidOperationException(
+                f"Overflow in SETITEM, {val} is not a byte type."
+            )
+        x[idx] = val & 0xFF
     else:
         raise InvalidOperationException(f"Invalid type for SETITEM: {x.type}")
 
@@ -290,16 +381,22 @@ def reverseitems(engine: ExecutionEngine, instruction: Instruction) -> None:
 def remove(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Remove item from compound type by key/index."""
     key = engine.pop()
+    _require_primitive_key(key)
     x = engine.pop()
     if isinstance(x, Array):
         idx = int(key.get_integer())
+        # C# REMOVE on Array uses InvalidOperationException (UNCATCHABLE), not
+        # CatchableException, for an out-of-range index.
         if idx < 0 or idx >= len(x):
-            raise InvalidOperationException(f"Index out of range: {idx}")
+            raise InvalidOperationException(
+                f"The index of Array is out of range, {idx}/[0, {len(x)})."
+            )
         x.remove_at(idx)
     elif isinstance(x, Map):
-        if key not in x:
-            raise InvalidOperationException("Key not found in map")
-        del x[key]
+        # C# Map.Remove returns null when the key is absent and the handler
+        # ignores it — a missing key is a silent no-op.
+        if key in x:
+            del x[key]
     else:
         raise InvalidOperationException(f"Invalid type for REMOVE: {x.type}")
 

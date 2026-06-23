@@ -31,6 +31,19 @@ class VMAbortException(VMException):
     pass
 
 
+class CatchableException(VMException):
+    """A VM exception that can be caught by an in-script TRY/CATCH handler.
+
+    Mirrors C# Neo.VM.CatchableException: only exceptions of this type are
+    routed through ExecuteThrow (gated on Limits.CatchEngineExceptions). All
+    other engine-internal errors (InvalidOperationException, type/cast errors,
+    etc.) bypass the try-stack and FAULT immediately, matching C#'s
+    `catch (CatchableException) when (...)` vs the outer `catch (Exception) ->
+    OnFault`.
+    """
+    pass
+
+
 class CryptoException(NeoException):
     """Cryptography library missing or misconfigured."""
     pass

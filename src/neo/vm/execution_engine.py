@@ -6,7 +6,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
 
-from neo.exceptions import InvalidOperationException, StackOverflowException, VMAbortException
+from neo.exceptions import (
+    CatchableException,
+    InvalidOperationException,
+    StackOverflowException,
+    VMAbortException,
+)
 from neo.vm.evaluation_stack import EvaluationStack
 from neo.vm.exception_handling import (
     ExceptionHandlingContext,
@@ -107,6 +112,11 @@ class ExecutionEngine:
             if handler is None:
                 raise InvalidOperationException(f"Unknown opcode: {instr.opcode:#04x}")
             handler(self, instr)
+            # C# ExecutionEngine.ExecuteInstruction calls
+            # PostExecuteInstruction after the handler — enforce the global
+            # MaxStackSize via the reference counter, routed to FAULT like
+            # any other engine error.
+            self.reference_counter.post_execute_instruction(self.limits)
             if not self.is_jumping:
                 ctx.move_next()
         except VMUnhandledException as e:
@@ -115,15 +125,12 @@ class ExecutionEngine:
         except VMAbortException:
             # ABORT is uncatchable — bypass VM try/catch, fault immediately.
             self.state = VMState.FAULT
-        except Exception as e:
-            from neo.exceptions import OutOfGasException
-
-            if isinstance(e, OutOfGasException):
-                raise
-            # Route through VM try/catch before faulting.
-            # C# reference: ExecutionEngine.ExecuteInstruction catches
-            # exceptions and calls HandleException, which searches the
-            # try-stack for a matching catch/finally handler.
+        except CatchableException as e:
+            # C# reference: ExecutionEngine.ExecuteInstruction catches ONLY
+            # `CatchableException` (when Limits.CatchEngineExceptions) and
+            # routes it via ExecuteThrow, which searches the try-stack for a
+            # matching catch/finally handler. All other exceptions hit the
+            # outer `catch (Exception) -> OnFault` (uncatchable FAULT below).
             from neo.vm.types import ByteString
 
             ex_item = ByteString(str(e).encode("utf-8"))
@@ -132,6 +139,20 @@ class ExecutionEngine:
             except VMUnhandledException:
                 self.uncaught_exception = ex_item
                 self.state = VMState.FAULT
+        except Exception as e:
+            from neo.exceptions import OutOfGasException
+
+            if isinstance(e, OutOfGasException):
+                raise
+            # Engine-internal error (InvalidOperationException, type/cast
+            # errors, etc.) — mirrors C#'s outer `catch (Exception e) {
+            # OnFault(e); }`: fault uncatchably without searching the
+            # try-stack. The message is recorded for fault reporting but is
+            # NOT pushed to any catch handler.
+            from neo.vm.types import ByteString
+
+            self.uncaught_exception = ByteString(str(e).encode("utf-8"))
+            self.state = VMState.FAULT
 
     def add_gas(self, gas: int) -> None:
         """Add gas consumed and check against limit.

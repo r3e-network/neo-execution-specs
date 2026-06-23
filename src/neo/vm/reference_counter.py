@@ -9,7 +9,10 @@ Uses id() -> (strong_ref, count) mapping to prevent GC id reuse.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from neo.exceptions import InvalidOperationException
+
 if TYPE_CHECKING:
+    from neo.vm.limits import ExecutionEngineLimits
     from neo.vm.types.stack_item import StackItem
 
 class ReferenceCounter:
@@ -59,6 +62,20 @@ class ReferenceCounter:
             self._tracked[item_id] = (obj, 0)
         else:
             self._tracked[item_id] = (obj, new_count)
+
+    def post_execute_instruction(self, limits: "ExecutionEngineLimits") -> None:
+        """Enforce the global stack-item count limit after each instruction.
+
+        Mirrors C# ReferenceCounter.PostExecuteInstruction
+        (neo_csharp_vm/src/Neo.VM/ReferenceCounter.cs:57-61): raises when the
+        tracked item count exceeds Limits.MaxStackSize. Called from
+        ExecutionEngine.execute_next after the opcode handler so the FAULT is
+        routed exactly like other engine errors.
+        """
+        if self._count > limits.max_stack_size:
+            raise InvalidOperationException(
+                f"MaxStackSize exceed: {self._count}/{limits.max_stack_size}"
+            )
 
     def check_zero_referred(self) -> int:
         """Remove and return count of items with zero references."""
