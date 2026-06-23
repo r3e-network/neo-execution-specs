@@ -5,14 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from neo.hardfork import Hardfork
 from neo.native.native_contract import CallFlags, NativeContract, StorageItem
-from neo.network.payloads.block import (
-    Block,
-)
 from neo.network.payloads.transaction import (
     Transaction,
 )
+from neo.network.payloads.transaction_attribute import TransactionAttributeType
 from neo.types import UInt256
+
+# Default MaxTraceableBlocks protocol setting (mainnet), used as a fallback
+# when no protocol settings are available on the engine (e.g. lightweight
+# unit-test stubs). Mirrors ProtocolSettings.MaxTraceableBlocks.
+DEFAULT_MAX_TRACEABLE_BLOCKS = 2_102_400
 
 # Storage prefixes
 PREFIX_BLOCK_HASH = 9
@@ -100,6 +104,69 @@ class TransactionState:
                         state.transaction = tx_bytes
         return state
 
+@dataclass
+class TrimmedBlock:
+    """A block whose transactions are trimmed down to their hashes.
+
+    Mirrors C# Neo.SmartContract.Native.TrimmedBlock: the serialized form is the
+    block header followed by a var-length array of 32-byte transaction hashes.
+    This is the value stored under Prefix_Block (state-root critical).
+    """
+
+    header: Any = None
+    hashes: list[bytes] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.hashes is None:
+            self.hashes = []
+
+    @property
+    def index(self) -> int:
+        return int(getattr(self.header, "index", 0))
+
+    @classmethod
+    def create(cls, block: Any) -> "TrimmedBlock":
+        from neo.network.payloads.header import Header
+
+        header = Header(
+            version=block.version,
+            prev_hash=block.prev_hash,
+            merkle_root=block.merkle_root,
+            timestamp=block.timestamp,
+            nonce=block.nonce,
+            index=block.index,
+            primary_index=block.primary_index,
+            next_consensus=block.next_consensus,
+            witness=block.witness,
+        )
+        hashes = []
+        for tx in getattr(block, "transactions", []):
+            tx_hash = tx.hash.data if hasattr(tx.hash, "data") else bytes(tx.hash)
+            hashes.append(bytes(tx_hash))
+        return cls(header=header, hashes=hashes)
+
+    def to_bytes(self) -> bytes:
+        from neo.io.binary_writer import BinaryWriter
+
+        writer = BinaryWriter()
+        self.header.serialize(writer)
+        writer.write_var_int(len(self.hashes))
+        for h in self.hashes:
+            writer.write_bytes(h)
+        return writer.to_bytes()
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> "TrimmedBlock":
+        from neo.io.binary_reader import BinaryReader
+        from neo.network.payloads.header import Header
+
+        reader = BinaryReader(bytes(data))
+        header = Header.deserialize(reader)
+        count = reader.read_var_int(0xFFFF)
+        hashes = [reader.read_bytes(32) for _ in range(count)]
+        return cls(header=header, hashes=hashes)
+
+
 class LedgerContract(NativeContract):
     """Provides access to blockchain data.
     
@@ -169,120 +236,157 @@ class LedgerContract(NativeContract):
         return state is not None and state.transaction is not None
     
     def get_transaction_state(self, snapshot: Any, hash: UInt256) -> TransactionState | None:
-        """Get transaction state by hash."""
+        """Get transaction state by hash.
+
+        Mirrors C# LedgerContract.GetTransactionState (LedgerContract.cs:332-333):
+        a stored state whose Transaction is null is a conflict stub and is hidden
+        (returned as None), so it never leaks through get_transaction,
+        get_transaction_height, get_transaction_vm_state or get_transaction_signers.
+        """
         key = self._create_storage_key(PREFIX_TRANSACTION, hash.data)
         item = snapshot.get(key)
         if item is None:
             return None
-        return TransactionState.from_bytes(item.value)
+        state = TransactionState.from_bytes(item.value)
+        return state if state.transaction is not None else None
     
-    def get_block(self, engine: Any, index_or_hash: bytes) -> Block | None:
-        """Get a block by index or hash."""
+    def _max_traceable_blocks(self, engine: Any) -> int:
+        """Resolve the MaxTraceableBlocks value for the current engine state.
+
+        Mirrors C# LedgerContract.IsTraceableBlock(engine, index): the value comes
+        from ProtocolSettings.MaxTraceableBlocks, but once HF_Echidna is active it is
+        read from the native Policy contract instead (LedgerContract.cs:104-106).
+        Falls back to DEFAULT_MAX_TRACEABLE_BLOCKS when no protocol settings are
+        available (lightweight test stubs).
+        """
+        if NativeContract.is_hardfork_enabled(engine, Hardfork.HF_ECHIDNA):
+            policy = self.get_contract_by_name("PolicyContract")
+            if policy is not None:
+                return policy.get_max_traceable_blocks(engine.snapshot)
+        settings = getattr(engine, "protocol_settings", None)
+        if settings is None:
+            snapshot = getattr(engine, "snapshot", None)
+            settings = getattr(snapshot, "protocol_settings", None)
+        if settings is not None:
+            value = getattr(settings, "max_traceable_blocks", None)
+            if value is not None:
+                return int(value)
+        return DEFAULT_MAX_TRACEABLE_BLOCKS
+
+    def _is_traceable_block(self, engine: Any, index: int) -> bool:
+        """Whether a block at ``index`` is reachable from a smart contract.
+
+        Mirrors C# LedgerContract.IsTraceableBlock (LedgerContract.cs:102-128):
+        the block must not be in the future and must be within MaxTraceableBlocks
+        of the current chain height.
+        """
+        current_index = self.current_index(engine.snapshot)
+        if index > current_index:
+            return False
+        return index + self._max_traceable_blocks(engine) > current_index
+
+    def get_trimmed_block(self, snapshot: Any, hash: UInt256) -> TrimmedBlock | None:
+        """Read the stored TrimmedBlock for a block hash (no traceability gate).
+
+        Mirrors C# LedgerContract.GetTrimmedBlock (LedgerContract.cs:240-248).
+        """
+        key = self._create_storage_key(PREFIX_BLOCK, hash.data)
+        item = snapshot.get(key)
+        if item is None:
+            return None
+        return TrimmedBlock.from_bytes(item.value)
+
+    def get_block(self, engine: Any, index_or_hash: bytes) -> TrimmedBlock | None:
+        """Get a block by index or hash.
+
+        Mirrors C# LedgerContract.GetBlock (the contract-callable overload,
+        LedgerContract.cs:251-265): resolves the hash, reads the TrimmedBlock and
+        returns it only when its block index is traceable.
+        """
         if len(index_or_hash) < 32:
             index = int.from_bytes(index_or_hash, 'little')
             hash = self.get_block_hash(engine.snapshot, index)
         else:
             hash = UInt256(index_or_hash)
-        
+
         if hash is None:
             return None
-        
-        key = self._create_storage_key(PREFIX_BLOCK, hash.data)
-        item = engine.snapshot.get(key)
-        return item.value if item else None
+
+        block = self.get_trimmed_block(engine.snapshot, hash)
+        if block is None or not self._is_traceable_block(engine, block.index):
+            return None
+        return block
     
     def get_transaction(self, engine: Any, hash: UInt256) -> Transaction | None:
         """Get a transaction by hash."""
         state = self.get_transaction_state(engine.snapshot, hash)
-        if state is None:
+        if state is None or not self._is_traceable_block(engine, state.block_index):
             return None
         return state.transaction
-    
+
     def get_transaction_height(self, engine: Any, hash: UInt256) -> int:
         """Get the block height of a transaction."""
         state = self.get_transaction_state(engine.snapshot, hash)
-        if state is None:
+        if state is None or not self._is_traceable_block(engine, state.block_index):
             return -1
         return state.block_index
-    
+
     def get_transaction_signers(self, engine: Any, hash: UInt256) -> list[Any] | None:
         """Get transaction signers."""
         state = self.get_transaction_state(engine.snapshot, hash)
-        if state is None or state.transaction is None:
+        if state is None or not self._is_traceable_block(engine, state.block_index):
             return None
         return getattr(state.transaction, 'signers', [])
-    
+
     def get_transaction_vm_state(self, engine: Any, hash: UInt256) -> int:
         """Get transaction VM state (0=NONE, 1=HALT, 2=FAULT)."""
         state = self.get_transaction_state(engine.snapshot, hash)
-        if state is None:
+        if state is None or not self._is_traceable_block(engine, state.block_index):
             return 0  # NONE
         return state.state
     
     def get_transaction_from_block(
         self, engine: Any, block_index_or_hash: bytes, tx_index: int
     ) -> Transaction | None:
-        """Get a transaction from a block by index."""
-        if tx_index < 0:
-            return None
+        """Get a transaction from a block by index.
 
+        Mirrors C# LedgerContract.GetTransactionFromBlock (LedgerContract.cs:382-394):
+        an out-of-range txIndex (negative or >= the block's transaction count) raises
+        an ArgumentOutOfRangeException (mapped to a VM FAULT) rather than returning
+        null, and the resolved block must be traceable.
+        """
         if len(block_index_or_hash) < 32:
             index = int.from_bytes(block_index_or_hash, 'little')
             hash = self.get_block_hash(engine.snapshot, index)
         else:
             hash = UInt256(block_index_or_hash)
-        
+
         if hash is None:
             return None
-        
-        # Get block and extract transaction
-        block = self.get_block(engine, hash.data)
-        if block is None:
+
+        # Resolve the TrimmedBlock, then mirror C#'s exact ordering: traceability
+        # check, out-of-range fault on txIndex, then resolve the tx by its hash.
+        block = self.get_trimmed_block(engine.snapshot, hash)
+        if block is None or not self._is_traceable_block(engine, block.index):
             return None
 
-        txs = self._extract_block_transactions(block)
-        if txs is None or tx_index >= len(txs):
+        if tx_index < 0 or tx_index >= len(block.hashes):
+            raise ValueError(f"txIndex out of range: {tx_index}")
+
+        tx_hash = UInt256(block.hashes[tx_index])
+        state = self.get_transaction_state(engine.snapshot, tx_hash)
+        return state.transaction if state is not None else None
+
+    @staticmethod
+    def _attribute_hash_bytes(attr: Any) -> bytes | None:
+        """Extract the 32-byte conflict hash from a Conflicts attribute."""
+        hash_value = getattr(attr, "hash", None)
+        if hash_value is None:
             return None
-        return txs[tx_index]
+        if hasattr(hash_value, "data"):
+            return bytes(hash_value.data)
+        return bytes(hash_value)
 
-    @staticmethod
-    def _extract_block_transactions(block: Any) -> list[Any] | None:
-        txs = getattr(block, "transactions", None)
-        if txs is not None:
-            return list(txs)
-
-        if isinstance(block, (bytes, bytearray)):
-            from neo.io.binary_reader import BinaryReader
-            from neo.network.payloads.block import Block
-
-            try:
-                reader = BinaryReader(bytes(block))
-                parsed = Block.deserialize(reader)
-                return list(parsed.transactions)
-            except Exception:
-                return None
-
-        return None
-
-    @staticmethod
-    def _serialize_block(block: Any) -> bytes:
-        if isinstance(block, (bytes, bytearray)):
-            return bytes(block)
-
-        to_bytes = getattr(block, "to_bytes", None)
-        if callable(to_bytes):
-            return bytes(to_bytes())
-
-        serialize = getattr(block, "serialize", None)
-        if callable(serialize):
-            from neo.io.binary_writer import BinaryWriter
-
-            writer = BinaryWriter()
-            serialize(writer)
-            return writer.to_bytes()
-
-        raise TypeError("Block does not support byte serialization")
-    
     def on_persist(self, engine: Any) -> None:
         """Store block and transactions when persisting."""
         block = engine.persisting_block
@@ -292,9 +396,11 @@ class LedgerContract(NativeContract):
         hash_key = self._create_storage_key(PREFIX_BLOCK_HASH, block.index)
         engine.snapshot.add(hash_key, StorageItem(block_hash))
         
-        # Store block
+        # Store the block as a TrimmedBlock (header + transaction hashes), matching
+        # C# LedgerContract.OnPersistAsync (LedgerContract.cs:51). The full
+        # transactions are stored separately under Prefix_Transaction below.
         block_key = self._create_storage_key(PREFIX_BLOCK, block_hash)
-        engine.snapshot.add(block_key, StorageItem(self._serialize_block(block)))
+        engine.snapshot.add(block_key, StorageItem(TrimmedBlock.create(block).to_bytes()))
         
         # Store transactions
         for tx in block.transactions:
@@ -304,8 +410,42 @@ class LedgerContract(NativeContract):
                 transaction=tx,
                 state=0  # NONE initially
             )
+            # It's possible that there are previously saved malicious conflict
+            # records for this transaction. Overwrite them with the real tx state
+            # (mirrors C# GetAndChange(...).FromReplica(...), LedgerContract.cs:55-57).
             tx_key = self._create_storage_key(PREFIX_TRANSACTION, tx_hash)
-            engine.snapshot.add(tx_key, StorageItem(tx_state.to_bytes()))
+            real_item = engine.snapshot.get_and_change(tx_key, lambda: StorageItem())
+            real_item.value = tx_state.to_bytes()
+
+            # Store the transaction's Conflicts records as dummy stubs so that a
+            # later transaction conflicting with this hash is rejected. The stub's
+            # transaction is None so contains_transaction / get_transaction* keep
+            # treating the hash as absent (mirrors C# LedgerContract.cs:59-70).
+            conflicting_signers = [
+                signer.account for signer in getattr(tx, "signers", [])
+            ]
+            for attr in getattr(tx, "attributes", []):
+                if int(getattr(attr, "type", -1)) != int(TransactionAttributeType.CONFLICTS):
+                    continue
+                attr_hash = self._attribute_hash_bytes(attr)
+                if attr_hash is None:
+                    continue
+                stub = TransactionState(block_index=block.index, transaction=None)
+                stub_bytes = stub.to_bytes()
+
+                conflict_key = self._create_storage_key(PREFIX_TRANSACTION, attr_hash)
+                conflict_item = engine.snapshot.get_and_change(conflict_key, lambda: StorageItem())
+                conflict_item.value = stub_bytes
+
+                for account in conflicting_signers:
+                    account_bytes = account.data if hasattr(account, "data") else bytes(account)
+                    signer_key = self._create_storage_key(
+                        PREFIX_TRANSACTION, attr_hash, account_bytes
+                    )
+                    signer_item = engine.snapshot.get_and_change(
+                        signer_key, lambda: StorageItem()
+                    )
+                    signer_item.value = stub_bytes
     
     def post_persist(self, engine: Any) -> None:
         """Update current block after persisting."""
