@@ -162,7 +162,10 @@ class ContractManagement(NativeContract):
                 return None
             return NativeContract.get_contract_state(native, snapshot)
 
-        key = self._create_storage_key(PREFIX_CONTRACT_HASH, id)
+        # C# encodes the contract id big-endian (StorageKey.Create int overload ->
+        # BinaryPrimitives.WriteInt32BigEndian). Pass the id as big-endian bytes so
+        # it bypasses the little-endian int branch in StorageKey.create.
+        key = self._create_storage_key(PREFIX_CONTRACT_HASH, id.to_bytes(4, "big", signed=True))
         item = snapshot.get(key)
         if item is None:
             return None
@@ -180,7 +183,10 @@ class ContractManagement(NativeContract):
                 key_bytes = key.key
                 if len(key_bytes) < 5:
                     continue
-                contract_id = int.from_bytes(key_bytes[1:5], "little", signed=True)
+                # C# reads BinaryPrimitives.ReadInt32BigEndian over key[1..].
+                contract_id = int.from_bytes(key_bytes[1:5], "big", signed=True)
+                if contract_id < 0:  # C# filters .Where(p => p.Id >= 0)
+                    continue
                 hash_bytes = getattr(item, "value", b"")
                 if len(hash_bytes) == 20:
                     rows.append((contract_id, UInt160(hash_bytes)))
@@ -261,7 +267,10 @@ class ContractManagement(NativeContract):
         
         # Store contract
         engine.snapshot.add(key, StorageItem(contract.to_bytes()))
-        hash_key = self._create_storage_key(PREFIX_CONTRACT_HASH, contract.id)
+        # C# encodes the contract id big-endian for Prefix_ContractHash.
+        hash_key = self._create_storage_key(
+            PREFIX_CONTRACT_HASH, contract.id.to_bytes(4, "big", signed=True)
+        )
         engine.snapshot.add(hash_key, StorageItem(contract_hash.data))
         
         # Send notification
@@ -366,7 +375,10 @@ class ContractManagement(NativeContract):
         
         # Delete contract
         engine.snapshot.delete(key)
-        hash_key = self._create_storage_key(PREFIX_CONTRACT_HASH, contract.id)
+        # C# encodes the contract id big-endian for Prefix_ContractHash.
+        hash_key = self._create_storage_key(
+            PREFIX_CONTRACT_HASH, contract.id.to_bytes(4, "big", signed=True)
+        )
         engine.snapshot.delete(hash_key)
         
         # Delete contract storage
