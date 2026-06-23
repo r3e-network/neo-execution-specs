@@ -71,6 +71,15 @@ class CryptoLib(NativeContract):
             cpu_fee=1 << 15,
             call_flags=CallFlags.NONE,
             active_in=Hardfork.HF_COCKATRICE,
+            deprecated_in=Hardfork.HF_GORGON,
+            manifest_parameter_names=["message", "pubkey", "signature", "curveHash"],
+        )
+        self._register_method(
+            "verifyWithECDsa",
+            self.verify_with_ecdsa_v2,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_GORGON,
             manifest_parameter_names=["message", "pubkey", "signature", "curveHash"],
         )
         self._register_method(
@@ -79,6 +88,14 @@ class CryptoLib(NativeContract):
             cpu_fee=1 << 15,
             call_flags=CallFlags.NONE,
             active_in=Hardfork.HF_ECHIDNA,
+            deprecated_in=Hardfork.HF_GORGON,
+        )
+        self._register_method(
+            "verifyWithEd25519",
+            self.verify_with_ed25519_v1,
+            cpu_fee=1 << 15,
+            call_flags=CallFlags.NONE,
+            active_in=Hardfork.HF_GORGON,
         )
         self._register_method(
             "recoverSecp256K1",
@@ -226,6 +243,41 @@ class CryptoLib(NativeContract):
         except (ValueError, TypeError, ImportError):
             return False
 
+    def verify_with_ecdsa_v2(
+        self, message: bytes, pubkey: bytes, signature: bytes, curve_hash: NamedCurveHash
+    ) -> bool:
+        """Post-Gorgon ECDSA verification (strict).
+
+        Mirrors C# CryptoLib.VerifyWithECDsaV2 (ActiveIn=HF_Gorgon) -> Crypto
+        .VerifySignature: faults (FormatException) on a signature whose length
+        is not 64 bytes, and faults (NotSupportedException) on an unsupported
+        curve/hash. The unsupported-curveHash case already faults via enum
+        marshalling on out-of-range values.
+        """
+        if len(signature) != 64:
+            raise ValueError("Signature size should be 64 bytes.")
+
+        from neo.crypto.ecc.curve import SECP256K1, SECP256R1
+        from neo.crypto.ecc.point import ECPoint
+
+        if curve_hash == NamedCurveHash.secp256k1SHA256:
+            curve = SECP256K1
+            message_hash = self.sha256(message)
+        elif curve_hash == NamedCurveHash.secp256r1SHA256:
+            curve = SECP256R1
+            message_hash = self.sha256(message)
+        elif curve_hash == NamedCurveHash.secp256k1Keccak256:
+            curve = SECP256K1
+            message_hash = self.keccak256(message)
+        elif curve_hash == NamedCurveHash.secp256r1Keccak256:
+            curve = SECP256R1
+            message_hash = self.keccak256(message)
+        else:
+            raise ValueError(f"Unsupported curve or hash algorithm: {curve_hash}")
+
+        public_key = ECPoint.decode(pubkey, curve)
+        return self._verify_ecdsa_signature(message_hash, signature, public_key)
+
     def verify_with_ecdsa_v0(
         self, message: bytes, pubkey: bytes, signature: bytes, curve_hash: NamedCurveHash
     ) -> bool:
@@ -286,6 +338,20 @@ class CryptoLib(NativeContract):
 
         return ed25519_verify(message, signature, pubkey)
 
+    def verify_with_ed25519_v1(self, message: bytes, pubkey: bytes, signature: bytes) -> bool:
+        """Post-Gorgon Ed25519 verification (strict).
+
+        Mirrors C# CryptoLib.VerifyWithEd25519V1 (ActiveIn=HF_Gorgon): faults
+        (FormatException) when the signature is not 64 bytes or the public key
+        is not 32 bytes, instead of returning False (the Echidna V0 behavior).
+        """
+        if len(signature) != 64:
+            raise ValueError("Signature size should be 64")
+        if len(pubkey) != 32:
+            raise ValueError("Public key size should be 32")
+
+        return ed25519_verify(message, signature, pubkey)
+
     def recover_secp256k1(self, message_hash: bytes, signature: bytes) -> bytes | None:
         """Recover public key from secp256k1 signature.
 
@@ -315,7 +381,10 @@ class CryptoLib(NativeContract):
             if v >= 27:
                 v -= 27
 
-            if v not in (0, 1):
+            # C# Crypto.ECRecover accepts recId in [0..3] (Crypto.cs:417-421).
+            # x = r + (v >> 1) * n below covers recId 2/3; the x >= p guard
+            # still rejects the common case where r + n >= p.
+            if v not in (0, 1, 2, 3):
                 return None
 
             # Recover public key using secp256k1

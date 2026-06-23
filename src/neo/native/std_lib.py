@@ -245,31 +245,130 @@ class StdLib(NativeContract):
             raise ValueError(f"Unknown type byte: {type_byte}")
 
     def json_serialize(self, item: Any) -> bytes:
-        """Serialize a stack item to JSON bytes."""
-        return json.dumps(self._to_json_value(item)).encode("utf-8")
+        """Serialize a stack item to JSON bytes.
+
+        Mirrors C# JsonSerializer.SerializeToByteArray (Utf8JsonWriter with
+        JavaScriptEncoder.Default): compact separators, non-ASCII escaped as
+        uppercase ``\\uXXXX``, HTML-sensitive characters escaped, and strict
+        JNumber safe-integer bounds on integers.
+        """
+        return self._encode_json(self._to_json_value(item)).encode("utf-8")
 
     def json_deserialize(self, data: bytes) -> Any:
         """Deserialize JSON bytes to a stack item."""
         return self._from_json_value(json.loads(data.decode("utf-8")))
 
+    # JNumber safe-integer bounds, matching C# JNumber.MAX_SAFE_INTEGER / MIN.
+    _JNUMBER_MAX_SAFE_INTEGER = (1 << 53) - 1
+    _JNUMBER_MIN_SAFE_INTEGER = -((1 << 53) - 1)
+
     def _to_json_value(self, item: Any) -> Any:
-        """Convert stack item to JSON-compatible value."""
+        """Convert stack item to a JSON-compatible intermediate value.
+
+        Mirrors C# JsonSerializer.Serialize: ByteString/Buffer decode as
+        strict UTF-8 (faulting on invalid UTF-8), integers are bounds-checked
+        against JNumber safe-integer range, and Map keys decode as UTF-8.
+        """
         if item is None:
             return None
         elif isinstance(item, bool):
             return item
         elif isinstance(item, int):
+            if item > self._JNUMBER_MAX_SAFE_INTEGER or item < self._JNUMBER_MIN_SAFE_INTEGER:
+                raise ValueError("Integer out of JNumber safe range")
             return item
         elif isinstance(item, bytes):
-            return base64.b64encode(item).decode("ascii")
+            return self._strict_utf8_decode(item)
         elif isinstance(item, str):
             return item
         elif isinstance(item, list):
             return [self._to_json_value(x) for x in item]
         elif isinstance(item, dict):
-            return {str(k): self._to_json_value(v) for k, v in item.items()}
+            result: dict[str, Any] = {}
+            for k, v in item.items():
+                if isinstance(k, bytes):
+                    key = self._strict_utf8_decode(k)
+                elif isinstance(k, str):
+                    key = k
+                else:
+                    raise ValueError("Key is not a ByteString")
+                result[key] = self._to_json_value(v)
+            return result
         else:
-            return str(item)
+            raise ValueError(f"Cannot serialize type: {type(item)}")
+
+    @staticmethod
+    def _strict_utf8_decode(data: bytes) -> str:
+        """Decode bytes as strict UTF-8, faulting on invalid sequences.
+
+        Mirrors C# StackItem.GetString() (StrictUTF8.GetString), which uses
+        an ExceptionFallback and throws on invalid UTF-8.
+        """
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("Invalid UTF-8 in ByteString") from exc
+
+    # Short escapes emitted by System.Text.Json (Utf8JsonWriter).
+    _JSON_SHORT_ESCAPES = {
+        ord('"'): '\\"',
+        ord("\\"): "\\\\",
+        ord("\b"): "\\b",
+        ord("\f"): "\\f",
+        ord("\n"): "\\n",
+        ord("\r"): "\\r",
+        ord("\t"): "\\t",
+    }
+
+    @classmethod
+    def _escape_json_string(cls, s: str) -> str:
+        """Escape a string to match C# Utf8JsonWriter + JavaScriptEncoder.Default.
+
+        - control chars and the JSON structural escapes use short forms;
+        - the HTML-sensitive set (<, >, &, +, ') and any non-ASCII code point
+          is escaped as ``\\uXXXX`` with UPPERCASE hex digits (surrogate pairs
+          for astral code points).
+        """
+        out: list[str] = ['"']
+        # Characters JavaScriptEncoder.Default escapes beyond the JSON minimum.
+        html_sensitive = {ord("<"), ord(">"), ord("&"), ord("+"), ord("'")}
+        for ch in s:
+            cp = ord(ch)
+            if cp in cls._JSON_SHORT_ESCAPES:
+                out.append(cls._JSON_SHORT_ESCAPES[cp])
+            elif cp < 0x20 or cp > 0x7E or cp in html_sensitive:
+                if cp > 0xFFFF:
+                    cp -= 0x10000
+                    high = 0xD800 + (cp >> 10)
+                    low = 0xDC00 + (cp & 0x3FF)
+                    out.append(f"\\u{high:04X}\\u{low:04X}")
+                else:
+                    out.append(f"\\u{cp:04X}")
+            else:
+                out.append(ch)
+        out.append('"')
+        return "".join(out)
+
+    @classmethod
+    def _encode_json(cls, value: Any) -> str:
+        """Serialize an intermediate value to a C#-byte-compatible JSON string."""
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, int):
+            # C# writes (double)integer; whole-number doubles render without a
+            # decimal point via Utf8JsonWriter, so a plain integer literal
+            # matches for the JNumber-bounded range.
+            return str(value)
+        if isinstance(value, str):
+            return cls._escape_json_string(value)
+        if isinstance(value, list):
+            return "[" + ",".join(cls._encode_json(x) for x in value) + "]"
+        if isinstance(value, dict):
+            parts = [cls._escape_json_string(k) + ":" + cls._encode_json(v) for k, v in value.items()]
+            return "{" + ",".join(parts) + "}"
+        raise ValueError(f"Cannot serialize type: {type(value)}")
 
     def _from_json_value(self, value: Any) -> Any:
         """Convert JSON value to stack item."""
@@ -280,6 +379,9 @@ class StdLib(NativeContract):
         elif isinstance(value, int):
             return value
         elif isinstance(value, float):
+            # C# JsonSerializer faults on fractional numbers (JsonSerializer.cs:196).
+            if value % 1 != 0:
+                raise ValueError("Decimal value is not allowed")
             return int(value)
         elif isinstance(value, str):
             return value
@@ -328,15 +430,23 @@ class StdLib(NativeContract):
             raise ValueError("Input too long")
 
         if base == 10:
+            # NumberStyles.AllowLeadingSign + InvariantCulture: only an optional
+            # single leading ASCII sign followed by ASCII digits. No whitespace,
+            # underscores, or non-ASCII (e.g. Arabic-Indic) digits.
+            body = value
+            if body[:1] in ("+", "-"):
+                body = body[1:]
+            if not body or any(c not in "0123456789" for c in body):
+                raise ValueError(f"Invalid decimal integer: {value!r}")
             return int(value, 10)
         elif base == 16:
-            if value.startswith(("-", "+")):
-                return int(value, 16)
+            # NumberStyles.AllowHexSpecifier: only bare hex digits, no sign and
+            # no '0x'/'0X' prefix. Leading high nibble (8-f) => negative
+            # (two's-complement by nibble width), matching C# BigInteger.Parse.
+            if not value or any(c not in "0123456789abcdefABCDEF" for c in value):
+                raise ValueError(f"Invalid hex integer: {value!r}")
 
-            normalized = value.lower().removeprefix("0x")
-            if not normalized:
-                return 0
-
+            normalized = value.lower()
             unsigned = int(normalized, 16)
             bits = len(normalized) * 4
             if normalized[0] in "89abcdef":
@@ -359,7 +469,11 @@ class StdLib(NativeContract):
         """Decode base64 string to bytes."""
         if len(s) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
-        return base64.b64decode(s)
+        # C# Convert.FromBase64String ignores only space/tab/CR/LF and faults on
+        # any other invalid character. Mirror that: strip the four whitespace
+        # chars then decode strictly so non-whitespace garbage faults.
+        filtered = s.translate({0x20: None, 0x09: None, 0x0A: None, 0x0D: None})
+        return base64.b64decode(filtered, validate=True)
 
     def base58_encode(self, data: bytes) -> str:
         """Encode bytes to base58 string."""
@@ -408,10 +522,10 @@ class StdLib(NativeContract):
         if len(mem) > MAX_INPUT_LENGTH:
             raise ValueError("Input too long")
 
-        if backward and start == 0:
-            start = len(mem) - 1
         if backward:
-            idx = mem[: start + 1].rfind(value)
+            # C# mem.AsSpan(0, start).LastIndexOf(value): scan the prefix
+            # [0, start) EXCLUSIVE of index `start`; start==0 => empty prefix.
+            idx = mem[:start].rfind(value)
         else:
             idx = mem.find(value, start)
 

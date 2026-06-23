@@ -250,7 +250,9 @@ class TestContractManagement:
         assert verify_pre_cockatrice.deprecated_in == Hardfork.HF_COCKATRICE
         assert verify_pre_cockatrice.active_in is None
         assert verify_post_cockatrice.active_in == Hardfork.HF_COCKATRICE
-        assert verify_post_cockatrice.deprecated_in is None
+        # v3.10.0: VerifyWithECDsaV1 is [ContractMethod(HF_Cockatrice, HF_Gorgon)],
+        # i.e. the Cockatrice variant is deprecated at HF_Gorgon (superseded by V2).
+        assert verify_post_cockatrice.deprecated_in == Hardfork.HF_GORGON
 
     def test_get_contract_state_manifest_supported_standards_follow_hardforks(self):
         contracts = initialize_native_contracts()
