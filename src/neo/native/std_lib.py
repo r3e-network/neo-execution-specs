@@ -13,6 +13,11 @@ from neo.native.native_contract import CallFlags, NativeContract
 
 MAX_INPUT_LENGTH = 1024
 
+# Maximum JSON output size, matching C# ExecutionEngineLimits.MaxItemSize
+# (ushort.MaxValue * 2 = 131070), used by StdLib.JsonSerialize via
+# JsonSerializer.SerializeToByteArray(item, engine.Limits.MaxItemSize).
+MAX_ITEM_SIZE = 65535 * 2
+
 class StdLib(NativeContract):
     """Standard library functions for Neo smart contracts."""
 
@@ -251,8 +256,15 @@ class StdLib(NativeContract):
         JavaScriptEncoder.Default): compact separators, non-ASCII escaped as
         uppercase ``\\uXXXX``, HTML-sensitive characters escaped, and strict
         JNumber safe-integer bounds on integers.
+
+        The serialized output is bounded by MAX_ITEM_SIZE (C#
+        ExecutionEngineLimits.MaxItemSize = 131070); larger output faults,
+        matching JsonSerializer.SerializeToByteArray's maxSize check.
         """
-        return self._encode_json(self._to_json_value(item)).encode("utf-8")
+        result = self._encode_json(self._to_json_value(item)).encode("utf-8")
+        if len(result) > MAX_ITEM_SIZE:
+            raise ValueError("JSON output exceeds MaxItemSize")
+        return result
 
     def json_deserialize(self, data: bytes) -> Any:
         """Deserialize JSON bytes to a stack item."""
