@@ -166,6 +166,44 @@ class TrimmedBlock:
         hashes = [reader.read_bytes(32) for _ in range(count)]
         return cls(header=header, hashes=hashes)
 
+    @staticmethod
+    def _hash_bytes(value: Any) -> bytes:
+        """Return the raw bytes of a hash-like value (UInt256/UInt160/bytes)."""
+        return value.data if hasattr(value, "data") else bytes(value)
+
+    def to_stack_item(self) -> Any:
+        """Build the IInteroperable stack item C# TrimmedBlock.ToStackItem produces.
+
+        Mirrors SmartContract/Native/TrimmedBlock.cs:111-131 exactly: a VM Array of
+        10 elements in this order — Hash, Version, PrevHash, MerkleRoot, Timestamp,
+        Nonce, Index, PrimaryIndex, NextConsensus, transaction-count. The three hash
+        fields and NextConsensus are ByteStrings; the rest are Integers. This is the
+        shape returned by the contract-callable getBlock.
+        """
+        from neo.vm.types import Array, ByteString, Integer
+
+        header = self.header
+        block_hash = header.hash
+        block_hash_bytes = block_hash.data if hasattr(block_hash, "data") else bytes(block_hash)
+
+        return Array(
+            items=[
+                # Computed property
+                ByteString(block_hash_bytes),
+                # BlockBase properties
+                Integer(header.version),
+                ByteString(self._hash_bytes(header.prev_hash)),
+                ByteString(self._hash_bytes(header.merkle_root)),
+                Integer(header.timestamp),
+                Integer(header.nonce),
+                Integer(header.index),
+                Integer(header.primary_index),
+                ByteString(self._hash_bytes(header.next_consensus)),
+                # Block property
+                Integer(len(self.hashes)),
+            ]
+        )
+
 
 class LedgerContract(NativeContract):
     """Provides access to blockchain data.
@@ -202,19 +240,19 @@ class LedgerContract(NativeContract):
     def current_hash(self, snapshot: Any) -> UInt256:
         """Get the hash of the current block."""
         key = self._create_storage_key(PREFIX_CURRENT_BLOCK)
-        item = snapshot.get(key)
-        if item is None:
+        value = self._item_bytes(snapshot.get(key))
+        if value is None:
             return UInt256.ZERO
-        state = HashIndexState.from_bytes(item.value)
+        state = HashIndexState.from_bytes(value)
         return state.hash or UInt256.ZERO
-    
+
     def current_index(self, snapshot: Any) -> int:
         """Get the index of the current block."""
         key = self._create_storage_key(PREFIX_CURRENT_BLOCK)
-        item = snapshot.get(key)
-        if item is None:
+        value = self._item_bytes(snapshot.get(key))
+        if value is None:
             return 0
-        state = HashIndexState.from_bytes(item.value)
+        state = HashIndexState.from_bytes(value)
         return state.index
     
     def get_block_hash(self, snapshot: Any, index: int) -> UInt256 | None:
@@ -284,6 +322,83 @@ class LedgerContract(NativeContract):
         if index > current_index:
             return False
         return index + self._max_traceable_blocks(engine) > current_index
+
+    @staticmethod
+    def _item_bytes(item: Any) -> bytes | None:
+        """Extract the raw storage-value bytes from a stored item.
+
+        Accepts both the value-bearing StorageItem shape used by the native
+        snapshot (``item.value``) and a raw ``bytes`` value as returned by the
+        lightweight ledger ``Snapshot`` consumed by the transaction verifier.
+        """
+        if item is None:
+            return None
+        value = getattr(item, "value", item)
+        if value is None:
+            return None
+        return bytes(value)
+
+    def _is_traceable_block_snapshot(
+        self, snapshot: Any, index: int, max_traceable_blocks: int
+    ) -> bool:
+        """Snapshot-only traceability check.
+
+        Mirrors C# LedgerContract.IsTraceableBlock(IReadOnlyStore, uint, uint)
+        (LedgerContract.cs:123-128): the block must not be in the future and must
+        be within ``max_traceable_blocks`` of the current chain height. Unlike the
+        engine overload the MaxTraceableBlocks value is supplied by the caller.
+        """
+        current_index = self.current_index(snapshot)
+        if index > current_index:
+            return False
+        return index + max_traceable_blocks > current_index
+
+    def contains_conflict_hash(
+        self,
+        snapshot: Any,
+        hash: UInt256,
+        signers: Any,
+        max_traceable_blocks: int,
+    ) -> bool:
+        """Whether ``hash`` is recorded as a conflicting-transaction hash.
+
+        Mirrors C# LedgerContract.ContainsConflictHash (LedgerContract.cs:211-233):
+        first the dummy stub under ``Prefix_Transaction|hash`` is checked to confirm
+        at least one conflict record exists (the stub's Transaction must be null and
+        its block traceable); then the per-signer records under
+        ``Prefix_Transaction|hash|signer`` are checked for an intersection with the
+        provided signer accounts.
+        """
+        hash_bytes = hash.data if hasattr(hash, "data") else bytes(hash)
+
+        # Check the dummy stub first to decide whether any conflict record exists.
+        stub_key = self._create_storage_key(PREFIX_TRANSACTION, hash_bytes)
+        stub_value = self._item_bytes(snapshot.get(stub_key))
+        if stub_value is None:
+            return False
+        stub = TransactionState.from_bytes(stub_value)
+        if stub.transaction is not None or not self._is_traceable_block_snapshot(
+            snapshot, stub.block_index, max_traceable_blocks
+        ):
+            return False
+
+        # At least one conflict record exists; intersect with the signers.
+        for signer in signers:
+            account = getattr(signer, "account", signer)
+            account_bytes = account.data if hasattr(account, "data") else bytes(account)
+            signer_key = self._create_storage_key(
+                PREFIX_TRANSACTION, hash_bytes, account_bytes
+            )
+            state_value = self._item_bytes(snapshot.get(signer_key))
+            if state_value is None:
+                continue
+            state = TransactionState.from_bytes(state_value)
+            if self._is_traceable_block_snapshot(
+                snapshot, state.block_index, max_traceable_blocks
+            ):
+                return True
+
+        return False
 
     def get_trimmed_block(self, snapshot: Any, hash: UInt256) -> TrimmedBlock | None:
         """Read the stored TrimmedBlock for a block hash (no traceability gate).

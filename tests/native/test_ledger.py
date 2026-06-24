@@ -169,3 +169,63 @@ class TestLedgerContract:
         assert ledger.get_transaction_height(engine, conflict_uint) == -1
         assert ledger.get_transaction_vm_state(engine, conflict_uint) == 0
         assert ledger.contains_transaction(snapshot, conflict_uint) is False
+
+        # contains_conflict_hash is true only when a recorded conflicting signer
+        # intersects the querying signers (C# LedgerContract.ContainsConflictHash).
+        mtb = 2_102_400
+        assert (
+            ledger.contains_conflict_hash(snapshot, conflict_uint, [signer], mtb)
+            is True
+        )
+        other = Signer(account=UInt160(bytes([0x99]) * 20))
+        assert (
+            ledger.contains_conflict_hash(snapshot, conflict_uint, [other], mtb)
+            is False
+        )
+        # No stub at all -> not a conflict.
+        absent = UInt256(bytes([0xAB]) * 32)
+        assert (
+            ledger.contains_conflict_hash(snapshot, absent, [signer], mtb) is False
+        )
+
+    def test_get_block_to_stack_item_shape_matches_csharp(self):
+        from neo.vm.types import Array, ByteString, Integer
+
+        ledger = LedgerContract()
+        snapshot = _Snapshot()
+
+        tx1 = _tx(1, 0x11)
+        tx2 = _tx(2, 0x22)
+        block = _block_with_transactions(index=42, txs=[tx1, tx2])
+        engine = _Engine(snapshot=snapshot, persisting_block=block)
+        ledger.on_persist(engine)
+        ledger.post_persist(engine)
+
+        trimmed = ledger.get_block(engine, block.index.to_bytes(4, "little"))
+        item = trimmed.to_stack_item()
+
+        # 10-element VM Array in C# TrimmedBlock.ToStackItem order.
+        assert isinstance(item, Array)
+        elements = list(item)
+        assert len(elements) == 10
+
+        header = trimmed.header
+        assert isinstance(elements[0], ByteString)
+        assert elements[0].value == (
+            header.hash.data if hasattr(header.hash, "data") else bytes(header.hash)
+        )
+        assert isinstance(elements[1], Integer) and int(elements[1].value) == header.version
+        assert isinstance(elements[2], ByteString)
+        assert elements[2].value == (
+            header.prev_hash.data if hasattr(header.prev_hash, "data") else bytes(header.prev_hash)
+        )
+        assert isinstance(elements[3], ByteString)
+        assert isinstance(elements[4], Integer)
+        assert int(elements[4].value) == header.timestamp
+        assert isinstance(elements[5], Integer) and int(elements[5].value) == header.nonce
+        assert isinstance(elements[6], Integer) and int(elements[6].value) == header.index
+        assert isinstance(elements[7], Integer)
+        assert int(elements[7].value) == header.primary_index
+        assert isinstance(elements[8], ByteString)
+        # Final element is the transaction count, not the hashes themselves.
+        assert isinstance(elements[9], Integer) and int(elements[9].value) == 2

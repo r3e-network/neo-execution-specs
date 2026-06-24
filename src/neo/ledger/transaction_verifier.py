@@ -114,13 +114,53 @@ class TransactionVerifier:
 
     @staticmethod
     def _has_conflicts(tx: Transaction, snapshot: Snapshot) -> bool:
-        """Check if transaction conflicts with existing ones."""
-        # Check Conflicts attribute
+        """Check if transaction conflicts with on-chain conflict records.
+
+        Mirrors C# MemoryPool / Blockchain conflict detection, which calls
+        LedgerContract.ContainsConflictHash for each Conflicts attribute hash with
+        the transaction's own signer accounts. A conflict exists only when the
+        on-chain stub for that hash is present (Transaction == null, i.e. a real
+        conflict record) AND at least one of the recorded conflicting signers
+        intersects this transaction's signers — not merely when a transaction with
+        that hash exists. The signer-keyed records are written by
+        LedgerContract.on_persist.
+        """
+        from neo.native.ledger import DEFAULT_MAX_TRACEABLE_BLOCKS, LedgerContract
+        from neo.native.native_contract import NativeContract
+        from neo.network.payloads.transaction_attribute import TransactionAttributeType
+        from neo.types import UInt256
+
+        conflicts_type = int(TransactionAttributeType.CONFLICTS)
+        # Use the registered native singleton so the storage-key contract id matches
+        # the records written by LedgerContract.on_persist; fall back to a fresh
+        # instance only when the native registry has not been populated.
+        ledger = NativeContract.get_contract_by_name("LedgerContract")
+        if ledger is None:
+            ledger = LedgerContract()
+
+        # Resolve MaxTraceableBlocks the same way ContainsConflictHash's caller does,
+        # falling back to the mainnet default when no protocol settings are present.
+        settings = getattr(snapshot, "protocol_settings", None)
+        max_traceable_blocks = DEFAULT_MAX_TRACEABLE_BLOCKS
+        if settings is not None:
+            value = getattr(settings, "max_traceable_blocks", None)
+            if value is not None:
+                max_traceable_blocks = int(value)
+
+        signers = list(getattr(tx, "signers", []))
         for attr in tx.attributes:
-            if getattr(attr, "type", None) == 0x21 and hasattr(attr, "hash"):
-                # TransactionAttributeType.CONFLICTS == 0x21
-                if snapshot.contains_transaction(attr.hash):
-                    return True
+            if int(getattr(attr, "type", -1)) != conflicts_type:
+                continue
+            attr_hash = getattr(attr, "hash", None)
+            if attr_hash is None:
+                continue
+            hash_obj = attr_hash if isinstance(attr_hash, UInt256) else UInt256(
+                attr_hash.data if hasattr(attr_hash, "data") else bytes(attr_hash)
+            )
+            if ledger.contains_conflict_hash(
+                snapshot, hash_obj, signers, max_traceable_blocks
+            ):
+                return True
         return False
 
     @staticmethod
