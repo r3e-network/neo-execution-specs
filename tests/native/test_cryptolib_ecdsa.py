@@ -230,13 +230,18 @@ class TestVerifyWithKeccak256:
 class TestVerifyWrongCurve:
     """Passing a signature verified against the wrong curve should fail."""
 
-    def test_r1_sig_with_k1_curve_returns_false(self, crypto: CryptoLib):
+    def test_r1_sig_with_k1_curve_faults(self, crypto: CryptoLib):
         private, pubkey = _make_r1_keypair()
         message = b"cross-curve test"
         signature = _sign_r1(private, message)
 
-        # The pubkey is a valid r1 point; asking for k1 should fail
-        # because the point won't decode on the k1 curve.
-        assert crypto.verify_with_ecdsa(
-            message, pubkey, signature, NamedCurveHash.secp256k1SHA256
-        ) is False
+        # The pubkey is a valid r1 point but is off-curve on secp256k1, so the
+        # compressed-point decompression finds no valid square root. In C#
+        # ECPoint.DecodePoint this is an ArithmeticException (Sqrt() == null),
+        # which CryptoLib.VerifyWithECDsaV1 does NOT catch (it only swallows
+        # ArgumentException for out-of-field-range coordinates). The decode
+        # error therefore propagates as a fault rather than returning False.
+        with pytest.raises(ValueError):
+            crypto.verify_with_ecdsa(
+                message, pubkey, signature, NamedCurveHash.secp256k1SHA256
+            )

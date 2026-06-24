@@ -32,6 +32,14 @@ class ECPoint:
         if len(data) == 65 and data[0] == 0x04:
             x = int.from_bytes(data[1:33], 'big')
             y = int.from_bytes(data[33:], 'big')
+            # C# ECPoint.DecodePoint builds two ECFieldElement values for the
+            # uncompressed (0x04) branch; the ECFieldElement constructor throws
+            # ArgumentException when a coordinate is >= the curve prime field
+            # size (curve.Q). Reject out-of-range coordinates here to match.
+            if x >= SECP256R1.p or y >= SECP256R1.p:
+                raise ValueError(
+                    "Invalid ECPoint: coordinate out of field range"
+                )
             return cls(x=x, y=y)
 
         raise ValueError(f"Invalid EC point encoding ({len(data)} bytes)")

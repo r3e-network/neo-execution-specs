@@ -215,33 +215,57 @@ class CryptoLib(NativeContract):
 
         Returns:
             True if signature is valid, False otherwise
+
+        Mirrors C# CryptoLib.VerifyWithECDsaV1 (ActiveIn=HF_Cockatrice,
+        DeprecatedIn=HF_Gorgon): it decodes the public key via
+        ``ECPoint.DecodePoint`` and only ``catch (ArgumentException)`` -> false.
+        In C# an out-of-field-range coordinate is the ``ArgumentException``
+        thrown by the ``ECFieldElement`` constructor (value >= curve.Q), so
+        that case alone returns false; a malformed encoding (FormatException)
+        or an off-curve X with no square root (ArithmeticException) is NOT
+        swallowed and propagates as a fault. A signature length other than 64
+        is rejected by ``Crypto.VerifySignatureV0`` (returns false).
         """
         if len(signature) != 64:
             return False
-        try:
-            from neo.crypto.ecc.curve import SECP256K1, SECP256R1
-            from neo.crypto.ecc.point import ECPoint
 
-            if curve_hash == NamedCurveHash.secp256k1SHA256:
-                curve = SECP256K1
-                message_hash = self.sha256(message)
-            elif curve_hash == NamedCurveHash.secp256r1SHA256:
-                curve = SECP256R1
-                message_hash = self.sha256(message)
-            elif curve_hash == NamedCurveHash.secp256k1Keccak256:
-                curve = SECP256K1
-                message_hash = self.keccak256(message)
-            elif curve_hash == NamedCurveHash.secp256r1Keccak256:
-                curve = SECP256R1
-                message_hash = self.keccak256(message)
-            else:
+        from neo.crypto.ecc.curve import SECP256K1, SECP256R1
+        from neo.crypto.ecc.point import ECPoint
+
+        if curve_hash == NamedCurveHash.secp256k1SHA256:
+            curve = SECP256K1
+            message_hash = self.sha256(message)
+        elif curve_hash == NamedCurveHash.secp256r1SHA256:
+            curve = SECP256R1
+            message_hash = self.sha256(message)
+        elif curve_hash == NamedCurveHash.secp256k1Keccak256:
+            curve = SECP256K1
+            message_hash = self.keccak256(message)
+        elif curve_hash == NamedCurveHash.secp256r1Keccak256:
+            curve = SECP256R1
+            message_hash = self.keccak256(message)
+        else:
+            return False
+
+        # C# ECPoint.DecodePoint raises ArgumentException (ECFieldElement ctor)
+        # when a coordinate is >= the curve prime; VerifyWithECDsaV1 catches
+        # exactly that and returns false. Replicate by pre-screening the field
+        # range here, then let any remaining decode error (bad encoding length
+        # / unknown prefix -> FormatException, off-curve X -> ArithmeticException)
+        # propagate as a fault.
+        if len(pubkey) == 33 and pubkey[:1] in (b"\x02", b"\x03"):
+            if int.from_bytes(pubkey[1:33], "big") >= curve.p:
+                return False
+        elif len(pubkey) == 65 and pubkey[:1] == b"\x04":
+            if (
+                int.from_bytes(pubkey[1:33], "big") >= curve.p
+                or int.from_bytes(pubkey[33:65], "big") >= curve.p
+            ):
                 return False
 
-            # Decode public key and verify
-            public_key = ECPoint.decode(pubkey, curve)
-            return self._verify_ecdsa_signature(message_hash, signature, public_key)
-        except (ValueError, TypeError, ImportError):
-            return False
+        # Decode public key and verify. Decode errors propagate (fault).
+        public_key = ECPoint.decode(pubkey, curve)
+        return self._verify_ecdsa_signature(message_hash, signature, public_key)
 
     def verify_with_ecdsa_v2(
         self, message: bytes, pubkey: bytes, signature: bytes, curve_hash: NamedCurveHash
