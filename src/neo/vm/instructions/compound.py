@@ -265,14 +265,14 @@ def values(engine: ExecutionEngine, instruction: Instruction) -> None:
     if isinstance(x, Map):
         result = Array(engine.reference_counter)
         for value in x.values():
-            # C# clones top-level Struct elements (Struct.Clone), other items
-            # by reference.
-            result.add(value.clone() if isinstance(value, Struct) else value)
+            # C# clones top-level Struct elements (Struct.Clone(engine.Limits)),
+            # other items by reference.
+            result.add(value.clone(engine.limits) if isinstance(value, Struct) else value)
         engine.push(result)
     elif isinstance(x, Array):
         result = Array(engine.reference_counter)
         for item in x:
-            result.add(item.clone() if isinstance(item, Struct) else item)
+            result.add(item.clone(engine.limits) if isinstance(item, Struct) else item)
         engine.push(result)
     else:
         raise InvalidOperationException(f"Invalid type for VALUES: {x.type}")
@@ -323,6 +323,10 @@ def append(engine: ExecutionEngine, instruction: Instruction) -> None:
         raise InvalidOperationException(f"Invalid type for APPEND: {x.type}")
     if len(x) >= engine.limits.max_stack_size:
         raise InvalidOperationException("Array size limit exceeded")
+    # C# clones a Struct value before appending (Struct.Clone(engine.Limits)),
+    # so the appended sub-struct is a by-value copy rather than a reference.
+    if isinstance(item, Struct):
+        item = item.clone(engine.limits)
     x.add(item)
 
 
@@ -330,7 +334,7 @@ def setitem(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Set item in compound type by key/index."""
     value = engine.pop()
     if isinstance(value, Struct):
-        value = value.clone()
+        value = value.clone(engine.limits)
     key = engine.pop()
     _require_primitive_key(key)
     x = engine.pop()

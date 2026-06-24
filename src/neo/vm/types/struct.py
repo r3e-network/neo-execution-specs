@@ -13,14 +13,41 @@ class Struct(Array):
     def type(self) -> StackItemType:
         return StackItemType.STRUCT
 
-    def clone(self) -> Struct:
-        """Create a deep copy of this struct (recursively clones nested Structs)."""
+    def clone(self, limits: object = None) -> Struct:
+        """Create a deep copy of this struct, copying nested Structs by value.
+
+        Mirrors C# ``Struct.Clone(ExecutionEngineLimits limits)``: an iterative
+        BFS over the struct tree bounded by ``MaxStackSize - 1`` sub-items.
+        Cloning more sub-items than that limit faults (UNCATCHABLE), matching
+        C#'s "Beyond struct subitem clone limits!" InvalidOperationException.
+        Non-Struct sub-items are aliased by reference (not deep-copied).
+        """
+        from collections import deque
+        from neo.vm.limits import MAX_STACK_SIZE
+
+        max_stack_size = getattr(limits, "max_stack_size", MAX_STACK_SIZE)
+        count = int(max_stack_size) - 1
+
         result = Struct()
-        for item in self._items:
-            if isinstance(item, Struct):
-                result.add(item.clone())
-            else:
-                result.add(item)
+        queue: deque[Struct] = deque()
+        queue.append(result)
+        queue.append(self)
+        while queue:
+            a = queue.popleft()
+            b = queue.popleft()
+            for item in b._items:
+                count -= 1
+                if count < 0:
+                    raise InvalidOperationException(
+                        "Beyond struct subitem clone limits!"
+                    )
+                if isinstance(item, Struct):
+                    sa = Struct()
+                    a.add(sa)
+                    queue.append(sa)
+                    queue.append(item)
+                else:
+                    a.add(item)
         return result
 
     def _equals_impl(self, other: "StackItem", limits: object) -> bool:
