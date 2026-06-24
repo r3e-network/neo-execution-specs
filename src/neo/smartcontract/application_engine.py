@@ -1180,6 +1180,7 @@ class ApplicationEngine(ExecutionEngine):
         C# pop order: context (top), prefix, options.
         """
         from neo.smartcontract.iterators import StorageIterator
+        from neo.smartcontract.syscalls.storage import _validate_find_options
         from neo.vm.types import InteropInterface
 
         ctx = self._unwrap_storage_context(self.pop())
@@ -1188,6 +1189,13 @@ class ApplicationEngine(ExecutionEngine):
 
         prefix_bytes = prefix_item.get_bytes_unsafe()
         options = int(options_item.get_integer())
+
+        # C# ApplicationEngine.Storage.cs Find (lines 183-202): fault on
+        # out-of-range or conflicting FindOptions BEFORE creating the iterator.
+        try:
+            _validate_find_options(options)
+        except ValueError as exc:
+            raise InvalidOperationException(str(exc)) from exc
 
         full_prefix = self._build_storage_key(ctx, prefix_bytes)
 
@@ -1199,22 +1207,59 @@ class ApplicationEngine(ExecutionEngine):
 
         C# pop order: context (top), key, value.
         """
+        from neo.smartcontract.syscalls.storage import (
+            MAX_STORAGE_KEY_SIZE,
+            MAX_STORAGE_VALUE_SIZE,
+            STORAGE_PRICE,
+        )
+
         ctx = self._unwrap_storage_context(self.pop())
         key = self.pop()
         value = self.pop()
 
+        key_bytes = key.get_bytes_unsafe()
+        value_bytes = value.get_bytes_unsafe()
+
+        # C# ApplicationEngine.Storage.cs Put: validate sizes, then read-only
+        # (key-size check -> value-size check -> read-only check).
+        if len(key_bytes) > MAX_STORAGE_KEY_SIZE:
+            raise InvalidOperationException(
+                f"Key length {len(key_bytes)} exceeds maximum allowed size of "
+                f"{MAX_STORAGE_KEY_SIZE} bytes."
+            )
+        if len(value_bytes) > MAX_STORAGE_VALUE_SIZE:
+            raise InvalidOperationException(
+                f"Value length {len(value_bytes)} exceeds maximum allowed size of "
+                f"{MAX_STORAGE_VALUE_SIZE} bytes."
+            )
         if ctx.is_read_only:
             raise InvalidOperationException("Cannot write to read-only storage context")
 
         if self.snapshot is None:
             raise InvalidOperationException("No snapshot available for storage")
 
-        key_bytes = key.get_bytes_unsafe()
-        value_bytes = value.get_bytes_unsafe()
         full_key = self._build_storage_key(ctx, key_bytes)
 
+        # Differential newDataSize fee model (C# ApplicationEngine.Storage.cs Put):
+        # the charge depends on whether the entry exists and how its size changes.
+        old_value = self.snapshot.get(full_key)
+        if old_value is None:
+            new_data_size = len(key_bytes) + len(value_bytes)
+        elif len(value_bytes) == 0:
+            new_data_size = 0
+        elif len(value_bytes) <= len(old_value):
+            new_data_size = (len(value_bytes) - 1) // 4 + 1
+        elif len(old_value) == 0:
+            new_data_size = len(value_bytes)
+        else:
+            new_data_size = (len(old_value) - 1) // 4 + 1 + len(value_bytes) - len(old_value)
+
+        # C# charges AddFee(newDataSize * StoragePrice * FeeFactor) in picoGAS;
+        # this engine works in plain GAS-datoshi, so the FeeFactor pico multiplier
+        # cancels and the charge is newDataSize * StoragePrice.
+        self.add_gas(new_data_size * STORAGE_PRICE)
+
         self.snapshot.put(full_key, value_bytes)
-        self.add_gas(GasCost.STORAGE_WRITE)
 
     def _storage_delete(self, engine: ApplicationEngine) -> None:
         """Delete value from storage.
@@ -1691,15 +1736,31 @@ class ApplicationEngine(ExecutionEngine):
         # rejects native hashes), so this is a no-op for native targets.
         self._assert_not_blocked(contract)
 
+        arg_count = self._count_call_args(args)
+
         if isinstance(contract, NativeContract):
-            metadata = contract.get_method_if_active(method, self)
+            # C# resolves the overload by arg count: GetMethod(method, args.Count)
+            # (ApplicationEngine.cs:572). Mirror that so a call with N args selects
+            # the active variant declaring N parameters, then re-assert the count
+            # (ApplicationEngine.cs:608).
+            metadata = self._resolve_native_method(contract, method, arg_count)
             if metadata is None:
-                raise InvalidOperationException(f'Method "{method}" doesn\'t exist in native contract {contract.name}.')
+                raise InvalidOperationException(
+                    f'Method "{method}" with {arg_count} parameter(s) doesn\'t exist '
+                    f"in native contract {contract.name}."
+                )
 
             required = int(metadata.required_call_flags)
             requested = int(flags)
             if (requested & required) != required:
                 raise InvalidOperationException(f"Insufficient call flags for {contract.name}.{metadata.name}")
+
+            expected_params = NativeContract._method_parameter_count(metadata)
+            if arg_count != expected_params:
+                raise InvalidOperationException(
+                    f"Method {metadata.name} Expects {expected_params} Arguments "
+                    f"But Receives {arg_count} Arguments"
+                )
 
             total_fee = metadata.cpu_fee + metadata.storage_fee
             if total_fee > 0:
@@ -1717,6 +1778,19 @@ class ApplicationEngine(ExecutionEngine):
             finally:
                 self._current_call_flags = previous_flags
             return
+
+        # Deployed contracts: C# resolves the ABI overload by arg count
+        # (GetMethod(method, args.Count)) and re-asserts the count in
+        # CallContractInternal (ApplicationEngine.cs:608). Mirror that here so a
+        # call whose declared ABI method takes N parameters faults unless N args
+        # were supplied. When the ABI parameter count cannot be determined (e.g.
+        # ad-hoc/test contracts with no parsable manifest), skip the check.
+        expected_params = self._abi_method_parameter_count(contract, method, arg_count)
+        if expected_params is not None and arg_count != expected_params:
+            raise InvalidOperationException(
+                f'Method "{method}" with {arg_count} parameter(s) doesn\'t exist '
+                f"in the contract {getattr(contract, 'hash', '')}."
+            )
 
         # Get the contract script (NEF)
         if hasattr(contract, "nef"):
@@ -1745,6 +1819,73 @@ class ApplicationEngine(ExecutionEngine):
         # Set call flags on the NEW (now-current) context.
         # The caller's context retains its own flags untouched.
         self._current_call_flags = flags
+
+    @staticmethod
+    def _count_call_args(args: StackItem | None) -> int:
+        """Number of arguments supplied to a contract call.
+
+        In C# ``args`` is always an ``Array`` and the count is ``args.Count``.
+        This engine accepts an Array/Struct (multiple args), a single
+        non-NULL StackItem (one arg), or NULL/None (no args).
+        """
+        from neo.vm.types import Array, Struct
+
+        if isinstance(args, (Array, Struct)):
+            return len(args)
+        if args is None or args == NULL:
+            return 0
+        return 1
+
+    def _resolve_native_method(self, contract: Any, method: str, arg_count: int):
+        """Resolve a native method overload by name + argument count.
+
+        Mirrors C# ``Manifest.Abi.GetMethod(method, args.Count)`` which selects
+        the overload whose parameter count matches. The spec stores overloads as
+        same-name variants; pick the active one declaring ``arg_count`` params.
+        Falls back to the by-name active resolution when no count matches so that
+        the subsequent count assertion produces the C# error message.
+        """
+        from neo.native.native_contract import NativeContract
+
+        variants = getattr(contract, "_methods_by_name", {}).get(method)
+        if variants:
+            for candidate in reversed(variants):
+                if not contract._is_method_active(self, candidate):
+                    continue
+                if NativeContract._method_parameter_count(candidate) == arg_count:
+                    return candidate
+        return contract.get_method_if_active(method, self)
+
+    def _abi_method_parameter_count(
+        self, contract: Any, method: str, arg_count: int
+    ) -> int | None:
+        """ABI parameter count for ``method`` on a deployed contract.
+
+        Returns the declared parameter count of the matching ABI method, or
+        ``None`` when the manifest/ABI cannot be parsed (ad-hoc/test contracts),
+        in which case the caller skips the arg-count assertion. When the ABI
+        declares overloads, prefer the one matching ``arg_count`` (mirroring
+        C# ``GetMethod(method, args.Count)``).
+        """
+        manifest_data = self._parse_contract_manifest(contract)
+        if not manifest_data:
+            return None
+        abi = manifest_data.get("abi")
+        if not abi:
+            return None
+        methods = abi.get("methods")
+        if not methods:
+            return None
+
+        matches = [m for m in methods if m.get("name") == method]
+        if not matches:
+            # Method absent from ABI: let _check_method_permission (already run)
+            # own that rejection; nothing to assert on count here.
+            return None
+        for m in matches:
+            if len(m.get("parameters", []) or []) == arg_count:
+                return arg_count
+        return len(matches[0].get("parameters", []) or [])
 
     def _extract_script_from_nef(self, nef: bytes) -> bytes:
         """Extract executable script from NEF file.
