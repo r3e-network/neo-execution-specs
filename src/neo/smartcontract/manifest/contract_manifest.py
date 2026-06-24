@@ -73,3 +73,15 @@ class ContractManifest:
         if len(set(manifest.trusts)) != len(manifest.trusts):
             raise ValueError("Duplicate trust in ContractManifest")
         return manifest
+
+    def is_valid(self, limits: Any, hash: Any) -> bool:
+        """C# ``ContractManifest.IsValid(limits, hash)`` (ContractManifest.cs:182).
+
+        The manifest must be serializable within ``limits`` and every
+        ``ContractGroup`` must carry a valid signature over the contract
+        ``hash``. The serializable bound is enforced upstream by the
+        ``MAX_LENGTH`` (<= MaxItemSize) check on the manifest bytes at deploy
+        time, so this verifies that every group's signature is valid for the
+        computed contract hash (``Groups.All(u => u.IsValid(hash))``).
+        """
+        return all(group.is_valid(hash) for group in self.groups)

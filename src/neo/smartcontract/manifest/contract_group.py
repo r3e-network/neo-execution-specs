@@ -17,20 +17,27 @@ class ContractGroup:
     
     def is_valid(self, hash: UInt160) -> bool:
         """Check if the group is valid for the given hash.
-        
-        Verifies that the signature is a valid ECDSA signature of the
-        contract hash using the group's public key.
+
+        Mirrors C# ``ContractGroup.IsValid`` =
+        ``Crypto.VerifySignature(hash.ToArray(), Signature, PubKey)``, where
+        ``Crypto.VerifySignature`` calls ``ECDsa.VerifyData(..., SHA256)`` —
+        i.e. it hashes the 20-byte contract hash with SHA-256 and verifies the
+        signature over that digest. ``verify_signature`` here takes a SHA-256
+        digest (it uses ``Prehashed``), so we must pass ``SHA256(hash.data)``;
+        passing the raw 20-byte hash would verify over the wrong message and
+        reject every C#-valid group signature.
         """
         if not self.pubkey or not self.signature:
             return False
         try:
-            # The message is the contract hash bytes
-            message = hash.data
+            import hashlib
+
+            digest = hashlib.sha256(hash.data).digest()
             return verify_signature(
-                message, 
-                self.signature, 
+                digest,
+                self.signature,
                 self.pubkey,
-                SECP256R1
+                SECP256R1,
             )
         except (ValueError, TypeError, OverflowError):
             return False

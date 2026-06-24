@@ -615,3 +615,103 @@ class TestContractManagementStrictValidation:
         item.value = state.to_bytes()
         with pytest.raises(ValueError, match="maximum number of updates"):
             cm.update(engine, _make_nef(size=80), None)
+
+
+class TestManifestGroupAndAbiValidation:
+    """ContractManifest.IsValid group signatures + Helper.Check ABI uniqueness."""
+
+    def _engine(self):
+        cm = _fresh_cm()
+        snap = MockSnapshot()
+        engine = MockEngine(snap)
+        cm.initialize(engine)
+        return cm, snap, engine
+
+    @staticmethod
+    def _signed_group(cm, engine, nef, name):
+        """A (pubkey_hex, signature_hex) group validly signing the contract
+        hash that deploy(sender, nef, name) will compute (hash depends only on
+        sender + NEF checksum + name, so it is independent of the group)."""
+        from cryptography.hazmat.primitives.asymmetric import ec, utils
+        from cryptography.hazmat.primitives import hashes
+        import hashlib
+        from neo.crypto.ecc.curve import SECP256R1
+        from neo.crypto.ecc.point import ECPoint
+
+        contract_hash = cm._calculate_contract_hash(
+            engine._sender, nef, _make_manifest(name=name)
+        )
+        priv = ec.derive_private_key(0xC0FFEE, ec.SECP256R1())
+        nums = priv.public_key().public_numbers()
+        pub = ECPoint(nums.x, nums.y, SECP256R1).encode(compressed=True)
+        digest = hashlib.sha256(contract_hash.data).digest()
+        der = priv.sign(digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+        r, s = utils.decode_dss_signature(der)
+        return pub.hex(), (r.to_bytes(32, "big") + s.to_bytes(32, "big")).hex()
+
+    @staticmethod
+    def _manifest_with(name="TestContract", groups=None, methods=None, events=None):
+        return json.dumps({
+            "name": name,
+            "groups": groups or [],
+            "features": {},
+            "supportedstandards": [],
+            "abi": {
+                "methods": methods or [
+                    {"name": "main", "offset": 0, "parameters": [],
+                     "returntype": "Void", "safe": False}
+                ],
+                "events": events or [],
+            },
+            "permissions": [],
+            "trusts": "*",
+            "extra": None,
+        }).encode("utf-8")
+
+    def test_deploy_valid_group_signature_succeeds(self):
+        cm, _snap, engine = self._engine()
+        nef = _make_nef()
+        pub_hex, sig_hex = self._signed_group(cm, engine, nef, "TestContract")
+        manifest = self._manifest_with(
+            groups=[{"pubkey": pub_hex, "signature": sig_hex}]
+        )
+        contract = cm.deploy(engine, nef, manifest)
+        assert contract is not None
+
+    def test_deploy_invalid_group_signature_faults(self):
+        cm, _snap, engine = self._engine()
+        nef = _make_nef()
+        pub_hex, _ = self._signed_group(cm, engine, nef, "TestContract")
+        bad = self._manifest_with(groups=[{"pubkey": pub_hex, "signature": "00" * 64}])
+        with pytest.raises(ValueError, match="Invalid Manifest"):
+            cm.deploy(engine, nef, bad)
+
+    def test_deploy_duplicate_method_name_and_arity_faults(self):
+        cm, _snap, engine = self._engine()
+        methods = [
+            {"name": "foo", "offset": 0, "parameters": [],
+             "returntype": "Void", "safe": False},
+            {"name": "foo", "offset": 0, "parameters": [],
+             "returntype": "Void", "safe": False},
+        ]
+        with pytest.raises(ValueError, match="Duplicate method"):
+            cm.deploy(engine, _make_nef(), self._manifest_with(methods=methods))
+
+    def test_deploy_overloaded_method_by_param_count_allowed(self):
+        # Same name, different parameter count is a valid overload (C# keys the
+        # method dictionary by (name, parameter-count)).
+        cm, _snap, engine = self._engine()
+        methods = [
+            {"name": "foo", "offset": 0, "parameters": [],
+             "returntype": "Void", "safe": False},
+            {"name": "foo", "offset": 0,
+             "parameters": [{"name": "a", "type": "Integer"}],
+             "returntype": "Void", "safe": False},
+        ]
+        assert cm.deploy(engine, _make_nef(), self._manifest_with(methods=methods))
+
+    def test_deploy_duplicate_event_name_faults(self):
+        cm, _snap, engine = self._engine()
+        events = [{"name": "E", "parameters": []}, {"name": "E", "parameters": []}]
+        with pytest.raises(ValueError, match="Duplicate event"):
+            cm.deploy(engine, _make_nef(), self._manifest_with(events=events))

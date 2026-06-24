@@ -346,6 +346,18 @@ class ContractManagement(NativeContract):
                 raise ValueError(
                     f"Method '{method.get('name')}' has an invalid offset {offset}."
                 )
+        # C# Helper.Check triggers ContractAbi's method/event dictionaries, which
+        # reject duplicates: methods keyed by (name, parameter-count) and events
+        # keyed by name (ContractAbi.cs:90, Helper.cs:90-91).
+        method_keys = [
+            (m.get("name"), len(m.get("parameters", []) or []))
+            for m in abi.get("methods", [])
+        ]
+        if len(set(method_keys)) != len(method_keys):
+            raise ValueError("Duplicate method (name, parameter count) in ABI.")
+        event_names = [e.get("name") for e in abi.get("events", [])]
+        if len(set(event_names)) != len(event_names):
+            raise ValueError("Duplicate event name in ABI.")
 
     def deploy_without_data(self, engine: Any, nef_file: bytes, manifest: bytes) -> ContractState:
         """Overload shim for deploy(nef, manifest)."""
@@ -386,6 +398,11 @@ class ContractManagement(NativeContract):
 
         # Calculate contract hash from sender, NEF checksum, and manifest name.
         contract_hash = self._calculate_contract_hash(tx.sender, nef_file, manifest)
+
+        # C# ContractManagement.Deploy: the manifest must be valid for the
+        # computed hash (every group signature verifies over the hash).
+        if not parsed_manifest.is_valid(getattr(engine, "limits", None), contract_hash):
+            raise ValueError(f"Invalid Manifest: {contract_hash}")
 
         # Reject blocked hashes (Policy.IsBlocked) when Policy is registered.
         policy = NativeContract.get_contract_by_name("PolicyContract")
@@ -563,6 +580,9 @@ class ContractManagement(NativeContract):
             old_name = self._manifest_name(contract.manifest)
             if parsed_new.name != old_name:
                 raise ValueError("The name of the contract can't be changed.")
+            # C# ContractManagement.Update: manifestNew.IsValid(limits, contract.Hash).
+            if not parsed_new.is_valid(getattr(engine, "limits", None), contract.hash):
+                raise ValueError(f"Invalid Manifest: {contract.hash}")
             contract.manifest = manifest
 
         # Re-run the ABI/script consistency check over the (possibly) new pair.
