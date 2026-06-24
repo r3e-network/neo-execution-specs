@@ -127,25 +127,60 @@ class _MockTx:
 
 
 def _make_manifest(name: str = "TestContract", methods: list = None) -> bytes:
-    """Build a minimal manifest JSON."""
+    """Build a valid ContractManifest JSON that passes ``from_json`` validation.
+
+    Includes the mandatory empty ``features`` object and a non-empty name so
+    the strict C#-parity manifest validation accepts it.  ABI methods carry an
+    ``offset`` of 0 so the deploy-time ABI/script bound check passes.
+    """
     if methods is None:
-        methods = [{"name": "main", "parameters": [], "returntype": "Void", "safe": False}]
+        methods = [
+            {"name": "main", "offset": 0, "parameters": [], "returntype": "Void", "safe": False}
+        ]
+    else:
+        methods = [{"offset": 0, **m} for m in methods]
     manifest = {
         "name": name,
-        "abi": {"methods": methods, "events": []},
         "groups": [],
+        "features": {},
+        "supportedstandards": [],
+        "abi": {"methods": methods, "events": []},
         "permissions": [],
-        "trusts": [],
+        "trusts": "*",
         "extra": None,
     }
     return json.dumps(manifest).encode("utf-8")
 
 
-def _make_nef(size: int = 64) -> bytes:
-    """Build a minimal NEF-like byte blob with a 4-byte checksum tail."""
-    body = b"\x00" * (size - 4)
-    checksum = (0x12345678).to_bytes(4, "little")
-    return body + checksum
+def _make_nef(size: int = 64, script: bytes | None = None) -> bytes:
+    """Build a valid serialized NefFile with a correctly computed checksum.
+
+    The optional ``size`` knob controls the script length so callers that
+    deploy/update distinct contracts (or want different byte counts for fee
+    assertions) still get distinct, individually-valid NEF blobs.  ``script``
+    overrides ``size`` when an exact script body is required.
+    """
+    import struct
+
+    from neo.crypto import hash256
+    from neo.smartcontract.nef_file import NefFile
+
+    if script is None:
+        # A run of NOP (0x21 is unused; 0x21->? use RET 0x40 padded with NOP 0x21).
+        # Use NOP (0x21) is not standard; NEO NOP opcode is 0x21? Use 0x40 (RET).
+        body_len = max(size, 1)
+        script = b"\x40" * body_len  # RET-filled script body of the requested size
+
+    nef = NefFile(
+        compiler="neo-core-v3.0",
+        source="",
+        tokens=[],
+        script=script,
+        checksum=0,
+    )
+    raw = nef.to_array()
+    nef.checksum = struct.unpack_from("<I", hash256(raw[:-4]), 0)[0]
+    return nef.to_array()
 
 
 def _fresh_cm() -> ContractManagement:
@@ -372,7 +407,13 @@ class TestContractManagementUpdate:
 
     def test_update_manifest_only(self):
         cm, snap, engine, deployed = self._deploy_and_get_engine()
-        new_manifest = _make_manifest(name="UpdatedContract")
+        # The contract name is immutable across updates (C# parity), so vary the
+        # ABI instead of the name to exercise a manifest-only update.
+        new_methods = [
+            {"name": "main", "parameters": [], "returntype": "Void", "safe": False},
+            {"name": "extra", "parameters": [], "returntype": "Void", "safe": True},
+        ]
+        new_manifest = _make_manifest(name="TestContract", methods=new_methods)
         cm.update(engine, None, new_manifest)
 
         updated = cm.get_contract_state(snap, deployed.hash)
@@ -382,7 +423,12 @@ class TestContractManagementUpdate:
     def test_update_both(self):
         cm, snap, engine, deployed = self._deploy_and_get_engine()
         new_nef = _make_nef(size=128)
-        new_manifest = _make_manifest(name="V2")
+        # Name is immutable; vary the ABI to represent a "V2" manifest.
+        v2_methods = [
+            {"name": "main", "parameters": [], "returntype": "Void", "safe": False},
+            {"name": "v2only", "parameters": [], "returntype": "Boolean", "safe": True},
+        ]
+        new_manifest = _make_manifest(name="TestContract", methods=v2_methods)
         cm.update(engine, new_nef, new_manifest)
 
         updated = cm.get_contract_state(snap, deployed.hash)
@@ -498,3 +544,74 @@ class TestContractManagementInitialize:
         # Verify fee was stored
         fee = cm.get_minimum_deployment_fee(snap)
         assert fee == DEFAULT_MINIMUM_DEPLOYMENT_FEE
+
+
+class TestContractManagementStrictValidation:
+    """Strict NEF/manifest validation parity with C# v3.10.0."""
+
+    def _engine(self):
+        cm = _fresh_cm()
+        snap = MockSnapshot()
+        engine = MockEngine(snap)
+        cm.initialize(engine)
+        return cm, snap, engine
+
+    def test_deploy_invalid_nef_magic_raises(self):
+        cm, _snap, engine = self._engine()
+        bad_nef = b"\x00" * 60 + (0x12345678).to_bytes(4, "little")
+        with pytest.raises(ValueError, match="magic"):
+            cm.deploy(engine, bad_nef, _make_manifest())
+
+    def test_deploy_bad_checksum_raises(self):
+        cm, _snap, engine = self._engine()
+        # Valid structure but tamper the trailing checksum bytes.
+        nef = bytearray(_make_nef())
+        nef[-1] ^= 0xFF
+        with pytest.raises(ValueError, match="CRC"):
+            cm.deploy(engine, bytes(nef), _make_manifest())
+
+    def test_deploy_invalid_manifest_missing_features_raises(self):
+        cm, _snap, engine = self._engine()
+        # A manifest JSON lacking the mandatory empty `features` object.
+        bad_manifest = json.dumps(
+            {"name": "X", "groups": [], "abi": {"methods": [], "events": []}}
+        ).encode("utf-8")
+        with pytest.raises(ValueError, match="Features"):
+            cm.deploy(engine, _make_nef(), bad_manifest)
+
+    def test_deploy_empty_name_manifest_raises(self):
+        cm, _snap, engine = self._engine()
+        with pytest.raises(ValueError, match="empty"):
+            cm.deploy(engine, _make_nef(), _make_manifest(name=""))
+
+    def test_deploy_fee_is_picogas_scaled(self):
+        cm, _snap, engine = self._engine()
+        nef = _make_nef()
+        manifest = _make_manifest()
+        cm.deploy(engine, nef, manifest)
+        # Fee is charged in picoGAS: max(price*len, minFee) * FeeFactor.
+        expected = max(
+            engine.storage_price * (len(nef) + len(manifest)),
+            DEFAULT_MINIMUM_DEPLOYMENT_FEE,
+        ) * 10000
+        assert engine.fees_added[0] == expected
+
+    def test_update_name_change_raises(self):
+        cm, snap, engine = self._engine()
+        deployed = cm.deploy(engine, _make_nef(), _make_manifest(name="Keep"))
+        engine._calling_hash = deployed.hash
+        with pytest.raises(ValueError, match="name of the contract can't be changed"):
+            cm.update(engine, None, _make_manifest(name="Different"))
+
+    def test_update_ushort_cap_raises(self):
+        cm, snap, engine = self._engine()
+        deployed = cm.deploy(engine, _make_nef(), _make_manifest())
+        engine._calling_hash = deployed.hash
+        # Force the stored update counter to ushort.MaxValue.
+        key = cm._create_storage_key(8, deployed.hash.data)  # PREFIX_CONTRACT
+        item = snap.get(key)
+        state = ContractState.from_bytes(item.value)
+        state.update_counter = 0xFFFF
+        item.value = state.to_bytes()
+        with pytest.raises(ValueError, match="maximum number of updates"):
+            cm.update(engine, _make_nef(size=80), None)

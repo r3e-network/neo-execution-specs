@@ -1413,6 +1413,35 @@ class ApplicationEngine(ExecutionEngine):
         # Create new execution context for the called contract
         self._call_contract_internal(contract, method, args, call_flags)
 
+    def call_from_native_contract(
+        self,
+        caller_hash: UInt160,
+        target_hash: UInt160,
+        method: str,
+        *args: Any,
+    ) -> None:
+        """Invoke a deployed contract method from a native contract.
+
+        Mirrors C# ``ApplicationEngine.CallFromNativeContractAsync``
+        (ApplicationEngine.cs): a native contract (``caller_hash``) calls
+        ``method`` on the deployed contract identified by ``target_hash``
+        with ``CallFlags.All``.  The arguments are wrapped into a VM
+        ``Array`` exactly as ``System.Contract.Call`` would receive them,
+        and dispatched through :meth:`_call_contract_internal` which loads
+        the target's NEF script into a fresh execution context.
+
+        This is the primitive ContractManagement uses to dispatch the
+        optional ``_deploy`` callback after deploy/update.
+        """
+        from neo.vm.types import Array as _Array
+
+        contract = self._get_contract(target_hash)
+        if contract is None:
+            raise InvalidOperationException(f"Contract not found: {target_hash}")
+
+        args_array = _Array(items=list(args)) if args else _Array()
+        self._call_contract_internal(contract, method, args_array, CallFlags.ALL)
+
     def _check_call_flags(self, flags: int | CallFlags) -> bool:
         """Check if the requested call flags are allowed by current context."""
         requested = CallFlags(int(flags))
