@@ -20,32 +20,47 @@ class MethodToken:
     call_flags: int
     
     def serialize(self) -> bytes:
-        """Serialize method token."""
+        """Serialize method token.
+
+        Matches C# MethodToken.Serialize: Hash(20B), Method(var-string),
+        ParametersCount(uint16 LE), HasReturnValue(bool), CallFlags(1 byte).
+        """
         data = bytearray()
         data.extend(self.hash)
         method_bytes = self.method.encode('utf-8')
-        data.extend(struct.pack('<I', len(method_bytes)))
+        data.extend(write_var_int(len(method_bytes)))
         data.extend(method_bytes)
         data.extend(struct.pack('<H', self.parameters_count))
         data.append(1 if self.has_return_value else 0)
-        data.extend(struct.pack('<H', self.call_flags))
+        data.append(self.call_flags & 0xFF)
         return bytes(data)
 
     @classmethod
     def deserialize(cls, data: bytes, offset: int) -> tuple["MethodToken", int]:
-        """Deserialize method token, return (token, new_offset)."""
+        """Deserialize method token, return (token, new_offset).
+
+        Matches C# MethodToken.Deserialize: Hash(20B), Method(ReadVarString(32)),
+        ParametersCount(uint16 LE), HasReturnValue(bool), CallFlags(1 byte).
+        """
         token_hash = data[offset:offset + 20]
         offset += 20
-        method_len = struct.unpack_from('<I', data, offset)[0]
-        offset += 4
+        # Method is a var-string capped at 32 bytes (C# ReadVarString(32)).
+        method_len, offset = read_var_int(data, offset)
+        if method_len > 32:
+            raise ValueError("Max length exceeded")
         method = data[offset:offset + method_len].decode('utf-8')
         offset += method_len
+        if method.startswith('_'):
+            raise ValueError(f"Method('{method}') cannot start with '_'")
         params_count = struct.unpack_from('<H', data, offset)[0]
         offset += 2
         has_return = data[offset] != 0
         offset += 1
-        call_flags = struct.unpack_from('<H', data, offset)[0]
-        offset += 2
+        # CallFlags is a single byte.
+        call_flags = data[offset]
+        offset += 1
+        if (call_flags & ~0x0F) != 0:
+            raise ValueError(f"CallFlags({call_flags}) is not valid")
         return cls(token_hash, method, params_count, has_return, call_flags), offset
 
 @dataclass
