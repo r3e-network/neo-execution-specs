@@ -89,7 +89,10 @@ class SharedStates:
     
     def __init__(self, script: bytes, reference_counter: Any = None) -> None:
         self.script = script
-        self.evaluation_stack = EvaluationStack()
+        # Wire the engine's reference counter into the evaluation stack so that
+        # Push/Pop drive AddStackReference/RemoveStackReference, exactly like C#
+        # (EvaluationStack holds the IReferenceCounter passed by the context).
+        self.evaluation_stack = EvaluationStack(reference_counter)
         self.static_fields: Slot | None = None
         self.states: dict[object, Any] = {}
         self.reference_counter = reference_counter

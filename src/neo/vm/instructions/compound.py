@@ -328,6 +328,10 @@ def append(engine: ExecutionEngine, instruction: Instruction) -> None:
     if isinstance(item, Struct):
         item = item.clone(engine.limits)
     x.add(item)
+    # C# only adjusts the reference counter when the host array is currently
+    # stack-referenced (JumpTable.Compound.cs Append).
+    if x.is_stack_referenced:
+        engine.reference_counter.add_stack_reference(item)
 
 
 def setitem(engine: ExecutionEngine, instruction: Instruction) -> None:
@@ -344,10 +348,23 @@ def setitem(engine: ExecutionEngine, instruction: Instruction) -> None:
             raise CatchableException(
                 f"The index of Array is out of range, {idx}/[0, {len(x)})."
             )
+        # C# (JumpTable.Compound.cs SetItem): only touch the reference counter
+        # when the host array is stack-referenced — drop the replaced item's
+        # reference and add the new value's.
+        if x.is_stack_referenced:
+            engine.reference_counter.remove_stack_reference(x[idx])
         x[idx] = value
+        if x.is_stack_referenced:
+            engine.reference_counter.add_stack_reference(value)
     elif isinstance(x, Map):
         # C# SETITEM has no Map-size check (only the global ref-counter
         # MaxStackSize bound, enforced via PostExecuteInstruction).
+        if x.is_stack_referenced:
+            if key not in x:
+                engine.reference_counter.add_stack_reference(key)
+            else:
+                engine.reference_counter.remove_stack_reference(x[key])
+            engine.reference_counter.add_stack_reference(value)
         x[key] = value
     elif isinstance(x, Buffer):
         idx = int(key.get_integer())
@@ -395,12 +412,21 @@ def remove(engine: ExecutionEngine, instruction: Instruction) -> None:
             raise InvalidOperationException(
                 f"The index of Array is out of range, {idx}/[0, {len(x)})."
             )
+        item = x[idx]
         x.remove_at(idx)
+        # C# (JumpTable.Compound.cs Remove): release the removed element's
+        # reference only when the host array is stack-referenced.
+        if x.is_stack_referenced:
+            engine.reference_counter.remove_stack_reference(item)
     elif isinstance(x, Map):
         # C# Map.Remove returns null when the key is absent and the handler
         # ignores it — a missing key is a silent no-op.
         if key in x:
+            old = x[key]
             del x[key]
+            if x.is_stack_referenced:
+                engine.reference_counter.remove_stack_reference(key)
+                engine.reference_counter.remove_stack_reference(old)
     else:
         raise InvalidOperationException(f"Invalid type for REMOVE: {x.type}")
 
@@ -409,6 +435,11 @@ def clearitems(engine: ExecutionEngine, instruction: Instruction) -> None:
     """Clear all items from compound type."""
     x = engine.pop()
     if isinstance(x, (Array, Map)):
+        # C# (JumpTable.Compound.cs ClearItems): when the host compound is
+        # stack-referenced, release every sub-item's reference before clearing.
+        if x.is_stack_referenced:
+            for sub_item in x.sub_items():
+                engine.reference_counter.remove_stack_reference(sub_item)
         x.clear()
     else:
         raise InvalidOperationException(f"Invalid type for CLEARITEMS: {x.type}")
@@ -421,6 +452,12 @@ def popitem(engine: ExecutionEngine, instruction: Instruction) -> None:
         raise InvalidOperationException(f"Invalid type for POPITEM: {x.type}")
     if len(x) == 0:
         raise InvalidOperationException("Array is empty")
-    item = x[-1]
-    x.remove_at(len(x) - 1)
+    index = len(x) - 1
+    item = x[index]
+    # C# (JumpTable.Compound.cs PopItem): push first (adds a stack reference),
+    # remove the element, then release its edge reference if the array is
+    # stack-referenced.
     engine.push(item)
+    x.remove_at(index)
+    if x.is_stack_referenced:
+        engine.reference_counter.remove_stack_reference(item)

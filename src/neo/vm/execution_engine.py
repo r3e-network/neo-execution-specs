@@ -56,7 +56,30 @@ class ExecutionEngine:
     def __post_init__(self):
         if self.reference_counter is None:
             self.reference_counter = ReferenceCounter()
+        # C# ExecutionEngine wires the engine reference counter into the result
+        # stack (`ResultStack = new(referenceCounter)`) so values returned to the
+        # entry point keep their stack references accounted for.
+        self.result_stack._reference_counter = self.reference_counter
         self._init_handlers()
+
+    def _context_unloaded(self, ctx_pop: ExecutionContext) -> None:
+        """Release slot references when a context is unloaded.
+
+        Mirrors C# ``ExecutionEngine.ContextUnloaded``: the popped context's
+        local-variable, argument, and (non-shared) static-field slots release the
+        stack references they held so the reference counter total decreases as the
+        frame disappears.
+        """
+        current = self.invocation_stack[-1] if self.invocation_stack else None
+        static_fields = ctx_pop.static_fields
+        if static_fields is not None and (
+            current is None or static_fields is not current.static_fields
+        ):
+            static_fields.clear_references()
+        if ctx_pop.local_variables is not None:
+            ctx_pop.local_variables.clear_references()
+        if ctx_pop.arguments is not None:
+            ctx_pop.arguments.clear_references()
 
     @property
     def current_context(self) -> ExecutionContext:
@@ -104,6 +127,7 @@ class ExecutionEngine:
                 ctx_pop.evaluation_stack.copy_to(target)
             if not self.invocation_stack:
                 self.state = VMState.HALT
+            self._context_unloaded(ctx_pop)
             return
         try:
             self.is_jumping = False
@@ -206,6 +230,7 @@ class ExecutionEngine:
             ctx_pop.evaluation_stack.copy_to(target)
         if not self.invocation_stack:
             self.state = VMState.HALT
+        self._context_unloaded(ctx_pop)
         self.is_jumping = True
 
     def execute_try(self, catch_offset: int, finally_offset: int) -> None:

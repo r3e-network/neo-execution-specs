@@ -8,11 +8,21 @@ from neo.vm.types.stack_item import StackItem, StackItemType
 if TYPE_CHECKING:
     from neo.vm.reference_counter import ReferenceCounter
 
+
 class Array(StackItem):
-    """Mutable array on the stack."""
-    
-    __slots__ = ("_items", "_reference_counter")
-    
+    """Mutable array on the stack.
+
+    Reference counting follows the C# ``CompoundType`` model
+    (neo_csharp_vm/src/Neo.VM/Types/CompoundType.cs): the array tracks how many
+    times it is referenced from VM stack roots via ``stack_references``. The
+    array mutators do NOT touch the reference counter — that bookkeeping lives in
+    the VM jump-table handlers and the recursive ``ReferenceCounter`` traversal,
+    exactly like C#. The ``reference_counter`` constructor argument is retained
+    for source/API compatibility but is unused.
+    """
+
+    __slots__ = ("_items", "_reference_counter", "stack_references")
+
     def __init__(
         self,
         reference_counter: ReferenceCounter | None = None,
@@ -20,59 +30,52 @@ class Array(StackItem):
     ) -> None:
         self._reference_counter = reference_counter
         self._items: list[StackItem] = items if items is not None else []
-        for item in self._items:
-            self._ref_add(item)
+        # C# CompoundType.StackReferences — number of references to this item
+        # from the evaluation stacks / slots. Counted lazily by ReferenceCounter.
+        self.stack_references: int = 0
 
-    def _ref_add(self, item: StackItem) -> None:
-        if self._reference_counter is not None:
-            self._reference_counter.add_reference(item)
-
-    def _ref_remove(self, item: StackItem) -> None:
-        if self._reference_counter is not None:
-            self._reference_counter.remove_reference(item)
-    
     @property
     def type(self) -> StackItemType:
         return StackItemType.ARRAY
-    
+
+    @property
+    def is_stack_referenced(self) -> bool:
+        """C# ``CompoundType.IsStackReferenced`` (StackReferences != 0)."""
+        return self.stack_references != 0
+
+    def sub_items(self) -> Iterator[StackItem]:
+        """C# ``CompoundType.SubItems`` — every contained stack item."""
+        return iter(self._items)
+
     def get_boolean(self) -> bool:
         return True
-    
+
     def __len__(self) -> int:
         return len(self._items)
-    
+
     def __getitem__(self, index: int) -> StackItem:
         return self._items[index]
-    
+
     def __setitem__(self, index: int, value: StackItem) -> None:
-        old = self._items[index]
-        self._ref_remove(old)
         self._items[index] = value
-        self._ref_add(value)
-    
+
     def __iter__(self) -> Iterator[StackItem]:
         return iter(self._items)
-    
+
     def append(self, item: StackItem) -> None:
         self._items.append(item)
-        self._ref_add(item)
 
     def add(self, item: StackItem) -> None:
         """Alias for append."""
         self._items.append(item)
-        self._ref_add(item)
 
     def remove_at(self, index: int) -> None:
         """Remove item at index."""
-        item = self._items[index]
         del self._items[index]
-        self._ref_remove(item)
-    
+
     def reverse(self) -> None:
         """Reverse items in place."""
         self._items.reverse()
-    
+
     def clear(self) -> None:
-        for item in self._items:
-            self._ref_remove(item)
         self._items.clear()
