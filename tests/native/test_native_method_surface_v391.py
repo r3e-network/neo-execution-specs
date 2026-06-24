@@ -225,7 +225,7 @@ EXPECTED_POLICY_METHOD_FLAGS_V391: dict[str, CallFlags] = {
     "getStoragePrice": CallFlags.READ_STATES,
     "getWhitelistFeeContracts": CallFlags.READ_STATES,
     "isBlocked": CallFlags.READ_STATES,
-    "recoverFund": CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+    "recoverFund": CallFlags.ALL,
     "removeWhitelistFeeContract": CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
     "setAttributeFee": CallFlags.STATES,
     "setExecFeeFactor": CallFlags.STATES,

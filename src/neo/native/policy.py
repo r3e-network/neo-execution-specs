@@ -138,7 +138,7 @@ class PolicyContract(NativeContract):
             "recoverFund",
             self.recover_fund,
             cpu_fee=1 << 15,
-            call_flags=CallFlags.STATES | CallFlags.ALLOW_NOTIFY,
+            call_flags=CallFlags.ALL,
             active_in=Hardfork.HF_FAUN,
         )
         self._register_method(
