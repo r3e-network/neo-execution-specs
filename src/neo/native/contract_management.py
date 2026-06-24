@@ -386,14 +386,91 @@ class ContractManagement(NativeContract):
         
         engine.send_notification(self.hash, "Destroy", [calling_hash])
     
-    def initialize(self, engine: Any) -> None:
-        """Initialize contract management on genesis."""
+    def initialize(self, engine: Any, hardfork: Any | None = None) -> None:
+        """Initialize contract management on genesis.
+
+        Mirrors C# ``ContractManagement.InitializeAsync`` (ContractManagement.cs:53):
+        the minimum-deployment-fee and next-available-id keys are only seeded at
+        the contract's ``ActiveIn`` (genesis, ``hardfork is None``).
+        """
+        if hardfork is not None:
+            return
+
         fee_key = self._create_storage_key(PREFIX_MINIMUM_DEPLOYMENT_FEE)
         fee_item = StorageItem()
         fee_item.set(DEFAULT_MINIMUM_DEPLOYMENT_FEE)
         engine.snapshot.add(fee_key, fee_item)
-        
+
         id_key = self._create_storage_key(PREFIX_NEXT_AVAILABLE_ID)
         id_item = StorageItem()
         id_item.set(1)
         engine.snapshot.add(id_key, id_item)
+
+    def on_persist(self, engine: Any) -> None:
+        """Initialize natives at their activation blocks during persistence.
+
+        Mirrors C# ``ContractManagement.OnPersistAsync`` (ContractManagement.cs:71):
+        for every registered native contract, when the persisting block is an
+        initialize block (genesis for genesis-active natives, or a hardfork
+        activation height), create/update its contract-state record and dispatch
+        ``initialize(engine, hardfork)`` for each activating hardfork.  Genesis
+        seeding is performed via the ``hardfork is None`` branch.
+        """
+        settings = getattr(engine, "protocol_settings", None)
+        block = getattr(engine, "persisting_block", None)
+        if block is None and engine.snapshot is not None:
+            block = getattr(engine.snapshot, "persisting_block", None)
+        if settings is None or block is None:
+            return
+        index = int(getattr(block, "index", 0))
+
+        for contract in sorted(
+            NativeContract._contracts_by_id.values(),
+            key=lambda c: c.id,
+            reverse=True,
+        ):
+            hfs = contract.is_initialize_block(settings, index)
+            if hfs is None:
+                continue
+
+            self._record_native_contract_state(engine, contract, index)
+
+            # Genesis-active contracts are initialized on the None branch the
+            # first time their record is created (mirrors C# ContractManagement
+            # which only calls InitializeAsync(engine, null) when ActiveIn is
+            # null and the state did not previously exist).
+            if contract.contract_active_in() is None and index == 0:
+                contract.initialize(engine, None)
+
+            for hf in hfs:
+                contract.initialize(engine, hf)
+
+    def _record_native_contract_state(
+        self, engine: Any, contract: NativeContract, index: int
+    ) -> None:
+        """Create or update the on-chain ContractState record for a native."""
+        snapshot = engine.snapshot
+        if snapshot is None:
+            return
+
+        contract_state = contract.get_contract_state(engine)
+        key = self._create_storage_key(PREFIX_CONTRACT, contract.hash.data)
+
+        existing = snapshot.get(key)
+        if existing is None:
+            snapshot.add(key, StorageItem(contract_state.to_bytes()))
+            hash_key = self._create_storage_key(
+                PREFIX_CONTRACT_HASH, contract.id.to_bytes(4, "big", signed=True)
+            )
+            snapshot.add(hash_key, StorageItem(contract.hash.data))
+            event = "Deploy"
+        else:
+            old = ContractState.from_bytes(existing.value)
+            old.update_counter += 1
+            old.nef = contract_state.nef
+            old.manifest = contract_state.manifest
+            existing.value = old.to_bytes()
+            event = "Update"
+
+        if hasattr(engine, "send_notification"):
+            engine.send_notification(self.hash, event, [contract.hash])

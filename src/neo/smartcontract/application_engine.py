@@ -72,6 +72,10 @@ class ApplicationEngine(ExecutionEngine):
     # (C# ApplicationEngine.Runtime.cs:42 MaxNotificationCount = 512).
     MAX_NOTIFICATION_COUNT = 512
 
+    # Pico-fee multiplier (C# ApplicationEngine.cs:74 FeeFactor = 10000).
+    # 1 datoshi = 1e-8 GAS, 1 picoGAS = 1e-12 GAS, so 1 datoshi = FeeFactor picoGAS.
+    FeeFactor = 10000
+
     def __init__(
         self,
         trigger: TriggerType = TriggerType.APPLICATION,
@@ -186,6 +190,25 @@ class ApplicationEngine(ExecutionEngine):
         self.gas_consumed += amount
         if self.gas_consumed > self.gas_limit:
             raise OutOfGasException("Out of gas")
+
+    def add_fee(self, pico_gas: int) -> None:
+        """Charge a fee expressed in pico-GAS units.
+
+        Mirrors C# ``ApplicationEngine.AddFee`` (ApplicationEngine.cs:541),
+        which accumulates ``_feeConsumed`` in picoGAS (1 picoGAS = 1e-12 GAS)
+        and faults when it exceeds the available fee.
+
+        This engine accounts gas in datoshi (1 datoshi = 1e-8 GAS), so a
+        pico-GAS amount maps to datoshi by dividing out :attr:`FeeFactor`
+        (1 datoshi = FeeFactor picoGAS). Callers that already work in datoshi
+        should pass ``amount * FeeFactor`` so the multiplier cancels, exactly
+        as the C# reference multiplies fixed/datoshi fees by ``FeeFactor``
+        before calling ``AddFee``.
+        """
+        # Round up so a sub-datoshi pico charge is never silently dropped,
+        # matching C#'s DivideCeiling-based fee accounting.
+        datoshi = -(-int(pico_gas) // self.FeeFactor)
+        self.add_gas(datoshi)
 
     def send_notification(self, script_hash: UInt160, event_name: str, state: StackItem) -> None:
         """Send a notification event.

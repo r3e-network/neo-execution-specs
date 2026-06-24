@@ -509,8 +509,11 @@ class NeoToken(FungibleToken):
         if not engine.check_witness_pubkey(pubkey_bytes):
             return False
 
-        # Charge registration fee
-        engine.add_fee(self.get_register_price(engine.snapshot))
+        # Charge registration fee.
+        # C# RegisterCandidate (NeoToken.cs:407) charges
+        # AddFee(GetRegisterPrice(...) * ApplicationEngine.FeeFactor) in picoGAS.
+        fee_factor = getattr(engine, "FeeFactor", 10000)
+        engine.add_fee(self.get_register_price(engine.snapshot) * fee_factor)
 
         return self.register_internal(engine, pubkey_bytes)
 
@@ -859,8 +862,14 @@ class NeoToken(FungibleToken):
         point = ECPoint.decode(raw, SECP256R1)
         return point.encode(compressed=True)
 
-    def initialize(self, engine: Any) -> None:
-        """Initialize NEO token on genesis."""
+    def initialize(self, engine: Any, hardfork: Any | None = None) -> None:
+        """Initialize NEO token on genesis.
+
+        NeoToken is genesis-active; seeding only runs on the genesis /
+        ``ActiveIn`` branch (``hardfork is None``).
+        """
+        if hardfork is not None:
+            return
         # Initialize committee with standby committee (pubkey + votes=0 each),
         # mirroring C# InitializeAsync's CachedCommittee seed (NeoToken.cs:206).
         committee_key = self._create_storage_key(PREFIX_COMMITTEE)

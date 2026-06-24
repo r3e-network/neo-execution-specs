@@ -274,6 +274,35 @@ class NativeContract(ABC):
                 used.add(event.deprecated_in)
         return used
 
+    def is_initialize_block(self, settings: Any, index: int) -> list[Any] | None:
+        """Return the hardforks initializing this native at *index*, else None.
+
+        Mirrors C# ``NativeContract.IsInitializeBlock`` (NativeContract.cs:293):
+
+        * every used hardfork whose configured activation height equals *index*
+          is collected and returned (the dispatch will call ``initialize`` once
+          per returned hardfork);
+        * if none match and ``index == 0`` and the contract is genesis-active
+          (``ActiveIn is None``) an empty list is returned, signalling that the
+          genesis (``hardfork is None``) initialization must run;
+        * otherwise ``None`` is returned (no initialization at this block).
+        """
+        hfs: list[Any] = []
+        for hardfork in self._used_hardforks():
+            height = self._hardfork_height(settings, hardfork)
+            if height is None:
+                continue
+            if int(height) == int(index):
+                hfs.append(hardfork)
+
+        if hfs:
+            return hfs
+
+        if int(index) == 0 and self.contract_active_in() is None:
+            return []
+
+        return None
+
     def _native_update_counter(self, context: Any) -> int:
         settings, _ = self._hardfork_context(context)
         if settings is None:
@@ -759,8 +788,15 @@ class NativeContract(ABC):
         if not cls.is_hardfork_enabled(context, hardfork):
             raise KeyError(f"Method not active for hardfork: {method_name}")
     
-    def initialize(self, engine: Any) -> None:
-        """Initialize the contract. Called on genesis block."""
+    def initialize(self, engine: Any, hardfork: Any | None = None) -> None:
+        """Initialize the contract for a specific hardfork.
+
+        Mirrors C# ``NativeContract.InitializeAsync(engine, hardfork)``.
+        ``hardfork is None`` corresponds to genesis / the contract's
+        ``ActiveIn`` activation; a non-None value is the specific hardfork whose
+        activation block is being persisted.  The base implementation is a
+        no-op; genesis-active natives seed their state on the ``None`` branch.
+        """
         pass
     
     def on_persist(self, engine: Any) -> None:

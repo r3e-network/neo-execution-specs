@@ -205,8 +205,14 @@ class OracleContract(NativeContract):
             return ["NEP-30"]
         return []
     
-    def initialize(self, engine: Any) -> None:
-        """Initialize Oracle contract storage."""
+    def initialize(self, engine: Any, hardfork: Any | None = None) -> None:
+        """Initialize Oracle contract storage.
+
+        Oracle is genesis-active; seeding only runs on the genesis /
+        ``ActiveIn`` branch (``hardfork is None``).
+        """
+        if hardfork is not None:
+            return
         snapshot = engine.snapshot if hasattr(engine, 'snapshot') else None
         if snapshot is None:
             return

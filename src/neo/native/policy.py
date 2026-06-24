@@ -245,33 +245,61 @@ class PolicyContract(NativeContract):
     
     def get_exec_fee_factor(self, snapshot: Any) -> int:
         """Get execution fee factor.
-        
+
         This multiplier adjusts system fees for transactions.
-        
+
+        Mirrors C# ``PolicyContract.GetExecFeeFactor`` (PolicyContract.cs:187):
+        the stored value is held in datoshi before HF_Faun and in pico-GAS
+        (``datoshi * FeeFactor``) from HF_Faun onward.  When Faun is enabled the
+        stored pico value is divided by :data:`DEFAULT_EXEC_PICO_FEE_FACTOR`
+        (``ApplicationEngine.FeeFactor``) to recover the datoshi factor.
+
         Returns:
-            Execution fee factor
+            Execution fee factor (datoshi unit)
         """
         key = self._create_storage_key(PREFIX_EXEC_FEE_FACTOR)
         item = snapshot.get(key)
-        return int(item) if item else DEFAULT_EXEC_FEE_FACTOR
+        if item is None:
+            return DEFAULT_EXEC_FEE_FACTOR
+        if NativeContract.is_hardfork_enabled(snapshot, Hardfork.HF_FAUN):
+            return int(item) // DEFAULT_EXEC_PICO_FEE_FACTOR
+        return int(item)
 
     def get_exec_pico_fee_factor(self, snapshot: Any) -> int:
-        """Get execution pico-fee factor."""
+        """Get execution pico-fee factor.
+
+        Mirrors C# ``PolicyContract.GetExecPicoFeeFactor`` (PolicyContract.cs:209):
+        returns the raw stored value, which post-Faun is already held in
+        pico-GAS.  When no value has been migrated yet the genesis default
+        (``DEFAULT_EXEC_FEE_FACTOR * FeeFactor``) is returned.
+        """
         NativeContract.require_hardfork(snapshot, Hardfork.HF_FAUN, "getExecPicoFeeFactor")
-        return self.get_exec_fee_factor(snapshot) * DEFAULT_EXEC_PICO_FEE_FACTOR
-    
+        key = self._create_storage_key(PREFIX_EXEC_FEE_FACTOR)
+        item = snapshot.get(key)
+        if item is None:
+            return DEFAULT_EXEC_FEE_FACTOR * DEFAULT_EXEC_PICO_FEE_FACTOR
+        return int(item)
+
     def set_exec_fee_factor(self, engine: Any, value: int) -> None:
         """Set execution fee factor. Committee only.
-        
+
+        Mirrors C# ``PolicyContract.SetExecFeeFactor`` (PolicyContract.cs:514):
+        post-HF_Faun the upper bound is ``FeeFactor * MaxExecFeeFactor`` (the
+        value is supplied in pico units); pre-Faun it is ``MaxExecFeeFactor``.
+
         Args:
             engine: Application engine
-            value: Fee factor (must be 1-100)
+            value: Fee factor (post-Faun pico-GAS, else datoshi)
         """
-        if value <= 0 or value > MAX_EXEC_FEE_FACTOR:
-            raise ValueError(f"ExecFeeFactor must be between [1, {MAX_EXEC_FEE_FACTOR}], got {value}")
+        if NativeContract.is_hardfork_enabled(engine, Hardfork.HF_FAUN):
+            max_value = DEFAULT_EXEC_PICO_FEE_FACTOR * MAX_EXEC_FEE_FACTOR
+        else:
+            max_value = MAX_EXEC_FEE_FACTOR
+        if value <= 0 or value > max_value:
+            raise ValueError(f"ExecFeeFactor must be between [1, {max_value}], got {value}")
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
-        
+
         key = self._create_storage_key(PREFIX_EXEC_FEE_FACTOR)
         item = engine.snapshot.get_and_change(key, lambda: StorageItem())
         item.set(value)
@@ -421,23 +449,34 @@ class PolicyContract(NativeContract):
     
     def block_account(self, engine: Any, account: UInt160) -> bool:
         """Block an account. Committee only.
-        
-        Blocked accounts cannot send transactions.
-        
+
+        Blocked accounts cannot send transactions.  Mirrors C#
+        ``BlockAccountV0``/``BlockAccountV1`` (PolicyContract.cs:573-587) which
+        assert committee witness then delegate to ``BlockAccountInternal``.
+
         Args:
             engine: Application engine
             account: Account to block
-            
+
         Returns:
             True if newly blocked, False if already blocked
         """
         if not engine.check_committee():
             raise PermissionError("Committee signature required")
-        
+        return self.block_account_internal(engine, account)
+
+    def block_account_internal(self, engine: Any, account: UInt160) -> bool:
+        """Block an account without the committee check.
+
+        Mirrors C# ``PolicyContract.BlockAccountInternal``
+        (PolicyContract.cs:589-616): faults on native contracts, no-ops if the
+        account is already blocked, removes the account's vote post-HF_Faun,
+        and records the request timestamp (post-Faun) or an empty marker.
+        """
         # Cannot block native contracts
         if NativeContract.is_native(account):
-            raise ValueError("Cannot block native contract")
-        
+            raise ValueError("Cannot block a native contract.")
+
         key = self._create_storage_key(PREFIX_BLOCKED_ACCOUNT, account.data)
         if engine.snapshot.contains(key):
             return False
@@ -454,6 +493,48 @@ class PolicyContract(NativeContract):
             entry.set(b"")
         engine.snapshot.add(key, entry)
         return True
+
+    def clean_whitelist(self, engine: Any, contract_state: Any) -> int:
+        """Remove all whitelist-fee entries for a contract.
+
+        Mirrors C# ``PolicyContract.CleanWhitelist`` (PolicyContract.cs:368):
+        deletes every ``Prefix_WhitelistedFeeContracts`` entry keyed by the
+        contract's hash and emits a ``WhitelistFeeChanged`` (cleared) event for
+        each, returning the number of entries removed.  Used by ``destroy`` to
+        drop whitelist state for a contract being torn down.
+        """
+        contract_hash = getattr(contract_state, "hash", None)
+        if contract_hash is None:
+            return 0
+
+        snapshot = engine.snapshot
+        prefix = self._create_storage_key(PREFIX_WHITELIST_FEE, contract_hash.data)
+        if not hasattr(snapshot, "find"):
+            return 0
+
+        count = 0
+        rows = list(snapshot.find(prefix))
+        for key, item in rows:
+            snapshot.delete(key)
+            count += 1
+            method, arg_count = self._decode_whitelist_entry(item)
+            if hasattr(engine, "send_notification"):
+                engine.send_notification(
+                    self.hash,
+                    "WhitelistFeeChanged",
+                    [contract_hash, method, arg_count, None],
+                )
+        return count
+
+    @staticmethod
+    def _decode_whitelist_entry(item: Any) -> tuple[Any, Any]:
+        """Best-effort decode of a stored whitelist entry's method/arg-count.
+
+        The local storage model holds only the fixed fee, so method/arg-count
+        metadata is not recoverable here; ``None`` placeholders are emitted in
+        the cleared event, which is sufficient for the destroy notification.
+        """
+        return None, None
     
     def unblock_account(self, engine: Any, account: UInt160) -> bool:
         """Unblock an account. Committee only.
@@ -815,34 +896,91 @@ class PolicyContract(NativeContract):
             return caller(token_hash, method, args)
         raise ValueError(f"Unable to invoke {method} on contract {token_hash}.")
 
-    def initialize(self, engine: Any) -> None:
-        """Initialize policy contract on genesis."""
-        fee_key = self._create_storage_key(PREFIX_FEE_PER_BYTE)
-        fee_item = StorageItem()
-        fee_item.set(DEFAULT_FEE_PER_BYTE)
-        engine.snapshot.add(fee_key, fee_item)
-        
-        exec_key = self._create_storage_key(PREFIX_EXEC_FEE_FACTOR)
-        exec_item = StorageItem()
-        exec_item.set(DEFAULT_EXEC_FEE_FACTOR)
-        engine.snapshot.add(exec_key, exec_item)
-        
-        storage_key = self._create_storage_key(PREFIX_STORAGE_PRICE)
-        storage_item = StorageItem()
-        storage_item.set(DEFAULT_STORAGE_PRICE)
-        engine.snapshot.add(storage_key, storage_item)
+    def initialize(self, engine: Any, hardfork: Any | None = None) -> None:
+        """Initialize policy contract per hardfork.
 
+        Mirrors C# ``PolicyContract.InitializeAsync`` (PolicyContract.cs:136):
+
+        * At the contract's ``ActiveIn`` (genesis, ``hardfork is None``) seed the
+          base fee-per-byte / exec-fee-factor (datoshi) / storage-price.
+        * At HF_Echidna seed the NotaryAssisted attribute fee plus the
+          milliseconds-per-block / max-valid-until-block-increment /
+          max-traceable-blocks keys from ``ProtocolSettings``.
+        * At HF_Faun migrate the stored exec-fee-factor from datoshi to pico
+          (``* FeeFactor``) and stamp blocked accounts with the current time.
+        """
+        snapshot = engine.snapshot
+
+        if hardfork is None:
+            fee_key = self._create_storage_key(PREFIX_FEE_PER_BYTE)
+            fee_item = StorageItem()
+            fee_item.set(DEFAULT_FEE_PER_BYTE)
+            snapshot.add(fee_key, fee_item)
+
+            exec_key = self._create_storage_key(PREFIX_EXEC_FEE_FACTOR)
+            exec_item = StorageItem()
+            exec_item.set(DEFAULT_EXEC_FEE_FACTOR)
+            snapshot.add(exec_key, exec_item)
+
+            storage_key = self._create_storage_key(PREFIX_STORAGE_PRICE)
+            storage_item = StorageItem()
+            storage_item.set(DEFAULT_STORAGE_PRICE)
+            snapshot.add(storage_key, storage_item)
+
+        if hardfork == Hardfork.HF_ECHIDNA:
+            self._initialize_echidna(engine)
+
+        if hardfork == Hardfork.HF_FAUN:
+            self._initialize_faun(engine)
+
+    def _initialize_echidna(self, engine: Any) -> None:
+        """Seed HF_Echidna policy keys from ProtocolSettings."""
+        snapshot = engine.snapshot
+        settings = getattr(engine, "protocol_settings", None)
+
+        attr_key = self._create_storage_key(
+            PREFIX_ATTRIBUTE_FEE, bytes([ATTRIBUTE_TYPE_NOTARY_ASSISTED])
+        )
+        attr_item = StorageItem()
+        attr_item.set(DEFAULT_NOTARY_ASSISTED_ATTRIBUTE_FEE)
+        snapshot.add(attr_key, attr_item)
+
+        ms_value = getattr(settings, "milliseconds_per_block", DEFAULT_MILLISECONDS_PER_BLOCK)
         ms_key = self._create_storage_key(PREFIX_MILLISECONDS_PER_BLOCK)
         ms_item = StorageItem()
-        ms_item.set(DEFAULT_MILLISECONDS_PER_BLOCK)
-        engine.snapshot.add(ms_key, ms_item)
+        ms_item.set(int(ms_value))
+        snapshot.add(ms_key, ms_item)
 
+        max_vub_value = getattr(
+            settings, "max_valid_until_block_increment", DEFAULT_MAX_VALID_UNTIL_BLOCK_INCREMENT
+        )
         max_vub_key = self._create_storage_key(PREFIX_MAX_VALID_UNTIL_BLOCK_INCREMENT)
         max_vub_item = StorageItem()
-        max_vub_item.set(DEFAULT_MAX_VALID_UNTIL_BLOCK_INCREMENT)
-        engine.snapshot.add(max_vub_key, max_vub_item)
+        max_vub_item.set(int(max_vub_value))
+        snapshot.add(max_vub_key, max_vub_item)
 
+        max_trace_value = getattr(
+            settings, "max_traceable_blocks", DEFAULT_MAX_TRACEABLE_BLOCKS
+        )
         max_trace_key = self._create_storage_key(PREFIX_MAX_TRACEABLE_BLOCKS)
         max_trace_item = StorageItem()
-        max_trace_item.set(DEFAULT_MAX_TRACEABLE_BLOCKS)
-        engine.snapshot.add(max_trace_key, max_trace_item)
+        max_trace_item.set(int(max_trace_value))
+        snapshot.add(max_trace_key, max_trace_item)
+
+    def _initialize_faun(self, engine: Any) -> None:
+        """Migrate exec-fee-factor to pico and stamp blocked accounts (HF_Faun)."""
+        snapshot = engine.snapshot
+
+        exec_key = self._create_storage_key(PREFIX_EXEC_FEE_FACTOR)
+        item = snapshot.get_and_change(exec_key)
+        if item is None:
+            raise ValueError("Policy was not initialized")
+        item.set(int(item) * DEFAULT_EXEC_PICO_FEE_FACTOR)
+
+        time = self._current_time_ms(engine)
+        if hasattr(snapshot, "find"):
+            prefix = self._create_storage_key(PREFIX_BLOCKED_ACCOUNT)
+            for key, _value in list(snapshot.find(prefix)):
+                blocked = snapshot.get_and_change(key)
+                if blocked is not None:
+                    blocked.set(time)

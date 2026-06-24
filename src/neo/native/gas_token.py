@@ -34,11 +34,15 @@ class GasToken(FungibleToken):
         """1 GAS = 10^8 datoshi."""
         return 10 ** 8
     
-    def initialize(self, engine: Any) -> None:
+    def initialize(self, engine: Any, hardfork: Any | None = None) -> None:
         """Initialize GAS token on genesis.
-        
-        Mints the initial GAS distribution to the BFT address.
+
+        Mints the initial GAS distribution to the BFT address.  GasToken is
+        genesis-active, so the mint only runs on the genesis / ``ActiveIn``
+        branch (``hardfork is None``).
         """
+        if hardfork is not None:
+            return
         initial_gas = engine.protocol_settings.initial_gas_distribution
         bft_address = engine.protocol_settings.get_bft_address()
         self.mint(engine, bft_address, initial_gas, False)

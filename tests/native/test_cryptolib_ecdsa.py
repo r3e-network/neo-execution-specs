@@ -231,7 +231,21 @@ class TestVerifyWrongCurve:
     """Passing a signature verified against the wrong curve should fail."""
 
     def test_r1_sig_with_k1_curve_faults(self, crypto: CryptoLib):
-        private, pubkey = _make_r1_keypair()
+        # Generate an r1 keypair whose compressed pubkey is genuinely off-curve
+        # on secp256k1 (its x-coordinate has no valid square root on k1). Only
+        # ~half of random r1 x-coordinates are off-curve on k1, so retry until a
+        # deterministically off-curve key is produced — otherwise this test is
+        # flaky and intermittently sees a valid k1 decode (returning False
+        # instead of faulting).
+        for _ in range(64):
+            private, pubkey = _make_r1_keypair()
+            try:
+                ECPoint.decode(pubkey, SECP256K1)
+            except (ValueError, ArithmeticError):
+                break  # pubkey is off-curve on k1 — the case we want
+        else:  # pragma: no cover - astronomically unlikely
+            pytest.skip("could not generate an r1 key off-curve on secp256k1")
+
         message = b"cross-curve test"
         signature = _sign_r1(private, message)
 
