@@ -231,20 +231,21 @@ class TestVerifyWrongCurve:
     """Passing a signature verified against the wrong curve should fail."""
 
     def test_r1_sig_with_k1_curve_faults(self, crypto: CryptoLib):
-        # Generate an r1 keypair whose compressed pubkey is genuinely off-curve
-        # on secp256k1 (its x-coordinate has no valid square root on k1). Only
-        # ~half of random r1 x-coordinates are off-curve on k1, so retry until a
-        # deterministically off-curve key is produced — otherwise this test is
-        # flaky and intermittently sees a valid k1 decode (returning False
-        # instead of faulting).
-        for _ in range(64):
-            private, pubkey = _make_r1_keypair()
-            try:
-                ECPoint.decode(pubkey, SECP256K1)
-            except (ValueError, ArithmeticError):
-                break  # pubkey is off-curve on k1 — the case we want
-        else:  # pragma: no cover - astronomically unlikely
-            pytest.skip("could not generate an r1 key off-curve on secp256k1")
+        # Deterministic off-curve vector. The secp256r1 public key for the fixed
+        # private scalar 2 has x = 0x7cf27b18..., whose value has NO square root
+        # on secp256k1 (x^3 + 7 is a quadratic non-residue mod the k1 prime), so
+        # decompressing the compressed pubkey as a k1 point finds no valid y.
+        # A *random* r1 key is only ~50% likely to be off-curve on k1, which made
+        # this test intermittently flaky (a valid k1 decode returns False instead
+        # of faulting); the fixed scalar removes that nondeterminism entirely.
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        private = ec.derive_private_key(2, ec.SECP256R1())
+        nums = private.public_key().public_numbers()
+        pubkey = ECPoint(nums.x, nums.y, SECP256R1).encode(compressed=True)
+        assert pubkey.hex() == (
+            "037cf27b188d034f7e8a52380304b51ac3c08969e277f21b35a60b48fc47669978"
+        )
 
         message = b"cross-curve test"
         signature = _sign_r1(private, message)
